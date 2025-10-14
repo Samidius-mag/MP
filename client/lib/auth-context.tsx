@@ -90,7 +90,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       setUser(userData);
     } catch (error: any) {
-      throw new Error(error.response?.data?.error || 'Ошибка регистрации');
+      const status = error?.response?.status;
+      const serverMessage = error?.response?.data?.error;
+      const message =
+        status === 409
+          ? 'Пользователь с таким email уже существует'
+          : (serverMessage || 'Ошибка регистрации');
+      throw new Error(message);
     }
   };
 
