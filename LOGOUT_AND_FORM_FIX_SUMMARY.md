@@ -98,3 +98,4 @@ const handleApiKeySubmit = async (marketplace: string, data: any) => {
 Теперь кнопка выхода работает корректно, а сохранение API ключей не вызывает нежелательных переходов.
 
 
+
