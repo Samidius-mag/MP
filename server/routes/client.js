@@ -428,7 +428,7 @@ router.post('/import-orders', requireClient, async (req, res) => {
           await client.query(
             `INSERT INTO orders (client_id, marketplace_order_id, marketplace, status, total_amount, customer_name, customer_phone, customer_email, delivery_address, items, created_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-             ON CONFLICT (marketplace, marketplace_order_id) DO UPDATE SET
+             ON CONFLICT (client_id, marketplace_order_id, marketplace) DO UPDATE SET
              status = EXCLUDED.status,
              total_amount = EXCLUDED.total_amount,
              customer_name = EXCLUDED.customer_name,
