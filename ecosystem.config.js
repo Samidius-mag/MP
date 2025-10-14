@@ -14,7 +14,15 @@ module.exports = {
       },
       env_production: {
         NODE_ENV: 'production',
-        PORT: 3001
+        PORT: 3001,
+        DB_HOST: 'localhost',
+        DB_PORT: 5432,
+        DB_NAME: 'dropshipping_db',
+        DB_USER: 'dropshipping',
+        DB_PASSWORD: 'KeyOfWorld2025',
+        JWT_SECRET: 'KeyOfWorld2025',
+        JWT_EXPIRES_IN: '7d',
+        CLIENT_URL: 'https://telematius.ru'
       },
       error_file: '/var/log/pm2/dropshipping-server-error.log',
       out_file: '/var/log/pm2/dropshipping-server-out.log',
