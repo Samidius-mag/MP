@@ -195,7 +195,7 @@ export default function ClientSettingsPage() {
                   <h3 className="text-lg font-medium text-gray-900">Личная информация</h3>
                 </div>
                 <div className="card-body">
-                  <form onSubmit={handleProfileSubmit} className="space-y-6">
+                  <form onSubmit={handleProfileSubmit(onProfileSubmit)} className="space-y-6">
                     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                       <div>
                         <label className="label">Имя *</label>
@@ -247,7 +247,7 @@ export default function ClientSettingsPage() {
                   <h3 className="text-lg font-medium text-gray-900">Информация о компании</h3>
                 </div>
                 <div className="card-body">
-                  <form onSubmit={handleProfileSubmit} className="space-y-6">
+                  <form onSubmit={handleProfileSubmit(onProfileSubmit)} className="space-y-6">
                     <div>
                       <label className="label">Название компании</label>
                       <input
