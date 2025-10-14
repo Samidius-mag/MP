@@ -161,6 +161,49 @@ const createTables = async () => {
       CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
     `);
 
+    // Миграция уникальности заказов: переходим с (marketplace, marketplace_order_id)
+    // на (client_id, marketplace_order_id, marketplace) для корректного upsert'а
+    try {
+      // 1) Удаляем возможные дубликаты под новую группу уникальности
+      await client.query(`
+        WITH duplicates AS (
+          SELECT id,
+                 ROW_NUMBER() OVER (
+                   PARTITION BY client_id, marketplace, marketplace_order_id
+                   ORDER BY id
+                 ) AS rn
+          FROM orders
+        )
+        DELETE FROM orders
+        WHERE id IN (
+          SELECT id FROM duplicates WHERE rn > 1
+        );
+      `);
+
+      // 2) Пытаемся удалить старый уникальный индекс/ограничение, если он есть
+      // (создан таблицей как UNIQUE(marketplace, marketplace_order_id))
+      const idxResult = await client.query(`
+        SELECT indexname
+        FROM pg_indexes 
+        WHERE tablename = 'orders' 
+          AND indexdef ILIKE '%UNIQUE%'
+          AND indexdef ILIKE '%(marketplace, marketplace_order_id%';
+      `);
+
+      for (const row of idxResult.rows) {
+        // DROP INDEX IF EXISTS <indexname>
+        await client.query(`DROP INDEX IF EXISTS ${row.indexname};`);
+      }
+
+      // 3) Создаём требуемый уникальный индекс под ON CONFLICT (client_id, marketplace_order_id, marketplace)
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS orders_client_marketplace_unique
+        ON orders (client_id, marketplace_order_id, marketplace);
+      `);
+    } catch (mErr) {
+      console.error('❌ Migration error (orders unique index):', mErr.message);
+    }
+
     console.log('✅ Database tables created successfully');
   } catch (err) {
     console.error('❌ Error creating tables:', err.message);
