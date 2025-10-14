@@ -3,9 +3,9 @@
 set -euo pipefail
 
 # Конфигурация
-APP_USER="dropshipping"
-APP_HOME="/var/www/dropshipping"
-REPO_URL="https://github.com/your-username/your-repo.git"  # замените на ваш
+APP_USER="root"
+APP_HOME="/root/MP"
+REPO_URL="https://github.com/Samidius-mag/MP/tree/main"  # замените на ваш
 BRANCH="main"
 
 echo "========================================"

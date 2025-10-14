@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: 'dropshipping-server',
-      cwd: '/var/www/dropshipping',
+      cwd: '/root/MP',
       script: 'server/index.js',
       instances: 1,
       autorestart: true,
@@ -22,7 +22,7 @@ module.exports = {
     },
     {
       name: 'dropshipping-client',
-      cwd: '/var/www/dropshipping/client',
+      cwd: '/root/MP/client',
       script: 'node_modules/next/dist/bin/next',
       args: 'start -p 3000',
       instances: 1,
