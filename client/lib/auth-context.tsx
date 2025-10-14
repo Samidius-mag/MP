@@ -9,6 +9,7 @@ interface User {
   firstName: string;
   lastName: string;
   role: 'client' | 'operator' | 'admin';
+  phone?: string;
   companyName?: string;
   inn?: string;
   address?: string;
