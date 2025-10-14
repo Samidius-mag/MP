@@ -6,6 +6,7 @@ const { pool } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
+const JWT_SECRET = process.env.JWT_SECRET || 'KeyOfWorld2025';
 
 // Регистрация
 router.post('/register', [
@@ -61,7 +62,7 @@ router.post('/register', [
       // Генерируем JWT токен
       const token = jwt.sign(
         { userId: user.id, email: user.email, role: user.role },
-        process.env.JWT_SECRET,
+        JWT_SECRET,
         { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
       );
 
@@ -125,7 +126,7 @@ router.post('/login', [
       // Генерируем JWT токен
       const token = jwt.sign(
         { userId: user.id, email: user.email, role: user.role },
-        process.env.JWT_SECRET,
+        JWT_SECRET,
         { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
       );
 
