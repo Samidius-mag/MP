@@ -77,7 +77,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       setUser(userData);
     } catch (error: any) {
-      throw new Error(error.response?.data?.error || 'Ошибка входа');
+      const status = error?.response?.status;
+      const serverMessage = error?.response?.data?.error;
+      const message =
+        status === 401
+          ? 'Неверный email или пароль'
+          : status === 500
+            ? 'Ошибка сервера при входе'
+            : (serverMessage || 'Ошибка входа');
+      throw new Error(message);
     }
   };
 
