@@ -6,7 +6,7 @@ const { pool } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'KeyOfWorld2025';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // Регистрация
 router.post('/register', [

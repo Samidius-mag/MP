@@ -8,7 +8,8 @@ WORKDIR /app
 
 # Копируем package.json и package-lock.json
 COPY client/package*.json ./
-RUN npm ci --only=production
+# Для сборки Next.js нужны devDependencies
+RUN npm ci
 
 # Пересобираем исходный код только при необходимости
 FROM base AS builder

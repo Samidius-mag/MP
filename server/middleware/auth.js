@@ -1,8 +1,8 @@
 const jwt = require('jsonwebtoken');
 const { pool } = require('../config/database');
 
-// Используем тот же секрет и значение по умолчанию, что и при выдаче токена
-const JWT_SECRET = process.env.JWT_SECRET || 'KeyOfWorld2025';
+// Используем только переменную окружения
+const JWT_SECRET = process.env.JWT_SECRET;
 
 const authenticateToken = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
