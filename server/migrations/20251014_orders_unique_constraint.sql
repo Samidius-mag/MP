@@ -27,14 +27,36 @@ END $$;
 
 -- 3) Create new unique constraint for (client_id, marketplace_order_id, marketplace)
 DO $$
+DECLARE
+  con_exists boolean;
+  idx_exists boolean;
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM pg_constraint c
+  SELECT EXISTS (
+    SELECT 1 FROM pg_constraint c
     JOIN pg_class t ON c.conrelid = t.oid
     WHERE t.relname = 'orders'
       AND c.conname = 'orders_client_marketplace_unique'
-  ) THEN
+  ) INTO con_exists;
+
+  SELECT EXISTS (
+    SELECT 1
+    FROM pg_class i
+    JOIN pg_index ix ON ix.indexrelid = i.oid
+    JOIN pg_class t ON ix.indrelid = t.oid
+    WHERE i.relname = 'orders_client_marketplace_unique'
+      AND t.relname = 'orders'
+  ) INTO idx_exists;
+
+  IF con_exists THEN
+    -- constraint already exists, nothing to do
+    PERFORM 1;
+  ELSIF idx_exists THEN
+    -- attach existing unique index as constraint
+    ALTER TABLE orders
+      ADD CONSTRAINT orders_client_marketplace_unique
+      UNIQUE USING INDEX orders_client_marketplace_unique;
+  ELSE
+    -- create constraint from scratch
     ALTER TABLE orders
       ADD CONSTRAINT orders_client_marketplace_unique
       UNIQUE (client_id, marketplace_order_id, marketplace);
