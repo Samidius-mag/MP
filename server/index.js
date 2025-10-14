@@ -20,6 +20,11 @@ const { authenticateToken } = require('./middleware/auth');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Validate critical configuration
+if (!process.env.JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET is not set in environment variables.');
+}
+
 // Подключение к базе данных
 connectDB();
 

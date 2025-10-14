@@ -60,6 +60,10 @@ router.post('/register', [
       }
 
       // Генерируем JWT токен
+      if (!JWT_SECRET) {
+        console.error('JWT_SECRET is not configured');
+        return res.status(500).json({ error: 'Server configuration error' });
+      }
       const token = jwt.sign(
         { userId: user.id, email: user.email, role: user.role },
         JWT_SECRET,
@@ -124,6 +128,10 @@ router.post('/login', [
       }
 
       // Генерируем JWT токен
+      if (!JWT_SECRET) {
+        console.error('JWT_SECRET is not configured');
+        return res.status(500).json({ error: 'Server configuration error' });
+      }
       const token = jwt.sign(
         { userId: user.id, email: user.email, role: user.role },
         JWT_SECRET,
