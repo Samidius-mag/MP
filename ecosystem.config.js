@@ -11,7 +11,14 @@ module.exports = {
       env: {
         NODE_ENV: 'development',
         PORT: 3001,
-        JWT_SECRET: 'dev-secret-change-me'
+        DB_HOST: 'localhost',
+        DB_PORT: 5432,
+        DB_NAME: 'dropshipping_db',
+        DB_USER: 'dropshipping',
+        DB_PASSWORD: 'KeyOfWorld2025',
+        JWT_SECRET: 'KeyOfWorld2025',
+        JWT_EXPIRES_IN: '7d',
+        CLIENT_URL: 'http://localhost:3000'
       },
       env_production: {
         NODE_ENV: 'production',
