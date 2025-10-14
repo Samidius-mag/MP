@@ -31,22 +31,17 @@ module.exports = {
     {
       name: 'dropshipping-client',
       cwd: '/root/MP/client',
-      script: 'node',
-      args: '.next/standalone/server.js',
+      script: 'node_modules/next/dist/bin/next',
+      args: 'start -p 3000',
       instances: 1,
       autorestart: true,
       watch: false,
       max_memory_restart: '512M',
       env: {
-        NODE_ENV: 'development',
-        PORT: 3000,
-        HOSTNAME: '0.0.0.0'
+        NODE_ENV: 'development'
       },
       env_production: {
-        NODE_ENV: 'production',
-        PORT: 3000,
-        HOSTNAME: '0.0.0.0',
-        NEXT_PUBLIC_API_URL: 'https://telematius.ru/api'
+        NODE_ENV: 'production'
       },
       error_file: '/var/log/pm2/dropshipping-client-error.log',
       out_file: '/var/log/pm2/dropshipping-client-out.log',
