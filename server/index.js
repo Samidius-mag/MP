@@ -22,7 +22,8 @@ const PORT = process.env.PORT || 3001;
 
 // Validate critical configuration
 if (!process.env.JWT_SECRET) {
-  console.error('FATAL: JWT_SECRET is not set in environment variables.');
+  console.error('FATAL: JWT_SECRET is not set in environment variables. Exiting.');
+  process.exit(1);
 }
 
 // Подключение к базе данных

@@ -10,7 +10,8 @@ module.exports = {
       max_memory_restart: '512M',
       env: {
         NODE_ENV: 'development',
-        PORT: 3001
+        PORT: 3001,
+        JWT_SECRET: 'dev-secret-change-me'
       },
       env_production: {
         NODE_ENV: 'production',
