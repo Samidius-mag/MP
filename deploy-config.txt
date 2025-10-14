@@ -15,3 +15,4 @@ BRANCH=main
 
 # Настройки PM2
 PM2_APP_NAME=dropshipping-app
+

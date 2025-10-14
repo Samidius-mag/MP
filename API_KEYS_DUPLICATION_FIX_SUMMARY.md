@@ -119,3 +119,4 @@ wildberries: (keys.wildberries?.api_key && keys.wildberries.api_key.trim() !== '
 - ✅ **Правильная работа** формы настроек
 - ✅ **Отдельные эндпоинты** для профиля и API ключей
 
+
