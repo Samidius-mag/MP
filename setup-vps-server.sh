@@ -10,8 +10,8 @@ echo "   Настройка VPS сервера для проекта"
 echo "========================================"
 
 # Обновляем систему
-echo "Обновляем систему..."
-apt update && apt upgrade -y
+echo "Обновляем индекс пакетов..."
+apt update
 
 # Устанавливаем необходимые пакеты
 echo "Устанавливаем необходимые пакеты..."
@@ -30,9 +30,7 @@ apt install -y postgresql postgresql-contrib
 echo "Устанавливаем PM2..."
 npm install -g pm2
 
-# Настраиваем PM2 для автозапуска
-pm2 startup systemd -u root --hp /root
-pm2 install pm2-logrotate
+# Настроим PM2 позже под пользователем приложения (dropshipping)
 
 # Создаем пользователя для приложения
 echo "Создаем пользователя для приложения..."
@@ -46,18 +44,24 @@ mkdir -p /var/log/pm2
 chown -R dropshipping:dropshipping /var/www/dropshipping
 chown -R dropshipping:dropshipping /var/log/pm2
 
+# Настраиваем PM2 для автозапуска под пользователем dropshipping
+echo "Настраиваем PM2 (systemd) под пользователем dropshipping..."
+pm2 startup systemd -u dropshipping --hp /home/dropshipping
+# Установим модуль лог- ротации под пользователем приложения
+sudo -iu dropshipping bash -lc 'pm2 install pm2-logrotate || true'
+
 # Настраиваем PostgreSQL
 echo "Настраиваем PostgreSQL..."
-sudo -u postgres psql -c "CREATE USER dropshipping WITH PASSWORD 'your_secure_password';"
-sudo -u postgres psql -c "CREATE DATABASE dropshipping_db OWNER dropshipping;"
-sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE dropshipping_db TO dropshipping;"
+sudo -u postgres psql -c "CREATE USER dropshipping WITH PASSWORD 'KeyOfWorld2025';" || true
+sudo -u postgres psql -c "CREATE DATABASE dropshipping_db OWNER dropshipping;" || true
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE dropshipping_db TO dropshipping;" || true
 
 # Настраиваем Nginx
 echo "Настраиваем Nginx..."
 cat > /etc/nginx/sites-available/dropshipping << 'EOF'
 server {
     listen 80;
-    server_name your-domain.com www.your-domain.com;
+    server_name telematius.ru www.telematius.ru;
 
     # Редирект на HTTPS
     return 301 https://$server_name$request_uri;
@@ -65,15 +69,14 @@ server {
 
 server {
     listen 443 ssl http2;
-    server_name your-domain.com www.your-domain.com;
+    server_name telematius.ru www.telematius.ru;
 
-    # SSL сертификаты (будут созданы позже)
-    ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
+    # Путь к уже полученным сертификатам Let's Encrypt
+    ssl_certificate /etc/letsencrypt/live/telematius.ru/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/telematius.ru/privkey.pem;
 
     # Настройки SSL
     ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384;
     ssl_prefer_server_ciphers off;
 
     # Статические файлы Next.js
@@ -152,38 +155,31 @@ DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=dropshipping_db
 DB_USER=dropshipping
-DB_PASSWORD=your_secure_password
+DB_PASSWORD=KeyOfWorld2025
 
 # JWT
-JWT_SECRET=your_jwt_secret_key_here
+JWT_SECRET=KeyOfWorld2025
 
 # API ключи (заполните своими)
-WILDBERRIES_API_KEY=your_wb_api_key
-OZON_API_KEY=your_ozon_api_key
+WILDBERRIES_API_KEY=KeyOfWorld2025
+OZON_API_KEY=KeyOfWorld2025
 
 # Email (заполните своими)
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=your_email@gmail.com
-SMTP_PASS=your_app_password
+SMTP_PASS=KeyOfWorld2025
 
 # Другие настройки
 NODE_ENV=production
 PORT=3001
-NEXT_PUBLIC_API_URL=https://your-domain.com/api
+NEXT_PUBLIC_API_URL=https://telematius.ru/api
 EOF
 
 chown dropshipping:dropshipping /var/www/dropshipping/.env
 chmod 600 /var/www/dropshipping/.env
 
-# Создаем скрипт для получения SSL сертификата
-cat > /var/www/dropshipping/get-ssl.sh << 'EOF'
-#!/bin/bash
-# Замените your-domain.com на ваш домен
-certbot --nginx -d your-domain.com -d www.your-domain.com
-EOF
-
-chmod +x /var/www/dropshipping/get-ssl.sh
+### SSL уже получен для telematius.ru — шаг получения сертификата пропускаем
 
 echo ""
 echo "========================================"
@@ -192,10 +188,9 @@ echo "========================================"
 echo ""
 echo "Следующие шаги:"
 echo "1. Отредактируйте файл /var/www/dropshipping/.env с вашими настройками"
-echo "2. Замените your-domain.com в /etc/nginx/sites-available/dropshipping на ваш домен"
-echo "3. Запустите: /var/www/dropshipping/get-ssl.sh для получения SSL сертификата"
-echo "4. Перезапустите Nginx: systemctl restart nginx"
-echo "5. Используйте скрипты развертывания для загрузки кода"
+echo "2. Конфигурация Nginx уже указывает на telematius.ru и действующие сертификаты"
+echo "3. Перезапустите Nginx: systemctl restart nginx"
+echo "4. Используйте скрипты развертывания для загрузки кода"
 echo ""
 echo "Для развертывания кода используйте:"
 echo "  ./deploy-to-vps.bat (Windows)"
