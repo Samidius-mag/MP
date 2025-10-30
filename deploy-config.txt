@@ -1,0 +1,20 @@
+# Конфигурация для развертывания на VPS
+# Отредактируйте эти параметры под ваш сервер
+
+# Данные сервера
+VPS_HOST=your-server-ip
+VPS_USER=root
+VPS_PORT=22
+
+# Путь к проекту на сервере
+PROJECT_PATH=/var/www/dropshipping
+
+# Git репозиторий (замените на ваш)
+GIT_REPO=https://github.com/your-username/your-repo.git
+BRANCH=main
+
+# Настройки PM2
+PM2_APP_NAME=dropshipping-app
+
+
+

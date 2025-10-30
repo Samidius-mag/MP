@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  # PostgreSQL база данных
+  postgres:
+    image: postgres:15-alpine
+    container_name: dropshipping-postgres
+    environment:
+      POSTGRES_DB: dropshipping_db
+      POSTGRES_USER: dropshipping
+      POSTGRES_PASSWORD: your_secure_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+  # Express сервер
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: dropshipping-server
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: dropshipping_db
+      DB_USER: dropshipping
+      DB_PASSWORD: your_secure_password
+      JWT_SECRET: your_jwt_secret_key_here
+    depends_on:
+      - postgres
+    ports:
+      - "3001:3001"
+    restart: unless-stopped
+    volumes:
+      - ./server/uploads:/app/uploads
+
+  # Next.js клиент
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    container_name: dropshipping-client
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: https://telematius.ru/api
+    depends_on:
+      - server
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  # Nginx reverse proxy
+  nginx:
+    image: nginx:alpine
+    container_name: dropshipping-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - client
+      - server
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

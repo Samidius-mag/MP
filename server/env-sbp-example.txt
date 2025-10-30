@@ -1,0 +1,28 @@
+# Конфигурация для ВТБ СБП платежей
+# Скопируйте этот файл в .env и заполните реальными данными
+
+# ВТБ СБП API настройки
+VTB_SBP_BASE_URL=https://sandbox.vtb.ru/integration/api/rest
+VTB_MERCHANT_ID=your_merchant_id
+VTB_USER_NAME=your_api_username
+VTB_PASSWORD=your_api_password
+VTB_TOKEN=your_api_token
+
+# Криптографические ключи (выберите один из методов)
+# Для симметричной криптографии (HMAC-SHA256)
+VTB_SECRET_KEY=your_secret_key
+
+# Для асимметричной криптографии (RSA-SHA512)
+# VTB_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----
+# VTB_PUBLIC_KEY=-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----
+
+# URL для уведомлений
+SERVER_BASE_URL=http://localhost:5000
+CLIENT_BASE_URL=http://localhost:3000
+
+# Настройки для продакшена
+# VTB_SBP_BASE_URL=https://ecommerce.vtb.ru/integration/api/rest
+# SERVER_BASE_URL=https://yourdomain.com
+# CLIENT_BASE_URL=https://yourdomain.com
+
+

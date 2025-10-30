@@ -1,0 +1,43 @@
+# Database
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=dropshipping_db
+DB_USER=dropshipping
+DB_PASSWORD=KeyOfWorld2025
+
+# JWT
+JWT_SECRET=KeyOfWorld2025
+JWT_EXPIRES_IN=7d
+
+# Server
+PORT=3001
+NODE_ENV=development
+
+# CORS
+CLIENT_URL=http://localhost:3000
+
+# Email (для уведомлений и верификации)
+# Настройки SMTP сервера для отправки email
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+SMTP_FROM=noreply@yourcompany.com
+
+# ФНС API для проверки ИНН
+FNS_API_KEY=your-fns-api-key
+
+# SMS API (для отправки кодов верификации)
+SMS_API_KEY=your-sms-api-key
+SMS_API_URL=https://api.sms.ru/sms/send
+
+# API Keys для маркетплейсов
+WILDBERRIES_API_KEY=your-wb-api-key
+OZON_API_KEY=your-ozon-api-key
+YANDEX_MARKET_API_KEY=your-yandex-api-key
+
+# Платежные системы
+YUKASSA_SHOP_ID=your-yukassa-shop-id
+YUKASSA_SECRET_KEY=your-yukassa-secret-key
+TINKOFF_TERMINAL_KEY=your-tinkoff-terminal-key
+TINKOFF_SECRET_KEY=your-tinkoff-secret-key
