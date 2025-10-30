@@ -32,7 +32,7 @@ DB_USER=dropshipping\
 DB_PASSWORD=KeyOfWorld2025\
 JWT_SECRET=KeyOfWorld2025\
 JWT_EXPIRES_IN=7d\
-CLIENT_URL=https://telematius.ru\
+CLIENT_URL=https://vgk-perv.ru\
 PORT=3001\
 ENVEOF\
   fi; \
@@ -44,7 +44,7 @@ ENVEOF\
   fi; \
   \
   cd '$APP_HOME/server' && npm ci --production; \
-  cd '$APP_HOME/client' && npm ci && NEXT_PUBLIC_API_URL=https://telematius.ru/api npm run build; \
+  cd '$APP_HOME/client' && npm ci && NEXT_PUBLIC_API_URL=https://vgk-perv.ru/api npm run build; \
   \
   cd '$APP_HOME' && pm2 start ecosystem.config.js --env production && pm2 save; \
 "

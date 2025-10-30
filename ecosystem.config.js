@@ -30,7 +30,7 @@ module.exports = {
         DB_PASSWORD: 'KeyOfWorld2025',
         JWT_SECRET: 'KeyOfWorld2025',
         JWT_EXPIRES_IN: '7d',
-        CLIENT_URL: 'https://telematius.ru'
+        CLIENT_URL: 'https://vgk-perv.ru'
       },
       error_file: '/var/log/pm2/dropshipping-server-error.log',
       out_file: '/var/log/pm2/dropshipping-server-out.log',

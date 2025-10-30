@@ -61,7 +61,7 @@ echo "Настраиваем Nginx..."
 cat > /etc/nginx/sites-available/dropshipping << 'EOF'
 server {
     listen 80;
-    server_name telematius.ru www.telematius.ru;
+    server_name vgk-perv.ru www.vgk-perv.ru;
 
     # Редирект на HTTPS
     return 301 https://$server_name$request_uri;
@@ -69,11 +69,11 @@ server {
 
 server {
     listen 443 ssl http2;
-    server_name telematius.ru www.telematius.ru;
+    server_name vgk-perv.ru www.vgk-perv.ru;
 
     # Путь к уже полученным сертификатам Let's Encrypt
-    ssl_certificate /etc/letsencrypt/live/telematius.ru/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/telematius.ru/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/vgk-perv.ru/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/vgk-perv.ru/privkey.pem;
 
     # Настройки SSL
     ssl_protocols TLSv1.2 TLSv1.3;
@@ -173,13 +173,13 @@ SMTP_PASS=KeyOfWorld2025
 # Другие настройки
 NODE_ENV=production
 PORT=3001
-NEXT_PUBLIC_API_URL=https://telematius.ru/api
+NEXT_PUBLIC_API_URL=https://vgk-perv.ru/api
 EOF
 
 chown dropshipping:dropshipping /var/www/dropshipping/.env
 chmod 600 /var/www/dropshipping/.env
 
-### SSL уже получен для telematius.ru — шаг получения сертификата пропускаем
+### SSL уже получен для vgk-perv.ru — шаг получения сертификата пропускаем
 
 echo ""
 echo "========================================"
@@ -188,7 +188,7 @@ echo "========================================"
 echo ""
 echo "Следующие шаги:"
 echo "1. Отредактируйте файл /var/www/dropshipping/.env с вашими настройками"
-echo "2. Конфигурация Nginx уже указывает на telematius.ru и действующие сертификаты"
+echo "2. Конфигурация Nginx уже указывает на vgk-perv.ru и действующие сертификаты"
 echo "3. Перезапустите Nginx: systemctl restart nginx"
 echo "4. Используйте скрипты развертывания для загрузки кода"
 echo ""

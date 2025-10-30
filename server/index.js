@@ -71,8 +71,8 @@ app.use(helmet());
 app.use(cors({
   origin: [
     process.env.CLIENT_URL || 'http://localhost:3000',
-    'https://telematius.ru',
-    'https://www.telematius.ru'
+    'https://vgk-perv.ru',
+    'https://www.vgk-perv.ru'
   ],
   credentials: true
 }));

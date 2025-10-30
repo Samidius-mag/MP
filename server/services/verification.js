@@ -102,7 +102,7 @@ class VerificationService {
                 <li>При подозрении на компрометацию аккаунта обратитесь к администратору</li>
               </ul>
             </div>
-            <p>Для входа в систему перейдите по ссылке: <a href="${process.env.FRONTEND_URL || 'https://telematius.ru'}/login" style="color: #007bff;">Войти в систему</a></p>
+            <p>Для входа в систему перейдите по ссылке: <a href="${process.env.FRONTEND_URL || 'https://vgk-perv.ru'}/login" style="color: #007bff;">Войти в систему</a></p>
             <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
             <p style="color: #666; font-size: 12px;">Это автоматическое сообщение, не отвечайте на него.</p>
           </div>

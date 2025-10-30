@@ -3,14 +3,14 @@ const nextConfig = {
   reactStrictMode: true,
   experimental: {
     serverActions: {
-      allowedOrigins: ['localhost:3000', 'telematius.ru', 'www.telematius.ru']
+      allowedOrigins: ['localhost:3000', 'vgk-perv.ru', 'www.vgk-perv.ru']
     }
   },
   async rewrites() {
     return [
       {
         source: '/api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_URL || 'https://telematius.ru/api'}/:path*`
+        destination: `${process.env.NEXT_PUBLIC_API_URL || 'https://vgk-perv.ru/api'}/:path*`
       }
     ];
   }

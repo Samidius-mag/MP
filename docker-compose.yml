@@ -47,7 +47,7 @@ services:
     container_name: dropshipping-client
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_URL: https://telematius.ru/api
+      NEXT_PUBLIC_API_URL: https://vgk-perv.ru/api
     depends_on:
       - server
     ports:

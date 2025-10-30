@@ -1,10 +1,10 @@
 import axios from 'axios';
 
-// В браузере используем относительный путь, чтобы ходить через Nginx (https://telematius.ru/api)
+// В браузере используем относительный путь, чтобы ходить через Nginx (https://vgk-perv.ru/api)
 // На сервере (SSR/ISR) используем переменную окружения как абсолютный URL
 const baseURL = typeof window !== 'undefined'
   ? '/api'
-  : (process.env.NEXT_PUBLIC_API_URL || 'https://telematius.ru/api');
+  : (process.env.NEXT_PUBLIC_API_URL || 'https://vgk-perv.ru/api');
 
 export const api = axios.create({
   baseURL,
