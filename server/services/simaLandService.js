@@ -437,7 +437,21 @@ class SimaLandService {
 
       while (true) {
         batchIndex++;
-        const result = await this.fetchProducts(token, 1, perPage, cursorId, options);
+        let result;
+        try {
+          result = await this.fetchProducts(token, 1, perPage, cursorId, options);
+        } catch (e) {
+          const status = e?.response?.status;
+          if (status === 404) {
+            console.warn('Sima-land: items not found (404). Treating as end of stream.');
+            break;
+          }
+          console.warn(`Sima-land transient error on batch #${batchIndex}: ${e.message || e}`);
+          // бэк-офф и продолжим ту же страницу
+          await new Promise(r => setTimeout(r, 3000));
+          batchIndex--; // повторим попытку с тем же номером
+          continue;
+        }
         const items = result.items || [];
         if (items.length === 0) break;
 
