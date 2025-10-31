@@ -1555,12 +1555,13 @@ router.post('/sima-land/products/load', requireClient, async (req, res) => {
       }
 
       // Создаём фоновую задачу и возвращаем jobId
-      const jobId = progressStore.createJob('simaLandImport', { clientId });
+      const categories = Array.isArray(req.body?.categories) ? req.body.categories.filter(Boolean) : [];
+      const jobId = progressStore.createJob('simaLandImport', { clientId, categories });
 
       // Запускаем фоновую загрузку без ожидания результата
       const SimaLandService = require('../services/simaLandService');
       const simaLandService = new SimaLandService();
-      simaLandService.loadProductsForClient(clientId, simaLandToken, jobId)
+      simaLandService.loadProductsForClient(clientId, simaLandToken, jobId, { categories })
         .catch(err => {
           console.error('Sima-land import failed:', err);
           progressStore.failJob(jobId, err.message);

@@ -32,18 +32,24 @@ class SimaLandService {
    * Получить товары из API СИМА ЛЕНД
    * Документация: https://www.sima-land.ru/api/v3/help/
    */
-  async fetchProducts(token, page = 1, perPage = 50, idGreaterThan = null) {
+  async fetchProducts(token, page = 1, perPage = 50, idGreaterThan = null, options = {}) {
     try {
       const logPage = idGreaterThan ? `idGreaterThan ${idGreaterThan}` : `page ${page}`;
       console.log(`Fetching Sima-land products: ${logPage}, perPage ${perPage}`);
 
       // Запрос на получение товаров из каталога
       // Используем правильный endpoint и заголовок x-api-key согласно документации
+      const params = {
+        'per-page': perPage,
+        ...(idGreaterThan ? { 'id-greater-than': idGreaterThan } : { page }),
+      };
+      if (options?.categories && Array.isArray(options.categories) && options.categories.length > 0) {
+        // СИМА ЛЕНД обычно принимает category_id; пробуем передавать массив как CSV
+        params['category_id'] = options.categories.join(',');
+      }
+
       const response = await axios.get(`${this.baseUrl}/item/`, {
-        params: {
-          'per-page': perPage,
-          ...(idGreaterThan ? { 'id-greater-than': idGreaterThan } : { page })
-        },
+        params,
         headers: {
           'x-api-key': token,
           'Accept': 'application/json',
@@ -65,10 +71,7 @@ class SimaLandService {
         await new Promise(r => setTimeout(r, retryAfter * 1000));
         // Одна повторная попытка
         const response = await axios.get(`${this.baseUrl}/item/`, {
-          params: {
-            'per-page': perPage,
-            ...(idGreaterThan ? { 'id-greater-than': idGreaterThan } : { page })
-          },
+          params,
           headers: {
             'x-api-key': token,
             'Accept': 'application/json',
@@ -213,7 +216,7 @@ class SimaLandService {
   /**
    * Загрузить и сохранить товары для клиента
    */
-  async loadProductsForClient(clientId, token, progressJobId) {
+  async loadProductsForClient(clientId, token, progressJobId, options = {}) {
     const progressStore = progressJobId ? require('./progressStore') : null;
     const client = await pool.connect();
     try {
@@ -239,7 +242,7 @@ class SimaLandService {
         batchIndex++;
         let result;
         try {
-          result = await this.fetchProducts(token, 1, perPage, cursorId);
+          result = await this.fetchProducts(token, 1, perPage, cursorId, options);
         } catch (e) {
           // Если возникла ошибка на page-офсете, принудительно переходим на курсорную пагинацию
           result = { items: [] };

@@ -35,6 +35,8 @@ export default function SimaLandProducts() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [hasToken, setHasToken] = useState(false);
+  const [categoriesInput, setCategoriesInput] = useState('');
+  const [selectedCategories, setSelectedCategories] = useState<number[]>([]);
 
   useEffect(() => {
     checkToken();
@@ -112,7 +114,9 @@ export default function SimaLandProducts() {
       setImportStage('');
       setImportDetails(null);
 
-      const response = await api.post('/client/sima-land/products/load');
+      const response = await api.post('/client/sima-land/products/load', {
+        categories: selectedCategories,
+      });
       const jobId = response.data.jobId;
       if (!jobId) {
         toast.error('Не удалось запустить импорт');
@@ -235,14 +239,42 @@ export default function SimaLandProducts() {
             Выберите товары поставщика для добавления в ваш магазин
           </p>
         </div>
-        <button
-          onClick={loadProducts}
-          disabled={loadingProducts || !hasToken}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
-        >
-          <PlusIcon className="w-4 h-4 mr-2" />
-          {loadingProducts ? 'Загрузка...' : 'Загрузить товары'}
-        </button>
+        <div className="flex gap-2 items-center">
+          <input
+            type="text"
+            value={categoriesInput}
+            onChange={(e) => setCategoriesInput(e.target.value)}
+            placeholder="Категории (ID через запятую)"
+            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 w-64"
+          />
+          <button
+            onClick={() => {
+              const ids = categoriesInput
+                .split(',')
+                .map(s => s.trim())
+                .filter(Boolean)
+                .map(Number)
+                .filter(n => Number.isFinite(n) && n > 0);
+              setSelectedCategories(ids);
+              if (ids.length > 0) {
+                toast.success(`Выбрано категорий: ${ids.length}`);
+              } else {
+                toast('Категории не выбраны, будет загружен весь каталог');
+              }
+            }}
+            className="px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+          >
+            Применить
+          </button>
+          <button
+            onClick={loadProducts}
+            disabled={loadingProducts || !hasToken}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
+          >
+            <PlusIcon className="w-4 h-4 mr-2" />
+            {loadingProducts ? 'Загрузка...' : 'Загрузить товары'}
+          </button>
+        </div>
       </div>
 
       {importJobId && (
@@ -250,6 +282,9 @@ export default function SimaLandProducts() {
           <div className="flex items-center justify-between mb-2">
             <div className="text-sm text-blue-800 font-medium">
               Идёт импорт товаров {importStage ? `— ${importStage}` : ''}
+              {selectedCategories.length > 0 && (
+                <span className="ml-2 text-blue-700">(категории: {selectedCategories.join(', ')})</span>
+              )}
             </div>
             <div className="text-sm text-blue-700">{importProgress}%</div>
           </div>
