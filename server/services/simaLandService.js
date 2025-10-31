@@ -50,7 +50,9 @@ class SimaLandService {
    * Документация: https://www.sima-land.ru/api/v3/help/
    */
   async fetchProducts(token, page = 1, perPage = 50, idGreaterThan = null, options = {}) {
-    try {
+    const maxRetries = 3;
+    let attempt = 0;
+    const makeRequest = async () => {
       const logPage = idGreaterThan ? `idGreaterThan ${idGreaterThan}` : `page ${page}`;
       console.log(`Fetching Sima-land products: ${logPage}, perPage ${perPage}`);
 
@@ -71,7 +73,10 @@ class SimaLandService {
           'x-api-key': token,
           'Accept': 'application/json',
           'Content-Type': 'application/json'
-        }
+        },
+        timeout: 30000,
+        httpAgent: new (require('http').Agent)({ keepAlive: true }),
+        httpsAgent: new (require('https').Agent)({ keepAlive: true })
       });
 
       return {
@@ -80,27 +85,26 @@ class SimaLandService {
         pageCount: response.data._meta?.pageCount || 1,
         currentPage: response.data._meta?.currentPage || 1
       };
+    };
+
+    try {
+      return await makeRequest();
     } catch (error) {
       // Обработка rate limit'ов и временных ошибок
       const status = error?.response?.status;
       if (status === 429 || status === 503 || status === 504) {
         const retryAfter = Number(error?.response?.headers?.['retry-after']) || 3;
         await new Promise(r => setTimeout(r, retryAfter * 1000));
-        // Одна повторная попытка
-        const response = await axios.get(`${this.baseUrl}/item/`, {
-          params,
-          headers: {
-            'x-api-key': token,
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          }
-        });
-        return {
-          items: response.data.items || [],
-          total: response.data._meta?.totalCount || 0,
-          pageCount: response.data._meta?.pageCount || 1,
-          currentPage: response.data._meta?.currentPage || 1
-        };
+        return await makeRequest();
+      }
+      // Сетевые ошибки (ECONNRESET/ETIMEDOUT и т.п.) — повторим до 3 раз с экспоненциальной задержкой
+      const transientCodes = ['ECONNRESET', 'ETIMEDOUT', 'EAI_AGAIN', 'ENETUNREACH', 'ECONNREFUSED'];
+      if (transientCodes.includes(error?.code) && attempt < maxRetries) {
+        attempt++;
+        const delayMs = 1000 * Math.pow(2, attempt); // 2s, 4s, 8s
+        console.warn(`Transient error ${error.code}. Retry ${attempt}/${maxRetries} in ${delayMs}ms`);
+        await new Promise(r => setTimeout(r, delayMs));
+        return await makeRequest();
       }
       console.error('Sima-land API error:', error.response?.data || error.message);
       throw new Error(`Failed to fetch products: ${error.response?.statusText || error.message}`);
