@@ -17,18 +17,9 @@ apt update
 echo "Устанавливаем необходимые пакеты..."
 apt install -y curl wget git nginx certbot python3-certbot-nginx ufw fail2ban
 
-# Устанавливаем Node.js 18.x
-echo "Устанавливаем Node.js 18.x..."
-curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-apt install -y nodejs
-
 # Устанавливаем PostgreSQL
 echo "Устанавливаем PostgreSQL..."
 apt install -y postgresql postgresql-contrib
-
-# Устанавливаем PM2 глобально
-echo "Устанавливаем PM2..."
-npm install -g pm2
 
 # Настроим PM2 позже под пользователем приложения (dropshipping)
 
@@ -43,12 +34,6 @@ mkdir -p /var/www/dropshipping
 mkdir -p /var/log/pm2
 chown -R dropshipping:dropshipping /var/www/dropshipping
 chown -R dropshipping:dropshipping /var/log/pm2
-
-# Настраиваем PM2 для автозапуска под пользователем dropshipping
-echo "Настраиваем PM2 (systemd) под пользователем dropshipping..."
-pm2 startup systemd -u dropshipping --hp /home/dropshipping
-# Установим модуль лог- ротации под пользователем приложения
-sudo -iu dropshipping bash -lc 'pm2 install pm2-logrotate || true'
 
 # Настраиваем PostgreSQL
 echo "Настраиваем PostgreSQL..."
