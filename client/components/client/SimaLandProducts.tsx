@@ -25,6 +25,10 @@ export default function SimaLandProducts() {
   const [filteredProducts, setFilteredProducts] = useState<SimaLandProduct[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const [importJobId, setImportJobId] = useState<string | null>(null);
+  const [importProgress, setImportProgress] = useState<number>(0);
+  const [importStage, setImportStage] = useState<string>('');
+  const [importDetails, setImportDetails] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState<SortField>('none');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -73,22 +77,56 @@ export default function SimaLandProducts() {
     }
   };
 
+  const pollStatus = async (jobId: string) => {
+    try {
+      const statusResp = await api.get('/client/sima-land/products/status', { params: { jobId } });
+      const job = statusResp.data;
+      setImportProgress(job.progress || 0);
+      setImportStage(job.details?.stage || '');
+      setImportDetails(job.details || {});
+
+      if (job.status === 'completed') {
+        toast.success(`Импорт завершён: сохранено ${job.result?.saved || 0} из ${job.result?.total || 0}`);
+        setLoadingProducts(false);
+        setImportJobId(null);
+        await fetchProducts();
+        return;
+      }
+      if (job.status === 'failed') {
+        toast.error(job.error || 'Ошибка загрузки товаров');
+        setLoadingProducts(false);
+        setImportJobId(null);
+        return;
+      }
+
+      setTimeout(() => pollStatus(jobId), 2000);
+    } catch (e: any) {
+      setTimeout(() => pollStatus(jobId), 3000);
+    }
+  };
+
   const loadProducts = async () => {
     try {
       setLoadingProducts(true);
-      
+      setImportProgress(0);
+      setImportStage('');
+      setImportDetails(null);
+
       const response = await api.post('/client/sima-land/products/load');
-      
-      toast.success(response.data.message || `Загружено ${response.data.products?.length || 0} товаров`);
-      
-      // Обновляем список товаров
-      await fetchProducts();
-      
+      const jobId = response.data.jobId;
+      if (!jobId) {
+        toast.error('Не удалось запустить импорт');
+        setLoadingProducts(false);
+        return;
+      }
+      setImportJobId(jobId);
+      pollStatus(jobId);
+
     } catch (err: any) {
       console.error('Error loading products:', err);
       toast.error(err.response?.data?.error || 'Ошибка загрузки товаров');
     } finally {
-      setLoadingProducts(false);
+      // снимем флаг при завершении опроса
     }
   };
 
@@ -206,6 +244,30 @@ export default function SimaLandProducts() {
           {loadingProducts ? 'Загрузка...' : 'Загрузить товары'}
         </button>
       </div>
+
+      {importJobId && (
+        <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm text-blue-800 font-medium">
+              Идёт импорт товаров {importStage ? `— ${importStage}` : ''}
+            </div>
+            <div className="text-sm text-blue-700">{importProgress}%</div>
+          </div>
+          <div className="w-full bg-blue-100 h-2 rounded">
+            <div className="bg-blue-600 h-2 rounded" style={{ width: `${importProgress}%` }}></div>
+          </div>
+          {importDetails && (
+            <div className="mt-2 text-xs text-blue-700">
+              {importDetails.currentPage && importDetails.totalPages && (
+                <span>Страниц: {importDetails.currentPage}/{importDetails.totalPages}. </span>
+              )}
+              {typeof importDetails.savedItems === 'number' && typeof importDetails.totalItems === 'number' && (
+                <span>Сохранено: {importDetails.savedItems}/{importDetails.totalItems}.</span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {!hasToken && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">

@@ -188,23 +188,30 @@ class SimaLandService {
   /**
    * Загрузить и сохранить товары для клиента
    */
-  async loadProductsForClient(clientId, token) {
+  async loadProductsForClient(clientId, token, progressJobId) {
+    const progressStore = progressJobId ? require('./progressStore') : null;
     const client = await pool.connect();
     try {
       let allProducts = [];
       let page = 1;
       let totalPages = 1;
+      let totalItems = 0;
 
       // Загружаем все страницы товаров
       do {
         const result = await this.fetchProducts(token, page, 50);
         allProducts = allProducts.concat(result.items);
         totalPages = result.pageCount;
+        totalItems = result.total || totalItems;
+        if (progressStore && progressJobId) {
+          progressStore.setProgress(progressJobId, (page / totalPages) * 50, {
+            stage: 'fetching',
+            currentPage: page,
+            totalPages,
+            totalItems
+          });
+        }
         page++;
-
-        // Для первой загрузки ограничиваем до 20 страниц (1000 товаров)
-        // Чтобы не было слишком долго
-        if (page > 20) break;
       } while (page <= totalPages);
 
       console.log(`Fetched ${allProducts.length} products from Sima-land for client ${clientId}`);
@@ -221,7 +228,9 @@ class SimaLandService {
       // Сохраняем товары в БД
       let savedCount = 0;
       let imagesCount = 0;
-      for (const product of allProducts) {
+      const totalToSave = allProducts.length;
+      for (let i = 0; i < allProducts.length; i++) {
+        const product = allProducts[i];
         try {
           // Получаем остаток для товара из загруженных данных
           let availableQuantity = 0;
@@ -281,6 +290,16 @@ class SimaLandService {
           );
 
           savedCount++;
+          if (progressStore && progressJobId) {
+            const base = 50; // первая половина прогресса — загрузка страниц
+            const saveProgress = totalToSave > 0 ? (i + 1) / totalToSave : 1;
+            progressStore.setProgress(progressJobId, base + saveProgress * 50, {
+              stage: 'saving',
+              savedItems: savedCount,
+              totalItems: totalToSave,
+              imagesWithUrl: imagesCount
+            });
+          }
         } catch (err) {
           console.error(`Error saving product ${product.article || product.id}:`, err.message);
         }
@@ -289,11 +308,16 @@ class SimaLandService {
       console.log(`✅ Saved ${savedCount} products for client ${clientId}`);
       console.log(`📸 Found images for ${imagesCount} out of ${savedCount} products`);
 
-      return {
+      const result = {
         total: allProducts.length,
         saved: savedCount,
         images: imagesCount
       };
+
+      if (progressStore && progressJobId) {
+        progressStore.finishJob(progressJobId, result);
+      }
+      return result;
     } finally {
       client.release();
     }

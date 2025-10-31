@@ -1547,25 +1547,38 @@ router.post('/sima-land/products/load', requireClient, async (req, res) => {
         });
       }
 
-      // Используем сервис для загрузки товаров
+      // Создаём фоновую задачу и возвращаем jobId
+      const progressStore = require('../services/progressStore');
+      const jobId = progressStore.createJob('simaLandImport', { clientId });
+
+      // Запускаем фоновую загрузку без ожидания результата
       const SimaLandService = require('../services/simaLandService');
       const simaLandService = new SimaLandService();
-      
-      const result = await simaLandService.loadProductsForClient(clientId, simaLandToken);
+      simaLandService.loadProductsForClient(clientId, simaLandToken, jobId)
+        .catch(err => {
+          console.error('Sima-land import failed:', err);
+          progressStore.failJob(jobId, err.message);
+        });
 
-      res.json({
-        success: true,
-        message: `Загружено ${result.saved} товаров из ${result.total} найденных`,
-        products: result.saved
-      });
+      return res.status(202).json({ success: true, jobId });
 
     } finally {
       client.release();
     }
   } catch (err) {
     console.error('Load sima-land products error:', err);
-    res.status(500).json({ error: 'Ошибка загрузки товаров СИМА ЛЕНД' });
+    res.status(500).json({ error: 'Ошибка запуска загрузки товаров СИМА ЛЕНД' });
   }
+});
+
+// Статус фоновой задачи загрузки товаров СИМА ЛЕНД
+router.get('/sima-land/products/status', requireClient, async (req, res) => {
+  const { jobId } = req.query;
+  if (!jobId) return res.status(400).json({ error: 'jobId обязателен' });
+  const progressStore = require('../services/progressStore');
+  const job = progressStore.getJob(String(jobId));
+  if (!job) return res.status(404).json({ error: 'Задача не найдена' });
+  return res.json(job);
 });
 
 // Добавление товара СИМА ЛЕНД в каталог клиента
