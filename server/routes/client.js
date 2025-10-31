@@ -1607,6 +1607,14 @@ router.get('/sima-land/categories', requireClient, async (req, res) => {
 // Обновление общего каталога (админ/скрипт)
 router.post('/sima-land/catalog/load', async (req, res) => {
   try {
+    // Проверка статического токена для защиты эндпоинта
+    const staticHeader = req.headers['x-static-token'];
+    const staticToken = process.env.SIMA_LAND_STATIC_TOKEN;
+    if (!staticToken || staticHeader !== staticToken) {
+      return res.status(401).json({ error: 'Invalid static token' });
+    }
+
+    console.log('🔐 Catalog load requested', { categories: req.body?.categories });
     const progressStore = require('../services/progressStore');
     const jobId = progressStore.createJob('simaLandCatalogLoad', { categories: req.body?.categories || [] });
     const SimaLandService = require('../services/simaLandService');

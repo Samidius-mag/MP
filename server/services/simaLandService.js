@@ -384,6 +384,10 @@ class SimaLandService {
     const token = process.env.SIMA_LAND_STATIC_TOKEN;
     if (!token) throw new Error('SIMA_LAND_STATIC_TOKEN is not set');
     try {
+      console.log('🔄 Starting Sima-land catalog load', {
+        categories: Array.isArray(options.categories) ? options.categories : [],
+        jobId: progressJobId
+      });
       const perPage = 100;
       let cursorId = null;
       let savedCount = 0;
@@ -432,6 +436,8 @@ class SimaLandService {
         const last = items[items.length - 1];
         cursorId = last?.id || last?.sid || cursorId;
 
+        console.log(`📦 Catalog batch #${batchIndex}: fetched=${items.length}, totalSaved=${savedCount}, cursor=${cursorId}`);
+
         if (progressStore && progressJobId) {
           progressStore.setProgress(progressJobId, Math.min(100, Math.floor(Math.log10(1 + savedCount) * 25)), {
             stage: 'catalog-saving',
@@ -442,6 +448,7 @@ class SimaLandService {
 
       // Categories refresh (best effort)
       const cats = await this.fetchCategories(token);
+      console.log(`📚 Categories fetched: ${cats.length}`);
       for (const c of cats) {
         try {
           await client.query(
@@ -453,6 +460,7 @@ class SimaLandService {
         } catch {}
       }
 
+      console.log(`✅ Catalog load completed: saved=${savedCount}`);
       if (progressStore && progressJobId) progressStore.finishJob(progressJobId, { saved: savedCount });
       return { saved: savedCount };
     } finally {

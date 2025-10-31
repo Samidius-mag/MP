@@ -129,7 +129,8 @@ export default function SimaLandProducts() {
       setImportStage('');
       setImportDetails(null);
 
-      const response = await api.post('/client/sima-land/products/load', {
+      // Запускаем загрузку общего каталога (использует статический токен на бэкенде)
+      const response = await api.post('/client/sima-land/catalog/load', {
         categories: selectedCategories,
       });
       const jobId = response.data.jobId;
