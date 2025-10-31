@@ -17,103 +17,7 @@ interface RegisterFormData {
   termsAccepted: boolean;
 }
 
-interface VerificationStepProps {
-  userId: number;
-  email: string;
-  onComplete: () => void;
-}
-
-// Компонент для верификации
-function VerificationStep({ userId, email, onComplete }: VerificationStepProps) {
-  const [emailCode, setEmailCode] = useState('');
-  const [emailVerified, setEmailVerified] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const { verifyEmail, resendCode } = useAuth();
-
-  const handleVerifyEmail = async () => {
-    if (emailCode.length !== 6) {
-      toast.error('Введите 6-значный код');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const token = await verifyEmail(userId, emailCode);
-      setEmailVerified(true);
-      if (token) {
-        // Регистрация завершена
-        onComplete();
-      } else {
-        toast.success('Email подтвержден');
-      }
-    } catch (error: any) {
-      toast.error(error.message || 'Ошибка подтверждения email');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleResendCode = async () => {
-    try {
-      await resendCode(userId, 'email');
-      toast.success('Код отправлен повторно');
-    } catch (error: any) {
-      toast.error(error.message || 'Ошибка отправки кода');
-    }
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="text-center">
-        <h2 className="text-2xl font-bold text-gray-900">Подтверждение регистрации</h2>
-        <p className="mt-2 text-gray-600">
-          Мы отправили код подтверждения на ваш email
-        </p>
-      </div>
-
-      {/* Email верификация */}
-      <div className={`p-4 rounded-lg ${emailVerified ? 'bg-green-50 border border-green-200' : 'bg-blue-50 border border-blue-200'}`}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-medium text-gray-900">Email: {email}</h3>
-            <p className="text-sm text-gray-600">
-              {emailVerified ? 'Подтвержден' : 'Введите код из письма'}
-            </p>
-          </div>
-          {emailVerified ? (
-            <span className="text-green-600">✓</span>
-          ) : (
-            <button
-              onClick={handleResendCode}
-              className="text-sm text-blue-600 hover:text-blue-800"
-            >
-              Отправить повторно
-            </button>
-          )}
-        </div>
-        {!emailVerified && (
-          <div className="mt-3 flex space-x-2">
-            <input
-              type="text"
-              value={emailCode}
-              onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              placeholder="000000"
-              className="flex-1 input text-center text-lg tracking-widest"
-              maxLength={6}
-            />
-            <button
-              onClick={handleVerifyEmail}
-              disabled={isLoading || emailCode.length !== 6}
-              className="btn-primary px-4"
-            >
-              {isLoading ? '...' : 'Подтвердить'}
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+// Верификация email отключена — весь шаг убран
 
 // Компонент подсказки
 function HelpTooltip({ content }: { content: string }) {
@@ -132,8 +36,6 @@ export default function RegisterForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingCompany, setIsCheckingCompany] = useState(false);
   const [companyData, setCompanyData] = useState<any>(null);
-  const [step, setStep] = useState<'form' | 'verification'>('form');
-  const [verificationData, setVerificationData] = useState<{userId: number, email: string} | null>(null);
   const { register: registerUser, checkCompany } = useAuth();
   const { register, handleSubmit, watch, formState: { errors }, setValue } = useForm<RegisterFormData>();
 
@@ -214,13 +116,9 @@ export default function RegisterForm() {
         companyData: companyData,
         termsAccepted: data.termsAccepted
       });
-      
-      setVerificationData({
-        userId: result.userId,
-        email: result.email
-      });
-      setStep('verification');
-      toast.success('Проверьте email для подтверждения');
+      // Регистрация теперь сразу авторизует пользователя
+      toast.success('Регистрация выполнена успешно');
+      window.location.href = '/client/dashboard';
     } catch (error: any) {
       toast.error(error.message || 'Ошибка регистрации');
     } finally {
@@ -228,19 +126,7 @@ export default function RegisterForm() {
     }
   };
 
-  const handleVerificationComplete = () => {
-    window.location.href = '/client/dashboard';
-  };
-
-  if (step === 'verification' && verificationData) {
-    return (
-      <VerificationStep
-        userId={verificationData.userId}
-        email={verificationData.email}
-        onComplete={handleVerificationComplete}
-      />
-    );
-  }
+  // Шаг подтверждения email удалён
 
   return (
     <div>
@@ -288,7 +174,7 @@ export default function RegisterForm() {
         <div>
           <label htmlFor="email" className="label flex items-center gap-2">
             Email *
-            <HelpTooltip content="На этот email будет отправлен код подтверждения" />
+            <HelpTooltip content="Ваш email для входа" />
           </label>
           <input
             {...register('email', {
@@ -311,7 +197,7 @@ export default function RegisterForm() {
         <div>
           <label htmlFor="phone" className="label flex items-center gap-2">
             Телефон *
-            <HelpTooltip content="На этот номер будет отправлен SMS с кодом подтверждения" />
+            <HelpTooltip content="Ваш контактный номер телефона" />
           </label>
           <input
             {...register('phone', {

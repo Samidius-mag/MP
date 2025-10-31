@@ -22,7 +22,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<{ requiresTwoFactor?: boolean; userId?: number; requiresPasswordChange?: boolean }>;
-  register: (data: RegisterData) => Promise<{ userId: number; email: string }>;
+  register: (data: RegisterData) => Promise<{ token?: string }>;
   logout: () => void;
   updateProfile: (data: Partial<User>) => Promise<void>;
   verifyTwoFactor: (userId: number, code: string) => Promise<string>;
@@ -116,8 +116,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = async (data: RegisterData) => {
     try {
       const response = await api.post('/auth/register', data);
-      const { userId, email } = response.data;
-      return { userId, email };
+      const { token, user: userData } = response.data;
+
+      if (token && userData) {
+        localStorage.setItem('token', token);
+        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        setUser(userData);
+        return { token };
+      }
+
+      // fallback for legacy flows
+      return {};
     } catch (error: any) {
       const status = error?.response?.status;
       const serverMessage = error?.response?.data?.error;
