@@ -41,7 +41,7 @@ export default function SimaLandProducts() {
   useEffect(() => {
     checkToken();
     fetchCategories();
-    fetchProducts();
+    // Не загружаем товары по умолчанию — ждём выбора категорий
   }, []);
 
   useEffect(() => {
@@ -284,7 +284,13 @@ export default function SimaLandProducts() {
                             return found ? found.ids : [];
                           });
                           setSelectedCategories(ids);
-                          fetchProducts(ids);
+                          if (ids.length > 0) {
+                            fetchProducts(ids);
+                          } else {
+                            // если ничего не выбрано — очищаем список
+                            setAllProducts([]);
+                            setFilteredProducts([]);
+                          }
                           setShowCategoryMenu(false);
                         }}
                         className="px-3 py-1 text-white bg-primary-600 rounded"
@@ -366,7 +372,11 @@ export default function SimaLandProducts() {
         <div className="card text-center">
           <div className="py-12">
             <PhotoIcon className="mx-auto h-12 w-12 text-gray-400" />
-            <p className="mt-4 text-gray-500">Товары не найдены для выбранных фильтров.</p>
+            {selectedCategories.length === 0 ? (
+              <p className="mt-4 text-gray-500">Выберите категории, чтобы показать товары.</p>
+            ) : (
+              <p className="mt-4 text-gray-500">Товары не найдены для выбранных фильтров.</p>
+            )}
           </div>
         </div>
       ) : (
