@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
 import toast from 'react-hot-toast';
-import { MagnifyingGlassIcon, PhotoIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, PhotoIcon } from '@heroicons/react/24/outline';
 
 interface SimaLandProduct {
   id: number;
@@ -31,17 +31,10 @@ export default function SimaLandProducts() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [hasToken, setHasToken] = useState(false);
-  const [categoriesInput, setCategoriesInput] = useState('');
-  const [selectedCategories, setSelectedCategories] = useState<number[]>([]);
-  const [categoriesList, setCategoriesList] = useState<{id:number,name:string,parent_id?:number}[]>([]);
-  const [categoriesLoading, setCategoriesLoading] = useState(false);
-  const [showCategoryMenu, setShowCategoryMenu] = useState(false);
-  const [selectedCategoryNames, setSelectedCategoryNames] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     checkToken();
-    fetchCategories();
-    // Не загружаем товары по умолчанию — ждём выбора категорий
+    // Не загружаем товары по умолчанию — ждём ввода в поиск
   }, []);
 
   useEffect(() => {
@@ -59,10 +52,10 @@ export default function SimaLandProducts() {
     }
   };
 
-  const fetchProducts = async (categories: number[] = []) => {
+  const fetchProducts = async (term: string) => {
     try {
       setLoading(true);
-      const params = categories.length > 0 ? { params: { categories: categories.join(',') } } : {};
+      const params = term ? { params: { search: term } } : {};
       const response = await api.get('/client/sima-land/products', params);
       
       const products = response.data.products || [];
@@ -96,17 +89,18 @@ export default function SimaLandProducts() {
     }
   };
 
-  // Готовим отображаемый список: уникальные имена с количеством и списком id
-  const displayCategories = (() => {
-    const map = new Map<string, number[]>();
-    for (const c of categoriesList) {
-      const key = c.name || 'Без категории';
-      const arr = map.get(key) || [];
-      if (Number.isFinite(c.id)) arr.push(c.id);
-      map.set(key, arr);
-    }
-    return Array.from(map.entries()).map(([name, ids]) => ({ name, ids, count: ids.length }));
-  })();
+  // Дебаунс поиска: тянем с сервера только при >=2 символов
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (searchTerm && searchTerm.trim().length >= 2) {
+        fetchProducts(searchTerm.trim());
+      } else {
+        setAllProducts([]);
+        setFilteredProducts([]);
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
 
   // кнопка Применить будет дергать fetchProducts(selectedCategories)
 
@@ -211,100 +205,20 @@ export default function SimaLandProducts() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Товары СИМА ЛЕНД</h1>
-          <p className="mt-1 text-sm text-gray-600">
-            Выберите товары поставщика для добавления в ваш магазин
-          </p>
+          <p className="mt-1 text-sm text-gray-600">Найдите товары поставщика по названию или артикулу</p>
         </div>
-        <div className="flex gap-2 items-center">
-          <div className="relative">
-            <button
-              className="px-3 py-2 border border-gray-300 rounded-md"
-              onClick={() => setShowCategoryMenu(true)}
-            >
-              Выбрать категории
-            </button>
-
-            {showCategoryMenu && (
-              <>
-                {/* затемнение экрана */}
-                <div className="fixed inset-0 bg-black/20" onClick={() => setShowCategoryMenu(false)}></div>
-                {/* поповер */}
-                <div className="fixed top-20 right-6 z-50 w-96 max-h-[70vh] overflow-auto bg-white border border-gray-200 rounded-md shadow-lg">
-                  <div className="sticky top-0 bg-white p-2 border-b flex items-center gap-2">
-                    <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
-                    <input
-                      type="text"
-                      value={categoriesInput}
-                      onChange={(e)=>setCategoriesInput(e.target.value)}
-                      placeholder="Поиск категории..."
-                      className="flex-1 px-2 py-1 border border-gray-300 rounded"
-                    />
-                    <button className="p-1" onClick={() => setShowCategoryMenu(false)}>
-                      <XMarkIcon className="h-5 w-5 text-gray-500" />
-                    </button>
-                  </div>
-                  <div className="p-2">
-                {categoriesLoading && (
-                  <div className="text-sm text-gray-500 mb-2">Загрузка категорий...</div>
-                )}
-                  {displayCategories.length === 0 && !categoriesLoading ? (
-                  <div className="text-sm text-gray-500">Категории отсутствуют. Выполните импорт каталога.</div>
-                  ) : (
-                    <div className="space-y-1">
-                      {displayCategories
-                        .filter(c => !categoriesInput || c.name.toLowerCase().includes(categoriesInput.toLowerCase()))
-                        .slice(0, 1000)
-                        .map(dc => (
-                        <label key={dc.name} className="flex items-center gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={selectedCategoryNames.has(dc.name)}
-                            onChange={(e)=>{
-                              setSelectedCategoryNames(prev => {
-                                const next = new Set(prev);
-                                if (e.target.checked) next.add(dc.name); else next.delete(dc.name);
-                                return next;
-                              });
-                            }}
-                          />
-                          <span>{dc.name} {dc.count > 1 ? `(${dc.count})` : ''}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                  </div>
-                  <div className="sticky bottom-0 bg-white p-2 border-t flex items-center justify-between">
-                    <span className="text-xs text-gray-600">Выбрано: {selectedCategoryNames.size}</span>
-                    <div className="flex items-center gap-2">
-                      <button className="text-sm underline" onClick={() => { setSelectedCategoryNames(new Set()); }}>Сбросить</button>
-                      <button
-                        onClick={() => {
-                          const ids = Array.from(selectedCategoryNames).flatMap(name => {
-                            const found = displayCategories.find(d => d.name === name);
-                            return found ? found.ids : [];
-                          });
-                          setSelectedCategories(ids);
-                          // Если выбраны все видимые категории — считаем это "показать все"
-                          if (selectedCategoryNames.size >= displayCategories.length) {
-                            fetchProducts([]);
-                          } else if (ids.length > 0) {
-                            fetchProducts(ids);
-                          } else {
-                            // если ничего не выбрано — очищаем список
-                            setAllProducts([]);
-                            setFilteredProducts([]);
-                          }
-                          setShowCategoryMenu(false);
-                        }}
-                        className="px-3 py-1 text-white bg-primary-600 rounded"
-                      >
-                        Применить
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
+        <div className="flex gap-2 items-center w-full max-w-xl ml-auto">
+          <div className="relative flex-1">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+            </div>
+            <input
+              type="text"
+              placeholder="Поиск по названию или артикулу... (минимум 2 символа)"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+            />
           </div>
         </div>
       </div>

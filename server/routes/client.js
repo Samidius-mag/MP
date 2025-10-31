@@ -1498,27 +1498,20 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
         });
       }
 
-      // Получаем товары из общей витрины (каталога) с опциональной фильтрацией по категориям
-      const raw = (req.query.categories || '').toString().trim();
-      const catIds = raw
-        ? raw.split(',').map(s => s.trim()).filter(Boolean).map(n => Number(n)).filter(n => Number.isFinite(n))
-        : [];
-
+      // Поиск по названию/артикулу. Если не передан search — вернем пустой список (чтобы не грузить десятки тысяч записей)
+      const search = (req.query.search || '').toString().trim();
       let productsResult;
-      if (catIds.length > 0) {
-        const placeholders = catIds.map((_, i) => `$${i + 1}`).join(',');
-        productsResult = await client.query(
-          `SELECT id, article, name, brand, category, purchase_price, available_quantity, image_url, description
-           FROM sima_land_catalog
-           WHERE category_id IN (${placeholders})
-           ORDER BY created_at DESC`,
-          catIds
-        );
+      if (!search) {
+        productsResult = { rows: [] };
       } else {
+        const like = `%${search}%`;
         productsResult = await client.query(
           `SELECT id, article, name, brand, category, purchase_price, available_quantity, image_url, description
            FROM sima_land_catalog
-           ORDER BY created_at DESC`
+           WHERE name ILIKE $1 OR article ILIKE $1
+           ORDER BY created_at DESC
+           LIMIT 1000`,
+          [like]
         );
       }
 
