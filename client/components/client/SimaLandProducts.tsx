@@ -17,7 +17,7 @@ interface SimaLandProduct {
   description?: string;
 }
 
-type SortField = 'name' | 'brand' | 'price' | 'none';
+type SortField = 'name' | 'brand' | 'price' | 'available' | 'none';
 type SortDirection = 'asc' | 'desc';
 
 export default function SimaLandProducts() {
@@ -73,23 +73,12 @@ export default function SimaLandProducts() {
     }
   };
 
-  // Дебаунс поиска: тянем с сервера только при >=2 символов
-  useEffect(() => {
-    const t = setTimeout(() => {
-      if (searchTerm && searchTerm.trim().length >= 2) {
-        fetchProducts(searchTerm.trim());
-      } else {
-        setAllProducts([]);
-        setFilteredProducts([]);
-      }
-    }, 400);
-    return () => clearTimeout(t);
-  }, [searchTerm]);
+  // Поиск выполняется только по нажатию на кнопку "Применить"
 
   const applyFiltersAndSort = () => {
     let filtered = [...allProducts];
 
-    // Фильтрация по поиску уже выполняется на сервере
+    // Фильтрация по поиску выполняется на сервере
     // Здесь только сортировка
 
     // Применяем сортировку
@@ -99,6 +88,15 @@ export default function SimaLandProducts() {
         let bValue: any;
 
         switch (sortField) {
+          case 'available': {
+            const aAvail = (Number(a.available_quantity) || 0) > 0 ? 1 : 0;
+            const bAvail = (Number(b.available_quantity) || 0) > 0 ? 1 : 0;
+            // доступные первыми; при равенстве — по количеству убыв.
+            if (aAvail !== bAvail) return bAvail - aAvail;
+            const aq = Number(a.available_quantity) || 0;
+            const bq = Number(b.available_quantity) || 0;
+            return bq - aq;
+          }
           case 'name':
             aValue = a.name || '';
             bValue = b.name || '';
@@ -198,6 +196,21 @@ export default function SimaLandProducts() {
               className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
             />
           </div>
+          <button
+            onClick={() => {
+              const term = (searchTerm || '').trim();
+              if (term.length < 2) {
+                toast('Введите минимум 2 символа для поиска', { icon: 'ℹ️' });
+                setAllProducts([]);
+                setFilteredProducts([]);
+                return;
+              }
+              fetchProducts(term);
+            }}
+            className="px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+          >
+            Применить
+          </button>
         </div>
       </div>
 
@@ -213,6 +226,7 @@ export default function SimaLandProducts() {
               className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="none">Без сортировки</option>
+              <option value="available">Доступные первыми</option>
               <option value="name">По названию</option>
               <option value="brand">По бренду</option>
               <option value="price">По цене</option>
