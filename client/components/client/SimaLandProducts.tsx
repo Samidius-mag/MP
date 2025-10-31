@@ -99,9 +99,9 @@ export default function SimaLandProducts() {
         return;
       }
 
-      setTimeout(() => pollStatus(jobId), 2000);
+      setTimeout(() => pollStatus(jobId), 5000);
     } catch (e: any) {
-      setTimeout(() => pollStatus(jobId), 3000);
+      setTimeout(() => pollStatus(jobId), 7000);
     }
   };
 

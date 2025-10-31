@@ -56,25 +56,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const checkAuth = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+    // Делаем несколько попыток при временных сбоях, но не выходим из аккаунта
+    const maxAttempts = 5;
+    let attempt = 0;
+    while (attempt < maxAttempts) {
+      try {
+        const response = await api.get('/auth/profile');
+        setUser(response.data);
         setLoading(false);
         return;
+      } catch (error: any) {
+        const status = error?.response?.status;
+        attempt++;
+        if (status === 401 || status === 403) {
+          // Только для невалидного токена выходим
+          localStorage.removeItem('token');
+          delete api.defaults.headers.common['Authorization'];
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+        // Иначе подождём и попробуем снова
+        await new Promise(r => setTimeout(r, Math.min(5000, 500 * attempt)));
       }
-
-      // Устанавливаем токен в заголовки API
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-
-      const response = await api.get('/auth/profile');
-      setUser(response.data);
-    } catch (error) {
-      console.error('Auth check failed:', error);
-      localStorage.removeItem('token');
-      delete api.defaults.headers.common['Authorization'];
-    } finally {
-      setLoading(false);
     }
+
+    // После нескольких неудачных попыток просто оставим пользователя в текущем состоянии
+    setLoading(false);
   };
 
   const login = async (email: string, password: string) => {
