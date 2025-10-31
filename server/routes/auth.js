@@ -79,7 +79,7 @@ router.post('/register', [
       // Создаем пользователя (все по умолчанию клиенты)
       const userResult = await client.query(
         `INSERT INTO users (email, password_hash, first_name, last_name, phone, role, email_verified, phone_verified)
-         VALUES ($1, $2, $3, $4, $5, 'client', false, true)
+         VALUES ($1, $2, $3, $4, $5, 'client', true, true)
          RETURNING id, email, first_name, last_name, phone, role, created_at`,
         [email, passwordHash, firstName, lastName, phone]
       );
@@ -94,19 +94,24 @@ router.post('/register', [
         [user.id, companyData.name, companyData.form, companyData.inn, companyData.ogrn, fnsVerified]
       );
 
-      // Генерируем код верификации для email
-      const emailCode = verificationService.generateVerificationCode();
-
-      // Сохраняем код
-      await verificationService.saveVerificationCode(user.id, emailCode, 'email', { pool });
-
-      // Отправляем код
-      await verificationService.sendEmailVerification(email, emailCode);
+      // Мгновенная авторизация без подтверждения email
+      const token = jwt.sign(
+        { userId: user.id, email: user.email, role: user.role },
+        JWT_SECRET,
+        { expiresIn: process.env.JWT_EXPIRES_IN || '14d' }
+      );
 
       res.status(201).json({
-        message: 'Пользователь создан. Проверьте email для подтверждения.',
-        userId: user.id,
-        requiresVerification: true
+        message: 'Пользователь создан и авторизован',
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.first_name,
+          lastName: user.last_name,
+          role: user.role
+        },
+        token,
+        requiresVerification: false
       });
     } finally {
       client.release();
@@ -270,9 +275,7 @@ router.post('/login', [
         return res.status(401).json({ error: 'Аккаунт заблокирован' });
       }
 
-      if (!user.email_verified) {
-        return res.status(401).json({ error: 'Email не подтвержден' });
-      }
+      // Проверка email_verified отключена
 
 
       // Проверяем пароль
@@ -380,9 +383,7 @@ router.post('/login-phone', [
         return res.status(401).json({ error: 'Аккаунт заблокирован' });
       }
 
-      if (!user.email_verified) {
-        return res.status(401).json({ error: 'Email не подтвержден' });
-      }
+      // Проверка email_verified отключена
 
 
       // Проверяем пароль
