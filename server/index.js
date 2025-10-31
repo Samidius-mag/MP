@@ -35,6 +35,7 @@ function loadEnvExample() {
 loadEnvExample();
 
 const authRoutes = require('./routes/auth');
+const simaRoutes = require('./routes/sima');
 const clientRoutes = require('./routes/client');
 const operatorRoutes = require('./routes/operator');
 const adminRoutes = require('./routes/admin');
@@ -95,6 +96,9 @@ app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
 
 // Routes
+// Публичные сервисные маршруты (без JWT)
+app.use('/api', simaRoutes);
+
 app.use('/api/auth', authRoutes);
 app.use('/api/client', authenticateToken, clientRoutes);
 app.use('/api/operator', authenticateToken, operatorRoutes);
