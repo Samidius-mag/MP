@@ -31,7 +31,7 @@ router.post('/register', [
   body('phone').isMobilePhone('ru-RU').withMessage('Неверный формат телефона'),
   body('inn').isLength({ min: 10, max: 12 }).withMessage('ИНН должен содержать 10-12 цифр'),
   body('companyData').notEmpty().withMessage('Данные компании обязательны'),
-  body('termsAccepted').equals('true').withMessage('Необходимо согласие с офертой')
+  body('termsAccepted').custom(v => v === true || v === 'true').withMessage('Необходимо согласие с офертой')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -86,12 +86,17 @@ router.post('/register', [
 
       const user = userResult.rows[0];
 
-      // Создаем запись в таблице clients с данными компании
-      const fnsVerified = companyData.status && !companyData.status.includes('Не проверено');
+      // Создаем запись в таблице clients с безопасными значениями по умолчанию
+      const safeCompanyName = (companyData && companyData.name) ? companyData.name : 'Без названия';
+      const safeCompanyForm = (companyData && companyData.form) ? companyData.form : (String(inn).length === 10 ? 'IP' : 'OOO');
+      const safeInn = (companyData && companyData.inn) ? companyData.inn : inn;
+      const safeOgrn = (companyData && companyData.ogrn) ? companyData.ogrn : null;
+      const fnsVerified = (companyData && companyData.status) ? !String(companyData.status).includes('Не проверено') : false;
+
       await client.query(
         `INSERT INTO clients (user_id, company_name, company_form, inn, ogrn, fns_verified, terms_accepted, terms_accepted_date)
          VALUES ($1, $2, $3, $4, $5, $6, true, NOW())`,
-        [user.id, companyData.name, companyData.form, companyData.inn, companyData.ogrn, fnsVerified]
+        [user.id, safeCompanyName, safeCompanyForm, safeInn, safeOgrn, fnsVerified]
       );
 
       // Мгновенная авторизация без подтверждения email
