@@ -1498,13 +1498,11 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
         });
       }
 
-      // Получаем товары из БД
+      // Получаем товары из общей витрины (каталога)
       const productsResult = await client.query(
         `SELECT id, article, name, brand, category, purchase_price, available_quantity, image_url, description
-         FROM sima_land_products
-         WHERE client_id = $1
-         ORDER BY created_at DESC`,
-        [clientId]
+         FROM sima_land_catalog
+         ORDER BY created_at DESC`
       );
 
       res.json({
@@ -1586,6 +1584,41 @@ router.get('/sima-land/products/status', requireClient, async (req, res) => {
   const job = progressStore.getJob(String(jobId));
   if (!job) return res.status(404).json({ error: 'Задача не найдена' });
   return res.json(job);
+});
+
+// Категории СИМА ЛЕНД
+router.get('/sima-land/categories', requireClient, async (req, res) => {
+  try {
+    const client = await pool.connect();
+    try {
+      const cats = await client.query(
+        `SELECT id, name, parent_id, level FROM sima_land_categories ORDER BY name`
+      );
+      return res.json({ categories: cats.rows });
+    } finally {
+      client.release();
+    }
+  } catch (e) {
+    console.error('Get categories error:', e);
+    res.status(500).json({ error: 'Ошибка получения категорий' });
+  }
+});
+
+// Обновление общего каталога (админ/скрипт)
+router.post('/sima-land/catalog/load', async (req, res) => {
+  try {
+    const progressStore = require('../services/progressStore');
+    const jobId = progressStore.createJob('simaLandCatalogLoad', { categories: req.body?.categories || [] });
+    const SimaLandService = require('../services/simaLandService');
+    const simaLandService = new SimaLandService();
+    simaLandService.loadCatalog({ categories: Array.isArray(req.body?.categories) ? req.body.categories : [] }, jobId).catch(err => {
+      console.error('Catalog load failed:', err);
+      progressStore.failJob(jobId, err.message);
+    });
+    res.status(202).json({ success: true, jobId });
+  } catch (e) {
+    res.status(500).json({ error: 'Ошибка запуска загрузки каталога' });
+  }
 });
 
 // Добавление товара СИМА ЛЕНД в каталог клиента

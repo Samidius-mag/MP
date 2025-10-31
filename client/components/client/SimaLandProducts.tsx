@@ -37,9 +37,11 @@ export default function SimaLandProducts() {
   const [hasToken, setHasToken] = useState(false);
   const [categoriesInput, setCategoriesInput] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<number[]>([]);
+  const [categoriesList, setCategoriesList] = useState<{id:number,name:string,parent_id?:number}[]>([]);
 
   useEffect(() => {
     checkToken();
+    fetchCategories();
     fetchProducts();
   }, []);
 
@@ -76,6 +78,19 @@ export default function SimaLandProducts() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const res = await api.get('/client/sima-land/categories');
+      const list = res.data.categories || [];
+      setCategoriesList(list);
+      if (list.length > 0 && selectedCategories.length === 0) {
+        // ничего не выбираем по умолчанию
+      }
+    } catch (e) {
+      // тихо
     }
   };
 
@@ -240,32 +255,37 @@ export default function SimaLandProducts() {
           </p>
         </div>
         <div className="flex gap-2 items-center">
-          <input
-            type="text"
-            value={categoriesInput}
-            onChange={(e) => setCategoriesInput(e.target.value)}
-            placeholder="Категории (ID через запятую)"
-            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 w-64"
-          />
-          <button
-            onClick={() => {
-              const ids = categoriesInput
-                .split(',')
-                .map(s => s.trim())
-                .filter(Boolean)
-                .map(Number)
-                .filter(n => Number.isFinite(n) && n > 0);
-              setSelectedCategories(ids);
-              if (ids.length > 0) {
-                toast.success(`Выбрано категорий: ${ids.length}`);
-              } else {
-                toast('Категории не выбраны, будет загружен весь каталог');
-              }
-            }}
-            className="px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-          >
-            Применить
-          </button>
+          <div className="relative">
+            <details className="cursor-pointer">
+              <summary className="px-3 py-2 border border-gray-300 rounded-md">Выбрать категории</summary>
+              <div className="absolute z-10 mt-2 w-80 max-h-80 overflow-auto bg-white border border-gray-200 rounded-md p-2 shadow-lg">
+                <input
+                  type="text"
+                  value={categoriesInput}
+                  onChange={(e)=>setCategoriesInput(e.target.value)}
+                  placeholder="Поиск категории..."
+                  className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
+                />
+                <div className="space-y-1">
+                  {categoriesList
+                    .filter(c => !categoriesInput || c.name.toLowerCase().includes(categoriesInput.toLowerCase()))
+                    .slice(0, 200)
+                    .map(c => (
+                    <label key={c.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={selectedCategories.includes(c.id)}
+                        onChange={(e)=>{
+                          setSelectedCategories(prev => e.target.checked ? [...prev, c.id] : prev.filter(id=>id!==c.id));
+                        }}
+                      />
+                      <span>{c.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </details>
+          </div>
           <button
             onClick={loadProducts}
             disabled={loadingProducts || !hasToken}

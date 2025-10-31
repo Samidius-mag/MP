@@ -6,6 +6,23 @@ class SimaLandService {
     this.baseUrl = 'https://www.sima-land.ru/api/v3';
   }
 
+  async fetchCategories(token) {
+    try {
+      const response = await axios.get(`${this.baseUrl}/category/`, {
+        params: { 'per-page': 1000 },
+        headers: {
+          'x-api-key': token,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+      return response.data.items || [];
+    } catch (error) {
+      console.error('Sima-land categories API error:', error.response?.data || error.message);
+      return [];
+    }
+  }
+
   /**
    * Получить токен API клиента
    */
@@ -356,6 +373,88 @@ class SimaLandService {
         progressStore.finishJob(progressJobId, result);
       }
       return result;
+    } finally {
+      client.release();
+    }
+  }
+
+  async loadCatalog(options = {}, progressJobId) {
+    const progressStore = progressJobId ? require('./progressStore') : null;
+    const client = await pool.connect();
+    const token = process.env.SIMA_LAND_STATIC_TOKEN;
+    if (!token) throw new Error('SIMA_LAND_STATIC_TOKEN is not set');
+    try {
+      const perPage = 100;
+      let cursorId = null;
+      let savedCount = 0;
+      let batchIndex = 0;
+
+      while (true) {
+        batchIndex++;
+        const result = await this.fetchProducts(token, 1, perPage, cursorId, options);
+        const items = result.items || [];
+        if (items.length === 0) break;
+
+        for (const product of items) {
+          const productId = product.id || product.sid;
+          const productArticle = product.sid?.toString() || product.id?.toString() || '';
+          const imageUrl = product.img || product.photoUrl || product.image_url || product.imageUrl || product.image || product.photo || product.photo_url || product.picture || product.picture_url;
+          await client.query(
+            `INSERT INTO sima_land_catalog (id, article, name, brand, category_id, category, purchase_price, available_quantity, image_url, description)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+             ON CONFLICT (id) DO UPDATE SET
+               article=EXCLUDED.article,
+               name=EXCLUDED.name,
+               brand=EXCLUDED.brand,
+               category_id=EXCLUDED.category_id,
+               category=EXCLUDED.category,
+               purchase_price=EXCLUDED.purchase_price,
+               available_quantity=EXCLUDED.available_quantity,
+               image_url=EXCLUDED.image_url,
+               description=EXCLUDED.description,
+               updated_at=NOW()`,
+            [
+              productId,
+              productArticle,
+              product.name,
+              product.trademark?.name || product.brand,
+              product.category_id || product.categoryId || null,
+              product.series?.name || product.category,
+              product.price || product.purchase_price || 0,
+              product.balance || 0,
+              imageUrl,
+              product.stuff || product.description
+            ]
+          );
+          savedCount++;
+        }
+
+        const last = items[items.length - 1];
+        cursorId = last?.id || last?.sid || cursorId;
+
+        if (progressStore && progressJobId) {
+          progressStore.setProgress(progressJobId, Math.min(100, Math.floor(Math.log10(1 + savedCount) * 25)), {
+            stage: 'catalog-saving',
+            savedItems: savedCount
+          });
+        }
+      }
+
+      // Categories refresh (best effort)
+      const cats = await this.fetchCategories(token);
+      for (const c of cats) {
+        try {
+          await client.query(
+            `INSERT INTO sima_land_categories (id, name, parent_id, level)
+             VALUES ($1,$2,$3,$4)
+             ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, parent_id=EXCLUDED.parent_id, level=EXCLUDED.level, updated_at=NOW()`,
+            [c.id, c.name, c.parent_id || null, c.depth || null]
+          );
+        } catch {}
+      }
+
+      if (progressStore && progressJobId) progressStore.finishJob(progressJobId, { saved: savedCount });
+      return { saved: savedCount };
     } finally {
       client.release();
     }
