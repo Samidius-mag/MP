@@ -107,7 +107,10 @@ class SimaLandService {
         return await makeRequest();
       }
       console.error('Sima-land API error:', error.response?.data || error.message);
-      throw new Error(`Failed to fetch products: ${error.response?.statusText || error.message}`);
+      const wrapped = new Error(`Failed to fetch products: ${error.response?.statusText || error.message}`);
+      if (error.response) wrapped.response = error.response; // preserve status for callers
+      if (error.code) wrapped.code = error.code;
+      throw wrapped;
     }
   }
 
