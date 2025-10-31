@@ -52,6 +52,17 @@ function getJob(id) {
   return jobs.get(id) || null;
 }
 
+function findRunningJobBy(predicate) {
+  for (const job of jobs.values()) {
+    if (job.status === 'running' && predicate(job)) return job;
+  }
+  return null;
+}
+
+function getRunningImportJobByClient(clientId) {
+  return findRunningJobBy(j => j.type === 'simaLandImport' && j.metadata?.clientId === clientId);
+}
+
 module.exports = {
   createJob,
   updateJob,
@@ -59,6 +70,8 @@ module.exports = {
   finishJob,
   failJob,
   getJob,
+  findRunningJobBy,
+  getRunningImportJobByClient,
 };
 
 

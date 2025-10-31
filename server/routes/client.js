@@ -1547,8 +1547,14 @@ router.post('/sima-land/products/load', requireClient, async (req, res) => {
         });
       }
 
-      // Создаём фоновую задачу и возвращаем jobId
+      // Если у клиента уже идёт импорт — вернём существующий jobId
       const progressStore = require('../services/progressStore');
+      const running = progressStore.getRunningImportJobByClient(clientId);
+      if (running) {
+        return res.status(202).json({ success: true, jobId: running.id, alreadyRunning: true });
+      }
+
+      // Создаём фоновую задачу и возвращаем jobId
       const jobId = progressStore.createJob('simaLandImport', { clientId });
 
       // Запускаем фоновую загрузку без ожидания результата

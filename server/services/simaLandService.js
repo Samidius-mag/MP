@@ -58,6 +58,30 @@ class SimaLandService {
         currentPage: response.data._meta?.currentPage || 1
       };
     } catch (error) {
+      // Обработка rate limit'ов и временных ошибок
+      const status = error?.response?.status;
+      if (status === 429 || status === 503 || status === 504) {
+        const retryAfter = Number(error?.response?.headers?.['retry-after']) || 3;
+        await new Promise(r => setTimeout(r, retryAfter * 1000));
+        // Одна повторная попытка
+        const response = await axios.get(`${this.baseUrl}/item/`, {
+          params: {
+            'per-page': perPage,
+            ...(idGreaterThan ? { 'id-greater-than': idGreaterThan } : { page })
+          },
+          headers: {
+            'x-api-key': token,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
+        });
+        return {
+          items: response.data.items || [],
+          total: response.data._meta?.totalCount || 0,
+          pageCount: response.data._meta?.pageCount || 1,
+          currentPage: response.data._meta?.currentPage || 1
+        };
+      }
       console.error('Sima-land API error:', error.response?.data || error.message);
       throw new Error(`Failed to fetch products: ${error.response?.statusText || error.message}`);
     }
