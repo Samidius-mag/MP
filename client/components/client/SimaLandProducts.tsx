@@ -73,22 +73,6 @@ export default function SimaLandProducts() {
     }
   };
 
-  const fetchCategories = async () => {
-    try {
-      setCategoriesLoading(true);
-      const res = await api.get('/client/sima-land/categories');
-      const list = (res.data.categories || []).map((c: any) => ({ id: Number(c.id), name: String(c.name), parent_id: c.parent_id }));
-      setCategoriesList(list);
-      if (list.length === 0) {
-        toast('Категории ещё не загружены. Сначала выполните импорт каталога.', { icon: 'ℹ️' });
-      }
-    } catch (e) {
-      toast.error('Ошибка получения категорий');
-    } finally {
-      setCategoriesLoading(false);
-    }
-  };
-
   // Дебаунс поиска: тянем с сервера только при >=2 символов
   useEffect(() => {
     const t = setTimeout(() => {
@@ -102,19 +86,11 @@ export default function SimaLandProducts() {
     return () => clearTimeout(t);
   }, [searchTerm]);
 
-  // кнопка Применить будет дергать fetchProducts(selectedCategories)
-
   const applyFiltersAndSort = () => {
     let filtered = [...allProducts];
 
-    // Применяем фильтры
-    if (searchTerm) {
-      filtered = filtered.filter((p: SimaLandProduct) =>
-        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.article.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (p.brand && p.brand.toLowerCase().includes(searchTerm.toLowerCase()))
-      );
-    }
+    // Фильтрация по поиску уже выполняется на сервере
+    // Здесь только сортировка
 
     // Применяем сортировку
     if (sortField !== 'none') {
@@ -176,8 +152,10 @@ export default function SimaLandProducts() {
       
       toast.success('Товар добавлен в магазин');
       
-      // Обновляем список товаров
-      await fetchProducts();
+      // Обновляем список товаров, если есть активный поиск
+      if (searchTerm && searchTerm.trim().length >= 2) {
+        await fetchProducts(searchTerm.trim());
+      }
       
     } catch (err: any) {
       console.error('Error adding product:', err);
@@ -226,21 +204,6 @@ export default function SimaLandProducts() {
 
       {/* Фильтры и сортировка */}
       <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1 relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
-            </div>
-            <input
-              type="text"
-              placeholder="Поиск по названию, артикулу..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-            />
-          </div>
-        </div>
-
         <div className="flex flex-col sm:flex-row gap-4 items-center">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-700">Сортировка:</span>
@@ -289,8 +252,8 @@ export default function SimaLandProducts() {
         <div className="card text-center">
           <div className="py-12">
             <PhotoIcon className="mx-auto h-12 w-12 text-gray-400" />
-            {selectedCategories.length === 0 ? (
-              <p className="mt-4 text-gray-500">Выберите категории, чтобы показать товары.</p>
+            {!searchTerm || searchTerm.trim().length < 2 ? (
+              <p className="mt-4 text-gray-500">Введите минимум 2 символа в поиск, чтобы найти товары.</p>
             ) : (
               <p className="mt-4 text-gray-500">Товары не найдены для выбранных фильтров.</p>
             )}
