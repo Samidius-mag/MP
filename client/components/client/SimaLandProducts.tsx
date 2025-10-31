@@ -284,7 +284,10 @@ export default function SimaLandProducts() {
                             return found ? found.ids : [];
                           });
                           setSelectedCategories(ids);
-                          if (ids.length > 0) {
+                          // Если выбраны все видимые категории — считаем это "показать все"
+                          if (selectedCategoryNames.size >= displayCategories.length) {
+                            fetchProducts([]);
+                          } else if (ids.length > 0) {
                             fetchProducts(ids);
                           } else {
                             // если ничего не выбрано — очищаем список
