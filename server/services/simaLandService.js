@@ -32,16 +32,17 @@ class SimaLandService {
    * Получить товары из API СИМА ЛЕНД
    * Документация: https://www.sima-land.ru/api/v3/help/
    */
-  async fetchProducts(token, page = 1, perPage = 50) {
+  async fetchProducts(token, page = 1, perPage = 50, idGreaterThan = null) {
     try {
-      console.log(`Fetching Sima-land products: page ${page}, perPage ${perPage}`);
+      const logPage = idGreaterThan ? `idGreaterThan ${idGreaterThan}` : `page ${page}`;
+      console.log(`Fetching Sima-land products: ${logPage}, perPage ${perPage}`);
 
       // Запрос на получение товаров из каталога
       // Используем правильный endpoint и заголовок x-api-key согласно документации
       const response = await axios.get(`${this.baseUrl}/item/`, {
         params: {
           'per-page': perPage,
-          page: page
+          ...(idGreaterThan ? { 'id-greater-than': idGreaterThan } : { page })
         },
         headers: {
           'x-api-key': token,
@@ -192,29 +193,11 @@ class SimaLandService {
     const progressStore = progressJobId ? require('./progressStore') : null;
     const client = await pool.connect();
     try {
-      let allProducts = [];
-      let page = 1;
-      let totalPages = 1;
-      let totalItems = 0;
-
-      // Загружаем все страницы товаров
-      do {
-        const result = await this.fetchProducts(token, page, 50);
-        allProducts = allProducts.concat(result.items);
-        totalPages = result.pageCount;
-        totalItems = result.total || totalItems;
-        if (progressStore && progressJobId) {
-          progressStore.setProgress(progressJobId, (page / totalPages) * 50, {
-            stage: 'fetching',
-            currentPage: page,
-            totalPages,
-            totalItems
-          });
-        }
-        page++;
-      } while (page <= totalPages);
-
-      console.log(`Fetched ${allProducts.length} products from Sima-land for client ${clientId}`);
+      // Курсорная пагинация через id-greater-than (рекомендация API при больших оффсетах)
+      const perPage = 100;
+      let cursorId = null; // последний id в предыдущей пачке
+      let batchIndex = 0;
+      let totalFetched = 0;
 
       // Получаем остатки один раз для всех товаров
       let stockData = [];
@@ -225,13 +208,37 @@ class SimaLandService {
         console.warn(`Could not fetch stock data:`, err.message);
       }
 
-      // Сохраняем товары в БД
+      // Сохраняем товары батчами, чтобы не держать всё в памяти
       let savedCount = 0;
       let imagesCount = 0;
-      const totalToSave = allProducts.length;
-      for (let i = 0; i < allProducts.length; i++) {
-        const product = allProducts[i];
+      while (true) {
+        batchIndex++;
+        let result;
         try {
+          result = await this.fetchProducts(token, 1, perPage, cursorId);
+        } catch (e) {
+          // Если возникла ошибка на page-офсете, принудительно переходим на курсорную пагинацию
+          result = { items: [] };
+        }
+
+        const items = result.items || [];
+        if (items.length === 0) break;
+        totalFetched += items.length;
+
+        if (progressStore && progressJobId) {
+          // Прогресс без известного тотала — условный, не более 50%
+          const pseudoProgress = Math.min(50, Math.floor(Math.log10(1 + totalFetched) * 20));
+          progressStore.setProgress(progressJobId, pseudoProgress, {
+            stage: 'fetching',
+            batchIndex,
+            batchSize: items.length,
+            totalFetched
+          });
+        }
+
+        for (let i = 0; i < items.length; i++) {
+          const product = items[i];
+          try {
           // Получаем остаток для товара из загруженных данных
           let availableQuantity = 0;
           const productArticle = product.sid?.toString() || product.id?.toString() || '';
@@ -291,25 +298,29 @@ class SimaLandService {
 
           savedCount++;
           if (progressStore && progressJobId) {
-            const base = 50; // первая половина прогресса — загрузка страниц
-            const saveProgress = totalToSave > 0 ? (i + 1) / totalToSave : 1;
-            progressStore.setProgress(progressJobId, base + saveProgress * 50, {
+            const base = 50; // первая половина — загрузка, вторая — сохранение
+            const saveProgress = Math.min(50, Math.floor(Math.log10(1 + savedCount) * 20));
+            progressStore.setProgress(progressJobId, base + saveProgress, {
               stage: 'saving',
               savedItems: savedCount,
-              totalItems: totalToSave,
               imagesWithUrl: imagesCount
             });
           }
         } catch (err) {
           console.error(`Error saving product ${product.article || product.id}:`, err.message);
         }
+        }
+
+        // Обновляем курсор последним id
+        const last = items[items.length - 1];
+        cursorId = last?.id || last?.sid || cursorId;
       }
 
       console.log(`✅ Saved ${savedCount} products for client ${clientId}`);
       console.log(`📸 Found images for ${imagesCount} out of ${savedCount} products`);
 
       const result = {
-        total: allProducts.length,
+        total: savedCount,
         saved: savedCount,
         images: imagesCount
       };
