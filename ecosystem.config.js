@@ -54,6 +54,24 @@ module.exports = {
       error_file: '/var/log/pm2/dropshipping-client-error.log',
       out_file: '/var/log/pm2/dropshipping-client-out.log',
       time: true
+    },
+    {
+      name: 'sima-catalog-updater',
+      cwd: '/home/samidius/MP',
+      script: 'server/scripts/update-sima-catalog.js',
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '256M',
+      env: {
+        NODE_ENV: 'development'
+      },
+      env_production: {
+        NODE_ENV: 'production'
+      },
+      error_file: '/var/log/pm2/sima-catalog-updater-error.log',
+      out_file: '/var/log/pm2/sima-catalog-updater-out.log',
+      time: true
     }
   ]
 };
