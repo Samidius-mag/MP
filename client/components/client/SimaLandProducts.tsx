@@ -24,11 +24,7 @@ export default function SimaLandProducts() {
   const [allProducts, setAllProducts] = useState<SimaLandProduct[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<SimaLandProduct[]>([]);
   const [loading, setLoading] = useState(false);
-  const [loadingProducts, setLoadingProducts] = useState(false);
-  const [importJobId, setImportJobId] = useState<string | null>(null);
-  const [importProgress, setImportProgress] = useState<number>(0);
-  const [importStage, setImportStage] = useState<string>('');
-  const [importDetails, setImportDetails] = useState<any>(null);
+  // Импорт из БД: загрузка выполняется на сервере планово, на странице только фильтрация
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState<SortField>('none');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -61,11 +57,11 @@ export default function SimaLandProducts() {
     }
   };
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (categories: number[] = []) => {
     try {
       setLoading(true);
-      
-      const response = await api.get('/client/sima-land/products');
+      const params = categories.length > 0 ? { params: { categories: categories.join(',') } } : {};
+      const response = await api.get('/client/sima-land/products', params);
       
       const products = response.data.products || [];
       setAllProducts(products);
@@ -98,61 +94,7 @@ export default function SimaLandProducts() {
     }
   };
 
-  const pollStatus = async (jobId: string) => {
-    try {
-      const statusResp = await api.get('/client/sima-land/products/status', { params: { jobId } });
-      const job = statusResp.data;
-      setImportProgress(job.progress || 0);
-      setImportStage(job.details?.stage || '');
-      setImportDetails(job.details || {});
-
-      if (job.status === 'completed') {
-        toast.success(`Импорт завершён: сохранено ${job.result?.saved || 0} из ${job.result?.total || 0}`);
-        setLoadingProducts(false);
-        setImportJobId(null);
-        await fetchProducts();
-        return;
-      }
-      if (job.status === 'failed') {
-        toast.error(job.error || 'Ошибка загрузки товаров');
-        setLoadingProducts(false);
-        setImportJobId(null);
-        return;
-      }
-
-      setTimeout(() => pollStatus(jobId), 5000);
-    } catch (e: any) {
-      setTimeout(() => pollStatus(jobId), 7000);
-    }
-  };
-
-  const loadProducts = async () => {
-    try {
-      setLoadingProducts(true);
-      setImportProgress(0);
-      setImportStage('');
-      setImportDetails(null);
-
-      // Запускаем загрузку общего каталога (использует статический токен на бэкенде)
-      const response = await api.post('/client/sima-land/catalog/load', {
-        categories: selectedCategories,
-      });
-      const jobId = response.data.jobId;
-      if (!jobId) {
-        toast.error('Не удалось запустить импорт');
-        setLoadingProducts(false);
-        return;
-      }
-      setImportJobId(jobId);
-      pollStatus(jobId);
-
-    } catch (err: any) {
-      console.error('Error loading products:', err);
-      toast.error(err.response?.data?.error || 'Ошибка загрузки товаров');
-    } finally {
-      // снимем флаг при завершении опроса
-    }
-  };
+  // кнопка Применить будет дергать fetchProducts(selectedCategories)
 
   const applyFiltersAndSort = () => {
     let filtered = [...allProducts];
@@ -295,58 +237,25 @@ export default function SimaLandProducts() {
                     ))}
                   </div>
                 )}
-                <div className="mt-2 flex justify-between text-xs text-gray-600">
+                <div className="mt-2 flex items-center justify-between text-xs text-gray-600">
                   <span>Выбрано: {selectedCategories.length}</span>
-                  <button onClick={fetchCategories} className="underline">Обновить список</button>
+                  <div className="flex items-center gap-3">
+                    <button onClick={fetchCategories} className="underline">Обновить список</button>
+                    <button
+                      onClick={() => fetchProducts(selectedCategories)}
+                      className="px-3 py-1 text-white bg-primary-600 rounded"
+                    >
+                      Применить
+                    </button>
+                  </div>
                 </div>
               </div>
             </details>
           </div>
-          <button
-            onClick={loadProducts}
-            disabled={loadingProducts || !hasToken}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
-          >
-            <PlusIcon className="w-4 h-4 mr-2" />
-            {loadingProducts ? 'Загрузка...' : 'Загрузить товары'}
-          </button>
+          
         </div>
       </div>
 
-      {importJobId && (
-        <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-sm text-blue-800 font-medium">
-              Идёт импорт товаров {importStage ? `— ${importStage}` : ''}
-              {selectedCategories.length > 0 && (
-                <span className="ml-2 text-blue-700">(категории: {selectedCategories.join(', ')})</span>
-              )}
-            </div>
-            <div className="text-sm text-blue-700">{importProgress}%</div>
-          </div>
-          <div className="w-full bg-blue-100 h-2 rounded">
-            <div className="bg-blue-600 h-2 rounded" style={{ width: `${importProgress}%` }}></div>
-          </div>
-          {importDetails && (
-            <div className="mt-2 text-xs text-blue-700">
-              {importDetails.currentPage && importDetails.totalPages && (
-                <span>Страниц: {importDetails.currentPage}/{importDetails.totalPages}. </span>
-              )}
-              {typeof importDetails.savedItems === 'number' && typeof importDetails.totalItems === 'number' && (
-                <span>Сохранено: {importDetails.savedItems}/{importDetails.totalItems}.</span>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {!hasToken && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
-          <p className="text-sm text-yellow-800">
-            Для работы с товарами СИМА ЛЕНД необходимо настроить токен API в разделе «Настройки».
-          </p>
-        </div>
-      )}
 
       {/* Фильтры и сортировка */}
       <div className="space-y-4">
@@ -413,9 +322,7 @@ export default function SimaLandProducts() {
         <div className="card text-center">
           <div className="py-12">
             <PhotoIcon className="mx-auto h-12 w-12 text-gray-400" />
-            <p className="mt-4 text-gray-500">
-              Товары не найдены. Нажмите "Загрузить товары" для импорта товаров из СИМА ЛЕНД.
-            </p>
+            <p className="mt-4 text-gray-500">Товары не найдены для выбранных фильтров.</p>
           </div>
         </div>
       ) : (

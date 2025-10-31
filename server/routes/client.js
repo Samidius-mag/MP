@@ -1498,12 +1498,29 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
         });
       }
 
-      // Получаем товары из общей витрины (каталога)
-      const productsResult = await client.query(
-        `SELECT id, article, name, brand, category, purchase_price, available_quantity, image_url, description
-         FROM sima_land_catalog
-         ORDER BY created_at DESC`
-      );
+      // Получаем товары из общей витрины (каталога) с опциональной фильтрацией по категориям
+      const raw = (req.query.categories || '').toString().trim();
+      const catIds = raw
+        ? raw.split(',').map(s => s.trim()).filter(Boolean).map(n => Number(n)).filter(n => Number.isFinite(n))
+        : [];
+
+      let productsResult;
+      if (catIds.length > 0) {
+        const placeholders = catIds.map((_, i) => `$${i + 1}`).join(',');
+        productsResult = await client.query(
+          `SELECT id, article, name, brand, category, purchase_price, available_quantity, image_url, description
+           FROM sima_land_catalog
+           WHERE category_id IN (${placeholders})
+           ORDER BY created_at DESC`,
+          catIds
+        );
+      } else {
+        productsResult = await client.query(
+          `SELECT id, article, name, brand, category, purchase_price, available_quantity, image_url, description
+           FROM sima_land_catalog
+           ORDER BY created_at DESC`
+        );
+      }
 
       res.json({
         success: true,
