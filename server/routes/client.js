@@ -1591,9 +1591,18 @@ router.get('/sima-land/categories', requireClient, async (req, res) => {
   try {
     const client = await pool.connect();
     try {
-      const cats = await client.query(
+      let cats = await client.query(
         `SELECT id, name, parent_id, level FROM sima_land_categories ORDER BY name`
       );
+      if (cats.rows.length === 0) {
+        // Резервно соберём категории из каталога
+        cats = await client.query(
+          `SELECT DISTINCT category_id AS id, COALESCE(category,'Без категории') AS name, NULL::BIGINT AS parent_id, NULL::INT AS level
+           FROM sima_land_catalog
+           WHERE category_id IS NOT NULL
+           ORDER BY name`
+        );
+      }
       return res.json({ categories: cats.rows });
     } finally {
       client.release();

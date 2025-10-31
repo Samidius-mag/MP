@@ -464,6 +464,18 @@ class SimaLandService {
         } catch {}
       }
 
+      // Резервное наполнение категорий из каталога, если API вернуло 0
+      if (!cats || cats.length === 0) {
+        console.log('ℹ️ Categories API returned 0. Backfilling categories from catalog...');
+        await client.query(
+          `INSERT INTO sima_land_categories (id, name)
+           SELECT DISTINCT category_id, COALESCE(category, 'Без категории')
+           FROM sima_land_catalog
+           WHERE category_id IS NOT NULL
+           ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, updated_at = NOW()`
+        );
+      }
+
       console.log(`✅ Catalog load completed: saved=${savedCount}`);
       if (progressStore && progressJobId) progressStore.finishJob(progressJobId, { saved: savedCount });
       return { saved: savedCount };
