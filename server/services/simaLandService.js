@@ -392,10 +392,48 @@ class SimaLandService {
         categories: Array.isArray(options.categories) ? options.categories : [],
         jobId: progressJobId
       });
-      const perPage = 100;
+      const perPage = 200;
       let cursorId = null;
       let savedCount = 0;
       let batchIndex = 0;
+
+      // Инкрементальный старт от максимального id в БД
+      try {
+        const r = await client.query(`SELECT COALESCE(MAX(id),0) AS max_id FROM sima_land_catalog`);
+        const maxId = r.rows[0]?.max_id;
+        if (maxId && Number(maxId) > 0) {
+          cursorId = Number(maxId);
+          console.log(`↗️ Incremental start from idGreaterThan=${cursorId}`);
+        }
+      } catch {}
+
+      let buffer = [];
+      const flush = async () => {
+        if (buffer.length === 0) return;
+        const cols = ['id','article','name','brand','category_id','category','purchase_price','available_quantity','image_url','description'];
+        const values = [];
+        const params = [];
+        let p = 1;
+        for (const it of buffer) {
+          values.push(`($${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++})`);
+          params.push(it.id, it.article, it.name, it.brand, it.category_id, it.category, it.purchase_price, it.available_quantity, it.image_url, it.description);
+        }
+        const sql = `INSERT INTO sima_land_catalog (${cols.join(',')}) VALUES ${values.join(',')}
+          ON CONFLICT (id) DO UPDATE SET
+            article=EXCLUDED.article,
+            name=EXCLUDED.name,
+            brand=EXCLUDED.brand,
+            category_id=EXCLUDED.category_id,
+            category=EXCLUDED.category,
+            purchase_price=EXCLUDED.purchase_price,
+            available_quantity=EXCLUDED.available_quantity,
+            image_url=EXCLUDED.image_url,
+            description=EXCLUDED.description,
+            updated_at=NOW()`;
+        await client.query(sql, params);
+        savedCount += buffer.length;
+        buffer = [];
+      };
 
       while (true) {
         batchIndex++;
@@ -404,51 +442,38 @@ class SimaLandService {
         if (items.length === 0) break;
 
         for (const product of items) {
-          const productId = product.id || product.sid;
-          const productArticle = product.sid?.toString() || product.id?.toString() || '';
-          const imageUrl = product.img || product.photoUrl || product.image_url || product.imageUrl || product.image || product.photo || product.photo_url || product.picture || product.picture_url;
-          await client.query(
-            `INSERT INTO sima_land_catalog (id, article, name, brand, category_id, category, purchase_price, available_quantity, image_url, description)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-             ON CONFLICT (id) DO UPDATE SET
-               article=EXCLUDED.article,
-               name=EXCLUDED.name,
-               brand=EXCLUDED.brand,
-               category_id=EXCLUDED.category_id,
-               category=EXCLUDED.category,
-               purchase_price=EXCLUDED.purchase_price,
-               available_quantity=EXCLUDED.available_quantity,
-               image_url=EXCLUDED.image_url,
-               description=EXCLUDED.description,
-               updated_at=NOW()`,
-            [
-              productId,
-              productArticle,
-              product.name,
-              product.trademark?.name || product.brand,
-              product.category_id || product.categoryId || null,
-              product.series?.name || product.category,
-              product.price || product.purchase_price || 0,
-              product.balance || 0,
-              imageUrl,
-              product.stuff || product.description
-            ]
-          );
-          savedCount++;
+          const row = {
+            id: product.id || product.sid,
+            article: product.sid?.toString() || product.id?.toString() || '',
+            name: product.name,
+            brand: product.trademark?.name || product.brand,
+            category_id: product.category_id || product.categoryId || null,
+            category: product.series?.name || product.category,
+            purchase_price: product.price || product.purchase_price || 0,
+            available_quantity: product.balance || 0,
+            image_url: (product.img || product.photoUrl || product.image_url || product.imageUrl || product.image || product.photo || product.photo_url || product.picture || product.picture_url) || null,
+            description: product.stuff || product.description
+          };
+          buffer.push(row);
+          if (buffer.length >= 500) {
+            await flush();
+            if (progressStore && progressJobId) {
+              progressStore.setProgress(progressJobId, Math.min(100, Math.floor(Math.log10(1 + savedCount) * 25)), {
+                stage: 'catalog-saving',
+                savedItems: savedCount
+              });
+            }
+          }
         }
 
         const last = items[items.length - 1];
         cursorId = last?.id || last?.sid || cursorId;
 
-        console.log(`📦 Catalog batch #${batchIndex}: fetched=${items.length}, totalSaved=${savedCount}, cursor=${cursorId}`);
-
-        if (progressStore && progressJobId) {
-          progressStore.setProgress(progressJobId, Math.min(100, Math.floor(Math.log10(1 + savedCount) * 25)), {
-            stage: 'catalog-saving',
-            savedItems: savedCount
-          });
-        }
+        console.log(`📦 Catalog batch #${batchIndex}: fetched=${items.length}, totalSaved=${savedCount + buffer.length}, cursor=${cursorId}`);
       }
+
+      // финальный сброс буфера
+      await flush();
 
       // Categories refresh (best effort)
       const cats = await this.fetchCategories(token);
