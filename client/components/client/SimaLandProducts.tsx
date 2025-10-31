@@ -38,6 +38,7 @@ export default function SimaLandProducts() {
   const [categoriesInput, setCategoriesInput] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<number[]>([]);
   const [categoriesList, setCategoriesList] = useState<{id:number,name:string,parent_id?:number}[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
 
   useEffect(() => {
     checkToken();
@@ -83,14 +84,17 @@ export default function SimaLandProducts() {
 
   const fetchCategories = async () => {
     try {
+      setCategoriesLoading(true);
       const res = await api.get('/client/sima-land/categories');
-      const list = res.data.categories || [];
+      const list = (res.data.categories || []).map((c: any) => ({ id: Number(c.id), name: String(c.name), parent_id: c.parent_id }));
       setCategoriesList(list);
-      if (list.length > 0 && selectedCategories.length === 0) {
-        // ничего не выбираем по умолчанию
+      if (list.length === 0) {
+        toast('Категории ещё не загружены. Сначала выполните импорт каталога.', { icon: 'ℹ️' });
       }
     } catch (e) {
-      // тихо
+      toast.error('Ошибка получения категорий');
+    } finally {
+      setCategoriesLoading(false);
     }
   };
 
@@ -260,6 +264,9 @@ export default function SimaLandProducts() {
             <details className="cursor-pointer">
               <summary className="px-3 py-2 border border-gray-300 rounded-md">Выбрать категории</summary>
               <div className="absolute z-10 mt-2 w-80 max-h-80 overflow-auto bg-white border border-gray-200 rounded-md p-2 shadow-lg">
+                {categoriesLoading && (
+                  <div className="text-sm text-gray-500 mb-2">Загрузка категорий...</div>
+                )}
                 <input
                   type="text"
                   value={categoriesInput}
@@ -267,22 +274,30 @@ export default function SimaLandProducts() {
                   placeholder="Поиск категории..."
                   className="w-full mb-2 px-2 py-1 border border-gray-300 rounded"
                 />
-                <div className="space-y-1">
-                  {categoriesList
-                    .filter(c => !categoriesInput || c.name.toLowerCase().includes(categoriesInput.toLowerCase()))
-                    .slice(0, 200)
-                    .map(c => (
-                    <label key={c.id} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={selectedCategories.includes(c.id)}
-                        onChange={(e)=>{
-                          setSelectedCategories(prev => e.target.checked ? [...prev, c.id] : prev.filter(id=>id!==c.id));
-                        }}
-                      />
-                      <span>{c.name}</span>
-                    </label>
-                  ))}
+                {categoriesList.length === 0 && !categoriesLoading ? (
+                  <div className="text-sm text-gray-500">Категории отсутствуют. Выполните импорт каталога.</div>
+                ) : (
+                  <div className="space-y-1">
+                    {categoriesList
+                      .filter(c => !categoriesInput || c.name.toLowerCase().includes(categoriesInput.toLowerCase()))
+                      .slice(0, 1000)
+                      .map(c => (
+                      <label key={c.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={selectedCategories.includes(c.id)}
+                          onChange={(e)=>{
+                            setSelectedCategories(prev => e.target.checked ? [...prev, c.id] : prev.filter(id=>id!==c.id));
+                          }}
+                        />
+                        <span>{c.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-2 flex justify-between text-xs text-gray-600">
+                  <span>Выбрано: {selectedCategories.length}</span>
+                  <button onClick={fetchCategories} className="underline">Обновить список</button>
                 </div>
               </div>
             </details>
