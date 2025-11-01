@@ -180,15 +180,12 @@ class YandexMarketService {
               name: productData.name,
               vendor: productData.vendor || '',
               pictures: productData.pictures || [],
-              description: productData.description || ''
+              description: productData.description || '',
+              ...(productData.price ? { price: { value: productData.price, currencyId: 'RUR' } } : {})
             },
             mapping: {
               marketCategoryId: productData.marketCategoryId
-            },
-            price: productData.price ? {
-              value: productData.price,
-              currencyId: 'RUR'
-            } : undefined
+            }
           }
         ]
       };
