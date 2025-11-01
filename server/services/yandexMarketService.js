@@ -263,15 +263,12 @@ class YandexMarketService {
    */
   async updatePrices(apiKey, businessId, prices) {
     try {
-      const url = `${this.baseUrl}/v2/businesses/${businessId}/offer-mappings/update`;
+      const url = `${this.baseUrl}/v2/businesses/${businessId}/offer-prices/updates`;
 
       const requestBody = {
-        offers: prices.map(priceData => ({
-          offerId: priceData.offerId,
-          price: {
-            value: priceData.price,
-            currencyId: 'RUR'
-          }
+        offers: prices.map(p => ({
+          offerId: p.offerId,
+          price: { value: p.price, currencyId: 'RUR' }
         }))
       };
 
@@ -287,6 +284,29 @@ class YandexMarketService {
     } catch (error) {
       console.error('Yandex Market updatePrices error:', error.response?.data || error.message);
       throw new Error(`Failed to update prices on Yandex Market: ${error.response?.data?.message || error.message}`);
+    }
+  }
+
+  /**
+   * Обновить цены в конкретном магазине (по campaignId)
+   */
+  async updateCampaignPrices(apiKey, campaignId, prices) {
+    try {
+      const url = `${this.baseUrl}/v2/campaigns/${campaignId}/offer-prices/updates`;
+      const requestBody = {
+        offers: prices.map(p => ({
+          offerId: p.offerId,
+          price: { value: p.price, currencyId: 'RUR' }
+        }))
+      };
+      const response = await axios.post(url, requestBody, {
+        headers: { 'Api-Key': apiKey, 'Content-Type': 'application/json' },
+        timeout: 30000
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Yandex Market updateCampaignPrices error:', error.response?.data || error.message);
+      throw new Error(`Failed to update campaign prices on Yandex Market: ${error.response?.data?.message || error.message}`);
     }
   }
 
@@ -368,6 +388,23 @@ class YandexMarketService {
 
       // Добавляем товар на Яндекс Маркет
       const result = await this.addProduct(apiKey, businessId, productData);
+
+      // Устанавливаем цену через pricing API (после успешного добавления товара)
+      if (sellingPrice && sellingPrice > 0) {
+        try {
+          if (campaignId) {
+            await this.updateCampaignPrices(apiKey, campaignId, [
+              { offerId: product.article, price: sellingPrice }
+            ]);
+          } else {
+            await this.updatePrices(apiKey, businessId, [
+              { offerId: product.article, price: sellingPrice }
+            ]);
+          }
+        } catch (priceErr) {
+          console.error('Set price failed:', priceErr.message);
+        }
+      }
 
       // Обновляем данные товара в БД
       await client.query(
