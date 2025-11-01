@@ -178,19 +178,70 @@ class SimaLandService {
     return parsedProduct;
   }
 
-  async fetchCategories(token) {
+  /**
+   * Получить категории из API sima-land v3
+   * Согласно документации API v3: https://www.sima-land.ru/api/v3/help/#Категория-товаров
+   * Категории возвращаются с полями: id, name, parent_id, depth (уровень вложенности)
+   * Поддерживается пагинация для больших списков категорий
+   */
+  async fetchCategories(token, options = {}) {
     try {
-      const response = await axios.get(`${this.baseUrl}/category/`, {
-        params: { 'per-page': 1000 },
-        headers: {
-          'x-api-key': token,
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
+      const perPage = options.perPage || 1000;
+      const allCategories = [];
+      let page = 1;
+      let hasMore = true;
+
+      while (hasMore) {
+        const response = await axios.get(`${this.baseUrl}/category/`, {
+          params: {
+            'per-page': perPage,
+            page: page
+          },
+          headers: {
+            'x-api-key': token,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          timeout: 30000
+        });
+
+        const items = response.data.items || [];
+        const meta = response.data._meta || {};
+
+        // Обрабатываем категории согласно структуре API v3
+        // Поля: id, name, parent_id, depth (уровень вложенности)
+        for (const category of items) {
+          allCategories.push({
+            id: category.id,
+            name: category.name || '',
+            parent_id: category.parent_id || null,
+            depth: category.depth || category.level || null
+          });
         }
-      });
-      return response.data.items || [];
+
+        // Проверяем, есть ли еще страницы
+        const currentPage = meta.currentPage || page;
+        const pageCount = meta.pageCount || 1;
+        hasMore = currentPage < pageCount && items.length > 0;
+        page++;
+
+        // Защита от бесконечного цикла
+        if (page > 100) {
+          console.warn('Sima-land categories: слишком много страниц, прерываем загрузку');
+          break;
+        }
+
+        // Небольшая задержка между запросами для соблюдения rate limits
+        if (hasMore) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+
+      console.log(`📚 Загружено ${allCategories.length} категорий из API sima-land`);
+      return allCategories;
     } catch (error) {
       console.error('Sima-land categories API error:', error.response?.data || error.message);
+      // При ошибке возвращаем пустой массив, резервное заполнение будет из каталога
       return [];
     }
   }
@@ -234,9 +285,22 @@ class SimaLandService {
         'per-page': perPage,
         ...(idGreaterThan ? { 'id-greater-than': idGreaterThan } : { page }),
       };
+      // Фильтрация по категориям согласно документации API v3
+      // Параметр может быть category_id или category_ids
       if (options?.categories && Array.isArray(options.categories) && options.categories.length > 0) {
-        // СИМА ЛЕНД обычно принимает category_id; пробуем передавать массив как CSV
-        params['category_id'] = options.categories.join(',');
+        // API v3 может принимать несколько значений категорий
+        // Попробуем разные варианты форматов
+        const categoryIds = options.categories.map(id => parseInt(id)).filter(id => !isNaN(id));
+        if (categoryIds.length > 0) {
+          // Вариант 1: передаем как массив в query string (category_id[]=1&category_id[]=2)
+          // Вариант 2: передаем через запятую (category_id=1,2)
+          // Используем вариант с запятой, так как axios автоматически обработает массив
+          if (categoryIds.length === 1) {
+            params['category_id'] = categoryIds[0];
+          } else {
+            params['category_id'] = categoryIds.join(',');
+          }
+        }
       }
 
       const response = await axios.get(`${this.baseUrl}/item/`, {
@@ -673,8 +737,11 @@ class SimaLandService {
       await flush();
 
       // Categories refresh (best effort)
-      const cats = await this.fetchCategories(token);
+      // Загружаем категории с пагинацией согласно документации API v3
+      const cats = await this.fetchCategories(token, { perPage: 1000 });
       console.log(`📚 Categories fetched: ${cats.length}`);
+      
+      // Сохраняем категории в БД
       for (const c of cats) {
         try {
           await client.query(
@@ -683,7 +750,10 @@ class SimaLandService {
              ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, parent_id=EXCLUDED.parent_id, level=EXCLUDED.level, updated_at=NOW()`,
             [c.id, c.name, c.parent_id || null, c.depth || null]
           );
-        } catch {}
+        } catch (err) {
+          // Тихая обработка ошибок для отдельных категорий
+          console.warn(`Failed to save category ${c.id}:`, err.message);
+        }
       }
 
       // Резервное наполнение категорий из каталога, если API вернуло 0

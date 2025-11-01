@@ -1688,9 +1688,60 @@ router.get('/sima-land/categories', requireClient, async (req, res) => {
   try {
     const client = await pool.connect();
     try {
+      // Проверяем параметр обновления категорий из API
+      const refreshFromApi = req.query.refresh === 'true';
+      
+      // Если запрошено обновление, загружаем категории из API
+      if (refreshFromApi) {
+        const clientResult = await client.query(
+          `SELECT api_keys FROM clients WHERE user_id = $1`,
+          [req.user.id]
+        );
+
+        if (clientResult.rows.length > 0) {
+          const apiKeys = clientResult.rows[0].api_keys || {};
+          const simaLandToken = apiKeys.sima_land?.token;
+
+          if (simaLandToken) {
+            try {
+              const SimaLandService = require('../services/simaLandService');
+              const simaLandService = new SimaLandService();
+              
+              // Загружаем категории из API согласно документации v3
+              const apiCategories = await simaLandService.fetchCategories(simaLandToken, { perPage: 1000 });
+              
+              // Сохраняем категории в БД
+              for (const cat of apiCategories) {
+                try {
+                  await client.query(
+                    `INSERT INTO sima_land_categories (id, name, parent_id, level)
+                     VALUES ($1,$2,$3,$4)
+                     ON CONFLICT (id) DO UPDATE SET 
+                       name=EXCLUDED.name, 
+                       parent_id=EXCLUDED.parent_id, 
+                       level=EXCLUDED.level, 
+                       updated_at=NOW()`,
+                    [cat.id, cat.name, cat.parent_id || null, cat.depth || null]
+                  );
+                } catch (err) {
+                  console.warn(`Failed to save category ${cat.id}:`, err.message);
+                }
+              }
+              
+              console.log(`✅ Обновлено ${apiCategories.length} категорий из API`);
+            } catch (apiError) {
+              console.error('Error refreshing categories from API:', apiError);
+              // Продолжаем с данными из БД
+            }
+          }
+        }
+      }
+
+      // Получаем категории из БД
       let cats = await client.query(
         `SELECT id, name, parent_id, level FROM sima_land_categories ORDER BY name`
       );
+      
       if (cats.rows.length === 0) {
         // Резервно соберём категории из каталога
         cats = await client.query(
@@ -1741,7 +1792,11 @@ router.get('/sima-land/categories', requireClient, async (req, res) => {
         }
       });
       
-      return res.json({ categories: Array.from(categoryMap.values()) });
+      return res.json({ 
+        categories: Array.from(categoryMap.values()),
+        total: categoryMap.size,
+        refreshed: refreshFromApi
+      });
     } finally {
       client.release();
     }
