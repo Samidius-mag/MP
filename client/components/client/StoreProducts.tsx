@@ -215,17 +215,7 @@ export default function StoreProducts() {
     // Открываем модал выбора категории и параметров
     setYmTargetProductId(productId);
     setYmModalOpen(true);
-    setYmLoading(true);
-    try {
-      const { data } = await api.get('/client/yandex/categories');
-      const list = (data?.categories || data?.result || data) as any[];
-      setYmCategories(Array.isArray(list) ? list : []);
-    } catch (e:any) {
-      toast.error(e.response?.data?.error || 'Ошибка загрузки категорий Яндекс.Маркет');
-      setYmModalOpen(false);
-    } finally {
-      setYmLoading(false);
-    }
+    fetchYmCategories();
   };
 
   const calculateSellingPrice = (purchasePrice?: number, markupPercent?: number) => {
@@ -250,6 +240,27 @@ export default function StoreProducts() {
       setYmLoading(false);
     }
   };
+
+  const fetchYmCategories = async () => {
+    setYmLoading(true);
+    try {
+      const { data } = await api.get('/client/yandex/categories');
+      const list = (data?.categories || data?.result || data) as any[];
+      setYmCategories(Array.isArray(list) ? list : []);
+    } catch (e:any) {
+      console.error('YM categories error:', e);
+      toast.error(e.response?.data?.error || 'Ошибка загрузки категорий Яндекс.Маркет');
+    } finally {
+      setYmLoading(false);
+    }
+  };
+
+  // Автозагрузка категорий при открытии модала
+  useEffect(() => {
+    if (ymModalOpen) {
+      fetchYmCategories();
+    }
+  }, [ymModalOpen]);
 
   const submitYmUpload = async () => {
     if (!ymTargetProductId) return;
