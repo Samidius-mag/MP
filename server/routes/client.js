@@ -2141,14 +2141,23 @@ router.get('/yandex/categories', requireClient, async (req, res) => {
       console.log(`[YM] Fetch categories tree: clientId=${clientId} lang=${lang}`);
       const data = await ym.getCategoriesTree(apiKey, lang);
       console.log('[YM] Raw categories tree keys:', Object.keys(data || {}));
-      const root = data?.categories || data?.result?.categories || data?.result || data;
+      const resObj = data?.result || {};
+      if (resObj && typeof resObj === 'object') {
+        try { console.log('[YM] result keys:', Object.keys(resObj)); } catch {}
+      }
+      // Пытаемся найти первый массив в result и трактовать его как корень дерева
+      let root = data?.categories || data?.result?.categories || data?.result || data;
+      if (!Array.isArray(root)) {
+        const vals = Object.values(resObj).filter(v => Array.isArray(v));
+        if (vals.length > 0) root = vals[0];
+      }
       const flat = [];
       const walk = (nodes) => {
         if (!Array.isArray(nodes)) return;
         for (const n of nodes) {
           const id = n.id || n.categoryId;
           const name = n.name || n.title || String(id || '');
-          const children = n.children || n.childs || n.items;
+          const children = n.children || n.childs || n.items || n.categories || n.nodes;
           if (Array.isArray(children) && children.length > 0) {
             walk(children);
           } else if (id) {
