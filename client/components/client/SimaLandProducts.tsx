@@ -11,10 +11,18 @@ interface SimaLandProduct {
   name: string;
   brand?: string;
   category?: string;
+  category_id?: number;
   purchase_price?: number;
   available_quantity?: number;
   image_url?: string;
   description?: string;
+}
+
+interface Category {
+  id: number;
+  name: string;
+  parent_id?: number;
+  level?: number;
 }
 
 type SortField = 'name' | 'brand' | 'price' | 'available' | 'none';
@@ -24,6 +32,9 @@ export default function SimaLandProducts() {
   const [allProducts, setAllProducts] = useState<SimaLandProduct[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<SimaLandProduct[]>([]);
   const [loading, setLoading] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<number[]>([]);
+  const [showCategoryFilter, setShowCategoryFilter] = useState(false);
   // Импорт из БД: загрузка выполняется на сервере планово, на странице только фильтрация
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState<SortField>('none');
@@ -34,6 +45,7 @@ export default function SimaLandProducts() {
 
   useEffect(() => {
     checkToken();
+    fetchCategories();
     // Не загружаем товары по умолчанию — ждём ввода в поиск
   }, []);
 
@@ -52,11 +64,28 @@ export default function SimaLandProducts() {
     }
   };
 
-  const fetchProducts = async (term: string) => {
+  const fetchCategories = async () => {
+    try {
+      const response = await api.get('/client/sima-land/categories');
+      setCategories(response.data.categories || []);
+    } catch (err: any) {
+      console.error('Error fetching categories:', err);
+      // Не показываем ошибку, просто пустой список категорий
+    }
+  };
+
+  const fetchProducts = async (term: string, categoryIds?: number[]) => {
     try {
       setLoading(true);
-      const params = term ? { params: { search: term } } : {};
-      const response = await api.get('/client/sima-land/products', params);
+      const params: any = {};
+      if (term && term.trim()) {
+        params.search = term.trim();
+      }
+      if (categoryIds && categoryIds.length > 0) {
+        params.categories = categoryIds;
+      }
+      
+      const response = await api.get('/client/sima-land/products', { params });
       
       const products = response.data.products || [];
       setAllProducts(products);
@@ -70,6 +99,36 @@ export default function SimaLandProducts() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCategoryToggle = (categoryId: number) => {
+    setSelectedCategories(prev => {
+      const newSelected = prev.includes(categoryId)
+        ? prev.filter(id => id !== categoryId)
+        : [...prev, categoryId];
+      return newSelected;
+    });
+  };
+
+  const handleCategoryFilterApply = () => {
+    const term = searchTerm.trim();
+    if (!term && selectedCategories.length === 0) {
+      toast('Введите поисковый запрос или выберите категории', { icon: 'ℹ️' });
+      setAllProducts([]);
+      setFilteredProducts([]);
+      return;
+    }
+    fetchProducts(term || '', selectedCategories);
+  };
+
+  const clearCategoryFilter = () => {
+    setSelectedCategories([]);
+    if (searchTerm.trim()) {
+      fetchProducts(searchTerm.trim(), []);
+    } else {
+      setAllProducts([]);
+      setFilteredProducts([]);
     }
   };
 
@@ -190,30 +249,92 @@ export default function SimaLandProducts() {
             </div>
             <input
               type="text"
-              placeholder="Поиск по названию или артикулу... (минимум 2 символа)"
+              placeholder="Поиск по названию или артикулу (или выберите категории)"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
             />
           </div>
           <button
-            onClick={() => {
-              const term = (searchTerm || '').trim();
-              if (term.length < 2) {
-                toast('Введите минимум 2 символа для поиска', { icon: 'ℹ️' });
-                setAllProducts([]);
-                setFilteredProducts([]);
-                return;
-              }
-              fetchProducts(term);
-            }}
+            onClick={handleCategoryFilterApply}
             className="px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
           >
             Применить
           </button>
+          <button
+            onClick={() => setShowCategoryFilter(!showCategoryFilter)}
+            className={`px-4 py-2 text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 ${
+              showCategoryFilter || selectedCategories.length > 0
+                ? 'bg-primary-100 text-primary-700 border border-primary-300'
+                : 'bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200'
+            }`}
+          >
+            Категории {selectedCategories.length > 0 && `(${selectedCategories.length})`}
+          </button>
         </div>
       </div>
 
+
+      {/* Фильтр категорий */}
+      {showCategoryFilter && (
+        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-sm font-medium text-gray-900">Фильтр по категориям</h3>
+            {selectedCategories.length > 0 && (
+              <button
+                onClick={clearCategoryFilter}
+                className="text-sm text-primary-600 hover:text-primary-700"
+              >
+                Очистить
+              </button>
+            )}
+          </div>
+          {categories.length === 0 ? (
+            <p className="text-sm text-gray-500">Категории загружаются...</p>
+          ) : (
+            <div className="max-h-64 overflow-y-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+              {categories.map((category) => (
+                <label
+                  key={category.id}
+                  className="flex items-center space-x-2 p-2 rounded hover:bg-gray-50 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedCategories.includes(category.id)}
+                    onChange={() => handleCategoryToggle(category.id)}
+                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                  <span className="text-sm text-gray-700">{category.name}</span>
+                </label>
+              ))}
+            </div>
+          )}
+          {selectedCategories.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-gray-200">
+              <p className="text-xs text-gray-500 mb-2">Выбрано категорий: {selectedCategories.length}</p>
+              <div className="flex flex-wrap gap-2">
+                {selectedCategories.map(catId => {
+                  const cat = categories.find(c => c.id === catId);
+                  return cat ? (
+                    <span
+                      key={catId}
+                      className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary-100 text-primary-800"
+                    >
+                      {cat.name}
+                      <button
+                        onClick={() => handleCategoryToggle(catId)}
+                        className="ml-1 text-primary-600 hover:text-primary-800"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ) : null;
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Фильтры и сортировка */}
       <div className="space-y-4">
@@ -266,8 +387,8 @@ export default function SimaLandProducts() {
         <div className="card text-center">
           <div className="py-12">
             <PhotoIcon className="mx-auto h-12 w-12 text-gray-400" />
-            {!searchTerm || searchTerm.trim().length < 2 ? (
-              <p className="mt-4 text-gray-500">Введите минимум 2 символа в поиск, чтобы найти товары.</p>
+            {!searchTerm && selectedCategories.length === 0 ? (
+              <p className="mt-4 text-gray-500">Введите поисковый запрос или выберите категории для фильтрации товаров.</p>
             ) : (
               <p className="mt-4 text-gray-500">Товары не найдены для выбранных фильтров.</p>
             )}

@@ -1498,21 +1498,43 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
         });
       }
 
-      // Поиск по названию/артикулу. Если не передан search — вернем пустой список (чтобы не грузить десятки тысяч записей)
+      // Поиск по названию/артикулу и фильтрация по категориям
       const search = (req.query.search || '').toString().trim();
+      const categoryIds = req.query.categories 
+        ? (Array.isArray(req.query.categories) ? req.query.categories : [req.query.categories])
+            .map(id => parseInt(id))
+            .filter(id => !isNaN(id))
+        : [];
+
       let productsResult;
-      if (!search) {
+      if (!search && categoryIds.length === 0) {
+        // Если нет ни поиска, ни категорий — вернем пустой список
         productsResult = { rows: [] };
       } else {
-        const like = `%${search}%`;
-        productsResult = await client.query(
-          `SELECT id, article, name, brand, category, purchase_price, available_quantity, image_url, description
-           FROM sima_land_catalog
-           WHERE name ILIKE $1 OR article ILIKE $1
-           ORDER BY created_at DESC
-           LIMIT 1000`,
-          [like]
-        );
+        let query = `SELECT id, article, name, brand, category, category_id, purchase_price, available_quantity, image_url, description
+                     FROM sima_land_catalog
+                     WHERE 1=1`;
+        const params = [];
+        let paramIndex = 1;
+
+        // Фильтрация по поиску
+        if (search) {
+          const like = `%${search}%`;
+          query += ` AND (name ILIKE $${paramIndex} OR article ILIKE $${paramIndex})`;
+          params.push(like);
+          paramIndex++;
+        }
+
+        // Фильтрация по категориям
+        if (categoryIds.length > 0) {
+          query += ` AND category_id = ANY($${paramIndex})`;
+          params.push(categoryIds);
+          paramIndex++;
+        }
+
+        query += ` ORDER BY created_at DESC LIMIT 1000`;
+        
+        productsResult = await client.query(query, params);
       }
 
       res.json({
