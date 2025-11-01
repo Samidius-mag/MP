@@ -56,6 +56,7 @@ export default function StoreProducts() {
   const [ymSelectedCategoryId, setYmSelectedCategoryId] = useState<string>('');
   const [ymParams, setYmParams] = useState<any[]>([]);
   const [ymParamValues, setYmParamValues] = useState<Record<string, any>>({});
+  const [ymCategorySearch, setYmCategorySearch] = useState('');
 
   useEffect(() => {
     fetchProducts();
@@ -708,19 +709,45 @@ export default function StoreProducts() {
             <div className="space-y-4">
               <div>
                 <label className="label">Категория Яндекс.Маркет</label>
-                <select
-                  value={ymSelectedCategoryId}
-                  onChange={(e) => {
-                    setYmSelectedCategoryId(e.target.value);
-                    loadYmParams(e.target.value);
-                  }}
-                  className="input"
-                >
-                  <option value="">Выберите категорию</option>
-                  {ymCategories.map((c:any) => (
-                    <option key={c.id} value={c.id}>{c.name || c.title || c.id}</option>
-                  ))}
-                </select>
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="Поиск категории..."
+                    value={ymCategorySearch}
+                    onChange={(e) => setYmCategorySearch(e.target.value)}
+                  />
+                  <select
+                    value={ymSelectedCategoryId}
+                    onChange={(e) => {
+                      setYmSelectedCategoryId(e.target.value);
+                      loadYmParams(e.target.value);
+                    }}
+                    className="input"
+                    size={8}
+                  >
+                    <option value="">Выберите категорию</option>
+                    {ymCategories
+                      .filter((c:any) => {
+                        if (!ymCategorySearch) return true;
+                        const q = ymCategorySearch.toLowerCase();
+                        return String(c.name || c.title || c.id).toLowerCase().includes(q);
+                      })
+                      .slice(0, 200)
+                      .map((c:any) => (
+                        <option key={c.id} value={c.id}>{c.name || c.title || c.id}</option>
+                      ))}
+                  </select>
+                  <div className="text-xs text-gray-500">
+                    Найдено: {
+                      ymCategories.filter((c:any) => {
+                        if (!ymCategorySearch) return true;
+                        const q = ymCategorySearch.toLowerCase();
+                        return String(c.name || c.title || c.id).toLowerCase().includes(q);
+                      }).length
+                    } (показано до 200)
+                  </div>
+                </div>
               </div>
 
               {ymLoading && <div className="text-sm text-gray-500">Загрузка...</div>}
