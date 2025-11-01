@@ -2137,7 +2137,10 @@ router.get('/yandex/categories', requireClient, async (req, res) => {
       const ym = new YandexMarketService();
       const apiKey = await ym.getClientApiKey(clientId);
       if (!apiKey) return res.status(400).json({ error: 'API ключ Яндекс.Маркет не настроен' });
-      const data = await ym.getCategoriesTree(apiKey, req.query.language || 'RU');
+      const lang = req.query.language || 'RU';
+      console.log(`[YM] Fetch categories tree: clientId=${clientId} lang=${lang}`);
+      const data = await ym.getCategoriesTree(apiKey, lang);
+      console.log('[YM] Raw categories tree keys:', Object.keys(data || {}));
       const root = data?.categories || data?.result?.categories || data?.result || data;
       const flat = [];
       const walk = (nodes) => {
@@ -2154,11 +2157,13 @@ router.get('/yandex/categories', requireClient, async (req, res) => {
         }
       };
       walk(root);
+      console.log(`[YM] Flattened leaf categories: count=${flat.length}`);
       res.json({ categories: flat });
     } finally {
       client.release();
     }
   } catch (e) {
+    console.error('[YM] Categories error:', e.response?.data || e.message);
     res.status(500).json({ error: 'Ошибка получения категорий Яндекс-Маркет' });
   }
 });
@@ -2177,12 +2182,17 @@ router.post('/yandex/category/:categoryId/parameters', requireClient, async (req
       if (!apiKey) return res.status(400).json({ error: 'API ключ Яндекс.Маркет не настроен' });
       const businessId = await ym.getBusinessId(clientId);
       if (!businessId) return res.status(400).json({ error: 'Business ID не настроен' });
-      const data = await ym.getCategoryParameters(apiKey, req.params.categoryId, businessId, req.query.language || 'RU');
-      res.json(data);
+      const lang = req.query.language || 'RU';
+      console.log(`[YM] Fetch parameters: categoryId=${req.params.categoryId} businessId=${businessId} lang=${lang}`);
+      const data = await ym.getCategoryParameters(apiKey, req.params.categoryId, businessId, lang);
+      const params = data?.parameters || data?.result || [];
+      console.log(`[YM] Parameters received: count=${Array.isArray(params) ? params.length : 0}`);
+      res.json({ parameters: params });
     } finally {
       client.release();
     }
   } catch (e) {
+    console.error('[YM] Category parameters error:', e.response?.data || e.message);
     res.status(500).json({ error: 'Ошибка получения параметров категории' });
   }
 });

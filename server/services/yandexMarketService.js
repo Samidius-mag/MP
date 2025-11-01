@@ -216,11 +216,13 @@ class YandexMarketService {
    */
   async getCategoriesTree(apiKey, language = 'RU') {
     const url = `${this.baseUrl}/v2/categories/tree`;
+    console.log('[YM] GET categories.tree request');
     const response = await axios.post(url, {}, {
       headers: { 'Api-Key': apiKey, 'Content-Type': 'application/json' },
       params: { language },
       timeout: 30000
     });
+    console.log('[YM] categories.tree ok');
     return response.data;
   }
 
@@ -229,11 +231,13 @@ class YandexMarketService {
    */
   async getCategoryParameters(apiKey, categoryId, businessId, language = 'RU') {
     const url = `${this.baseUrl}/v2/category/${categoryId}/parameters`;
+    console.log('[YM] GET category.parameters request');
     const response = await axios.post(url, { businessId }, {
       headers: { 'Api-Key': apiKey, 'Content-Type': 'application/json' },
       params: { language },
       timeout: 30000
     });
+    console.log('[YM] category.parameters ok');
     return response.data;
   }
 
