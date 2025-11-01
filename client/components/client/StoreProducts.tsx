@@ -410,37 +410,37 @@ export default function StoreProducts() {
       ) : (
         <div className="card">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+            <table className="min-w-full divide-y divide-gray-200 table-fixed">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-2 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">
                     Товар
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-2 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">
                     Артикул / nmId
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-2 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">
                     Цена
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-2 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">
                     Комиссия
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-2 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">
                     Логистика
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-2 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">
                     Статус
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-2 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">
                     Закупка / Наценка
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-2 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">
                     Остаток
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-2 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">
                     Маркетплейсы
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-2 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">
                     Обновлено
                   </th>
                 </tr>
@@ -453,41 +453,41 @@ export default function StoreProducts() {
                     const marketplaceTargets = product.marketplace_targets || [];
                     return (
                   <tr key={product.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-4 whitespace-nowrap">
+                    <td className="px-2 py-2 whitespace-nowrap">
                       <div className="flex flex-col">
-                        <div className="text-sm font-medium text-gray-900">
+                        <div className="text-xs font-medium text-gray-900">
                           {product.name}
                         </div>
                         {product.brand && (
-                          <div className="text-sm text-gray-500">{product.brand}</div>
+                          <div className="text-[11px] text-gray-500">{product.brand}</div>
                         )}
                         {product.category && (
-                          <div className="text-xs text-gray-400">{product.category}</div>
+                          <div className="text-[10px] text-gray-400">{product.category}</div>
                         )}
                         {product.source && (
-                          <div className="text-xs text-blue-600 mt-1">
+                          <div className="text-[10px] text-blue-600 mt-1">
                             {product.source === 'sima_land' ? 'Сима Ленд' : 'Wildberries'}
                           </div>
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{product.article}</div>
+                    <td className="px-2 py-2 whitespace-nowrap">
+                      <div className="text-xs text-gray-900">{product.article}</div>
                       {product.nm_id && (
-                        <div className="text-xs text-gray-500">nmId: {product.nm_id}</div>
+                        <div className="text-[10px] text-gray-500">nmId: {product.nm_id}</div>
                       )}
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
                       {formatPrice(product.current_price || sellingPrice || undefined)}
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
                       {product.commission_percent ? `${product.commission_percent}%` : '—'}
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-500">
                       {formatPrice(product.logistics_cost)}
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    <td className="px-2 py-2 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${
                         product.is_active 
                           ? 'bg-green-100 text-green-800' 
                           : 'bg-red-100 text-red-800'
@@ -495,16 +495,16 @@ export default function StoreProducts() {
                         {product.is_active ? 'Активен' : 'Неактивен'}
                       </span>
                       {product.in_promotion && (
-                        <div className="text-xs text-purple-600 mt-1">
+                        <div className="text-[10px] text-purple-600 mt-1">
                           В акции: {product.promotion_discount_percent}%
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap">
-                      <div className="text-sm">
+                    <td className="px-2 py-2 whitespace-nowrap">
+                      <div className="text-xs">
                         {product.purchase_price ? (
                           <>
-                            <div className="text-gray-900">{formatPrice(product.purchase_price)}</div>
+                            <div className="text-gray-900 text-xs">{formatPrice(product.purchase_price)}</div>
                             {editingMarkup === product.id ? (
                               <div className="flex items-center gap-1 mt-1">
                                 <input
@@ -512,10 +512,10 @@ export default function StoreProducts() {
                                   value={markupValue}
                                   onChange={(e) => setMarkupValue(e.target.value)}
                                   placeholder={product.markup_percent?.toString() || '0'}
-                                  className="w-16 px-2 py-1 text-xs border border-gray-300 rounded"
+                                  className="w-14 px-2 py-1 text-[11px] border border-gray-300 rounded"
                                   autoFocus
                                 />
-                                <span className="text-xs text-gray-500">%</span>
+                                <span className="text-[11px] text-gray-500">%</span>
                                 <button
                                   onClick={() => {
                                     const val = parseFloat(markupValue);
@@ -523,7 +523,7 @@ export default function StoreProducts() {
                                       updateMarkup(product.id, val);
                                     }
                                   }}
-                                  className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                                  className="px-2 py-1 text-[11px] bg-green-600 text-white rounded hover:bg-green-700"
                                 >
                                   ✓
                                 </button>
@@ -532,14 +532,14 @@ export default function StoreProducts() {
                                     setEditingMarkup(null);
                                     setMarkupValue('');
                                   }}
-                                  className="px-2 py-1 text-xs bg-gray-400 text-white rounded hover:bg-gray-500"
+                                  className="px-2 py-1 text-[11px] bg-gray-400 text-white rounded hover:bg-gray-500"
                                 >
                                   ×
                                 </button>
                               </div>
                             ) : (
                               <div className="flex items-center gap-2 mt-1">
-                                <span className="text-xs text-gray-600">
+                                <span className="text-[11px] text-gray-600">
                                   Наценка: {product.markup_percent || 0}%
                                 </span>
                                 <button
@@ -547,27 +547,27 @@ export default function StoreProducts() {
                                     setEditingMarkup(product.id);
                                     setMarkupValue(product.markup_percent?.toString() || '');
                                   }}
-                                  className="text-xs text-blue-600 hover:text-blue-800"
+                                  className="text-[11px] text-blue-600 hover:text-blue-800"
                                 >
                                   Изменить
                                 </button>
                               </div>
                             )}
                             {sellingPrice && (
-                              <div className="text-xs text-green-600 mt-1">
+                              <div className="text-[11px] text-green-600 mt-1">
                                 Продажа: {formatPrice(sellingPrice)}
                               </div>
                             )}
                           </>
                         ) : (
-                          <span className="text-gray-400">—</span>
+                          <span className="text-gray-400 text-xs">—</span>
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
                       {product.available_quantity !== undefined ? product.available_quantity : '—'}
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap">
+                    <td className="px-2 py-2 whitespace-nowrap">
                       <div className="flex flex-col gap-1">
                         {['wb', 'ozon', 'yandex_market'].map(mp => {
                           const isSelected = marketplaceTargets.includes(mp);
@@ -580,7 +580,7 @@ export default function StoreProducts() {
                             <button
                               key={mp}
                               onClick={() => toggleMarketplace(product.id, mp)}
-                              className={`px-2 py-1 text-xs rounded ${
+                              className={`px-2 py-1 text-[11px] rounded ${
                                 isSelected
                                   ? 'bg-blue-600 text-white'
                                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -594,14 +594,14 @@ export default function StoreProducts() {
                           <button
                             onClick={() => uploadToYandexMarket(product.id)}
                             disabled={uploadingToYM === product.id}
-                            className="mt-1 px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                            className="mt-1 px-2 py-1 text-[11px] bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
                           >
                             {uploadingToYM === product.id ? 'Загрузка...' : 'Загрузить на ЯМ'}
                           </button>
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-xs text-gray-500">
+                    <td className="px-2 py-2 whitespace-nowrap text-[11px] text-gray-500">
                       {formatDate(product.last_updated)}
                     </td>
                   </tr>
