@@ -62,7 +62,7 @@ class YandexMarketService {
           // Пытаемся получить через список кампаний
           const campaignsResponse = await axios.get(`${this.baseUrl}/campaigns`, {
             headers: {
-              'Authorization': `OAuth ${apiKey}`
+              'Authorization': `Bearer ${apiKey}`
             }
           });
           
@@ -88,7 +88,7 @@ class YandexMarketService {
           try {
             const businessesResponse = await axios.get(`${this.baseUrl}/businesses`, {
               headers: {
-                'Authorization': `OAuth ${apiKey}`
+                'Authorization': `Bearer ${apiKey}`
               }
             });
             const businesses = businessesResponse.data?.businesses || businessesResponse.data?.result || [];
@@ -159,7 +159,7 @@ class YandexMarketService {
 
       const response = await axios.post(url, requestBody, {
         headers: {
-          'Authorization': `OAuth ${apiKey}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         },
         params: {
@@ -206,7 +206,7 @@ class YandexMarketService {
 
       const response = await axios.put(url, requestBody, {
         headers: {
-          'Authorization': `OAuth ${apiKey}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         },
         timeout: 30000
@@ -244,7 +244,7 @@ class YandexMarketService {
 
       const response = await axios.post(url, requestBody, {
         headers: {
-          'Authorization': `OAuth ${apiKey}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         },
         timeout: 30000
@@ -267,7 +267,7 @@ class YandexMarketService {
 
       const response = await axios.post(url, {}, {
         headers: {
-          'Authorization': `OAuth ${apiKey}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         },
         timeout: 30000
