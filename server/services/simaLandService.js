@@ -400,15 +400,20 @@ class SimaLandService {
       let savedCount = 0;
       let batchIndex = 0;
 
-      // Инкрементальный старт от максимального id в БД
-      try {
-        const r = await client.query(`SELECT COALESCE(MAX(id),0) AS max_id FROM sima_land_catalog`);
-        const maxId = r.rows[0]?.max_id;
-        if (maxId && Number(maxId) > 0) {
-          cursorId = Number(maxId);
-          console.log(`↗️ Incremental start from idGreaterThan=${cursorId}`);
-        }
-      } catch {}
+      // Инкрементальный старт от максимального id в БД (если не включена полная синхронизация)
+      const fullSync = options.fullSync === true;
+      if (!fullSync) {
+        try {
+          const r = await client.query(`SELECT COALESCE(MAX(id),0) AS max_id FROM sima_land_catalog`);
+          const maxId = r.rows[0]?.max_id;
+          if (maxId && Number(maxId) > 0) {
+            cursorId = Number(maxId);
+            console.log(`↗️ Incremental start from idGreaterThan=${cursorId}`);
+          }
+        } catch {}
+      } else {
+        console.log(`🔄 Full sync mode: loading all products from the beginning`);
+      }
 
       let buffer = [];
       const flush = async () => {

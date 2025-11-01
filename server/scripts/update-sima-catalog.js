@@ -32,18 +32,18 @@ connectDB();
 
 const simaLandService = new SimaLandService();
 
-async function updateCatalog() {
+async function updateCatalog(fullSync = false) {
   const token = process.env.SIMA_LAND_STATIC_TOKEN;
   if (!token) {
     console.error(`❌ [${new Date().toISOString()}] SIMA_LAND_STATIC_TOKEN is not set`);
     return;
   }
 
-  const jobId = progressStore.createJob('simaLandCatalogLoad', { categories: [], scheduled: true });
-  console.log(`🔄 [${new Date().toISOString()}] Starting scheduled catalog update. JobId: ${jobId}`);
+  const jobId = progressStore.createJob('simaLandCatalogLoad', { categories: [], scheduled: true, fullSync });
+  console.log(`🔄 [${new Date().toISOString()}] Starting scheduled catalog update. JobId: ${jobId}, FullSync: ${fullSync}`);
   
   try {
-    await simaLandService.loadCatalog({ categories: [] }, jobId);
+    await simaLandService.loadCatalog({ categories: [], fullSync }, jobId);
     const job = progressStore.getJob(jobId);
     console.log(`✅ [${new Date().toISOString()}] Catalog update completed. Saved: ${job?.result?.saved || 'unknown'}`);
   } catch (error) {
@@ -52,20 +52,29 @@ async function updateCatalog() {
   }
 }
 
-// Первый запуск через 30 секунд после старта
+// Первый запуск через 30 секунд после старта (полная синхронизация)
 setTimeout(() => {
-  console.log(`🚀 [${new Date().toISOString()}] First catalog update on startup...`);
-  updateCatalog();
+  console.log(`🚀 [${new Date().toISOString()}] First catalog update on startup (full sync)...`);
+  updateCatalog(true);
 }, 30000);
 
-// Запуск каждые 5 часов
+// Запуск каждые 5 часов (инкрементальная синхронизация)
 const cron = require('node-cron');
 cron.schedule('0 */5 * * *', () => {
-  console.log(`⏰ [${new Date().toISOString()}] Scheduled catalog update triggered`);
-  updateCatalog();
+  console.log(`⏰ [${new Date().toISOString()}] Scheduled incremental catalog update triggered`);
+  updateCatalog(false);
 });
 
-console.log(`📋 [${new Date().toISOString()}] Sima-land catalog updater started. Schedule: every 5 hours. First update in 30 seconds.`);
+// Полная синхронизация раз в день в полночь (для обновления всех товаров)
+cron.schedule('0 0 * * *', () => {
+  console.log(`🌙 [${new Date().toISOString()}] Scheduled full catalog sync at midnight`);
+  updateCatalog(true);
+});
+
+console.log(`📋 [${new Date().toISOString()}] Sima-land catalog updater started.`);
+console.log(`   - First update (full sync) in 30 seconds`);
+console.log(`   - Incremental updates: every 5 hours`);
+console.log(`   - Full sync: daily at midnight`);
 
 // Держим процесс живым
 process.on('SIGINT', () => {
