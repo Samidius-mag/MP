@@ -32,6 +32,7 @@ interface ApiKeysFormData {
   };
   yandex_market: {
     api_key: string;
+    business_id?: string | number;
   };
   sima_land: {
     token: string;
@@ -45,7 +46,7 @@ export default function ClientSettingsPage() {
   const [apiKeys, setApiKeys] = useState<ApiKeysFormData>({
     wildberries: { api_key: '' },
     ozon: { api_key: '', client_id: '' },
-    yandex_market: { api_key: '' },
+    yandex_market: { api_key: '', business_id: undefined },
     sima_land: { token: '' }
   });
 
@@ -80,7 +81,7 @@ export default function ClientSettingsPage() {
       const defaultKeys = {
         wildberries: { api_key: '' },
         ozon: { api_key: '', client_id: '' },
-        yandex_market: { api_key: '' },
+        yandex_market: { api_key: '', business_id: '' },
         sima_land: { token: '' }
       };
       
@@ -434,6 +435,27 @@ export default function ClientSettingsPage() {
                         />
                         <p className="mt-1 text-xs text-gray-500">
                           Получите API ключ в личном кабинете Яндекс.Маркет
+                        </p>
+                      </div>
+                      <div>
+                        <label className="label">Business ID</label>
+                        <input
+                          {...registerApiKeys('yandex_market.business_id')}
+                          type="text"
+                          className="input"
+                          placeholder="Введите Business ID Яндекс.Маркет"
+                          autoComplete="off"
+                          value={(apiKeys.yandex_market?.business_id as any) || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setApiKeys(prev => ({
+                              ...prev,
+                              yandex_market: { ...prev.yandex_market, business_id: val }
+                            }));
+                          }}
+                        />
+                        <p className="mt-1 text-xs text-gray-500">
+                          Идентификатор бизнеса/кабинета в Яндекс.Маркет
                         </p>
                       </div>
                       <div className="flex justify-end">
