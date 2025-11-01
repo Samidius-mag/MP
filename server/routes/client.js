@@ -1526,10 +1526,75 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
         }
 
         // Фильтрация по категориям
+        // Используем двойную фильтрацию: по category_id И по названию категории
+        // Это нужно, потому что товары могут иметь category_id, который не совпадает с ID в таблице категорий
+        // или товары могут иметь только текстовое название категории без category_id
         if (categoryIds.length > 0) {
-          query += ` AND category_id = ANY($${paramIndex})`;
-          params.push(categoryIds);
-          paramIndex++;
+          // Получаем названия категорий по их ID из таблицы категорий
+          const catNamesResult = await client.query(
+            `SELECT id, name FROM sima_land_categories WHERE id = ANY($1)`,
+            [categoryIds]
+          );
+          let categoryNames = catNamesResult.rows.map(cat => cat.name);
+          
+          // Если категории не найдены в таблице, возможно это текстовые категории с временными ID
+          // В этом случае нужно попробовать найти категории по названию из каталога
+          // Временные ID создаются на основе хэша названия, поэтому можно попробовать восстановить
+          if (categoryNames.length === 0) {
+            // Получаем все уникальные категории из каталога
+            const textCatsResult = await client.query(
+              `SELECT DISTINCT category FROM sima_land_catalog 
+               WHERE category IS NOT NULL AND category != ''`
+            );
+            
+            // Пробуем найти соответствие: вычисляем хэш для каждой категории и сравниваем с запрошенными ID
+            for (const textCat of textCatsResult.rows) {
+              if (textCat.category) {
+                const hashId = Math.abs(textCat.category.split('').reduce((a, b) => {
+                  a = ((a << 5) - a) + b.charCodeAt(0);
+                  return a & a;
+                }, 0));
+                // Если хэш совпадает с одним из запрошенных ID, используем эту категорию
+                if (categoryIds.includes(hashId)) {
+                  categoryNames.push(textCat.category);
+                }
+              }
+            }
+          }
+          
+          // Если у нас есть названия категорий, фильтруем по ним
+          if (categoryNames.length > 0) {
+            query += ` AND (`;
+            
+            // Фильтрация по category_id (точное совпадение)
+            query += `category_id = ANY($${paramIndex})`;
+            params.push(categoryIds);
+            paramIndex++;
+            
+            // ИЛИ фильтрация по названию категории (на случай, если category_id NULL или не совпадает)
+            query += ` OR (`;
+            const categoryNameConditions = [];
+            for (const catName of categoryNames) {
+              if (catName && catName.trim()) {
+                categoryNameConditions.push(`LOWER(TRIM(category)) = LOWER(TRIM($${paramIndex}))`);
+                params.push(catName.trim());
+                paramIndex++;
+              }
+            }
+            if (categoryNameConditions.length > 0) {
+              query += categoryNameConditions.join(' OR ');
+            } else {
+              query += '1=0'; // false condition
+            }
+            query += `)`;
+            
+            query += `)`;
+          } else {
+            // Если категорий не найдено, фильтруем только по ID
+            query += ` AND category_id = ANY($${paramIndex})`;
+            params.push(categoryIds);
+            paramIndex++;
+          }
         }
 
         query += ` ORDER BY created_at DESC LIMIT 1000`;
@@ -1635,7 +1700,48 @@ router.get('/sima-land/categories', requireClient, async (req, res) => {
            ORDER BY name`
         );
       }
-      return res.json({ categories: cats.rows });
+      
+      // Также добавляем категории из текстового поля category, если они отсутствуют
+      // Это нужно для случаев, когда category_id NULL, но есть текстовое название
+      const textCats = await client.query(
+        `SELECT DISTINCT category AS name, COUNT(*) as product_count
+         FROM sima_land_catalog
+         WHERE category IS NOT NULL AND category != ''
+         GROUP BY category
+         ORDER BY category`
+      );
+      
+      // Объединяем категории: из таблицы категорий + уникальные из текстового поля
+      const categoryMap = new Map();
+      cats.rows.forEach(cat => {
+        categoryMap.set(cat.id, cat);
+      });
+      
+      // Добавляем уникальные текстовые категории, которых нет в списке
+      textCats.rows.forEach(textCat => {
+        const found = Array.from(categoryMap.values()).find(c => 
+          c.name && c.name.toLowerCase() === textCat.name.toLowerCase()
+        );
+        if (!found) {
+          // Создаем временный ID на основе хэша названия для текстовых категорий без ID
+          const tempId = Math.abs(textCat.name.split('').reduce((a, b) => {
+            a = ((a << 5) - a) + b.charCodeAt(0);
+            return a & a;
+          }, 0));
+          // Проверяем, нет ли уже такого ID
+          if (!categoryMap.has(tempId)) {
+            categoryMap.set(tempId, {
+              id: tempId,
+              name: textCat.name,
+              parent_id: null,
+              level: null,
+              product_count: parseInt(textCat.product_count)
+            });
+          }
+        }
+      });
+      
+      return res.json({ categories: Array.from(categoryMap.values()) });
     } finally {
       client.release();
     }

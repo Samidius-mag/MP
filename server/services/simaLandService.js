@@ -40,24 +40,53 @@ class SimaLandService {
                   null;
 
     // Категория - правильное поле для категории (не series!)
-    // category может быть объектом {id, name} или просто ID
+    // API v3 может возвращать категорию в разных форматах:
+    // - объект {id, name} 
+    // - просто ID (число)
+    // - массив категорий [{id, name}]
+    // - поле category_id отдельно
     let categoryId = null;
     let categoryName = null;
     
+    // Приоритет 1: объект category с полями id и name
     if (product.category) {
-      if (typeof product.category === 'object') {
+      if (Array.isArray(product.category)) {
+        // Если category - массив, берем первую категорию
+        const firstCategory = product.category[0];
+        if (firstCategory && typeof firstCategory === 'object') {
+          categoryId = firstCategory.id || firstCategory.category_id || null;
+          categoryName = firstCategory.name || firstCategory.title || null;
+        }
+      } else if (typeof product.category === 'object') {
         categoryId = product.category.id || product.category.category_id || null;
         categoryName = product.category.name || product.category.title || null;
       } else {
+        // Если category - просто число (ID)
         categoryId = product.category;
       }
-    } else if (product.category_id) {
+    }
+    
+    // Приоритет 2: отдельное поле category_id
+    if (!categoryId && product.category_id) {
       categoryId = product.category_id;
     }
+    
+    // Приоритет 3: categories (множественное число) - массив категорий
+    if (!categoryId && product.categories && Array.isArray(product.categories) && product.categories.length > 0) {
+      const firstCategory = product.categories[0];
+      if (firstCategory && typeof firstCategory === 'object') {
+        categoryId = firstCategory.id || firstCategory.category_id || null;
+        categoryName = firstCategory.name || firstCategory.title || null;
+      }
+    }
 
-    // Если есть category_id но нет названия, пытаемся получить из categoryName
-    if (categoryId && !categoryName && product.categoryName) {
-      categoryName = product.categoryName;
+    // Если есть category_id но нет названия, пытаемся получить из других полей
+    if (categoryId && !categoryName) {
+      if (product.categoryName) {
+        categoryName = product.categoryName;
+      } else if (product.category_name) {
+        categoryName = product.category_name;
+      }
     }
 
     // Серия товара (series - это НЕ категория, а серия товара!)
