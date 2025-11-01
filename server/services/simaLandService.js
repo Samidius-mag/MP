@@ -430,7 +430,7 @@ class SimaLandService {
         const updateResult = await client.query(
           `UPDATE sima_land_products 
            SET name = $3, brand = $4, category = $5, purchase_price = $6, 
-               image_url = $7, description = $8, updated_at = NOW()
+               available_quantity = $7, image_url = $8, description = $9, updated_at = NOW()
            WHERE client_id = $1 AND article = $2
            RETURNING id`,
           [
@@ -440,6 +440,7 @@ class SimaLandService {
             productData.brand,
             productData.category,
             productData.purchase_price,
+            productData.available_quantity || 0,
             productData.image_url,
             productData.description
           ]
@@ -460,7 +461,7 @@ class SimaLandService {
             productData.brand,
             productData.category,
             productData.purchase_price,
-            0, // available_quantity по умолчанию 0
+            productData.available_quantity || 0,
             productData.image_url,
             productData.description
           ]

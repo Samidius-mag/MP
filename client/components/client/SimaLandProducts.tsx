@@ -204,7 +204,9 @@ export default function SimaLandProducts() {
         brand: product.brand,
         category: product.category,
         purchase_price: product.purchase_price,
-        image_url: product.image_url
+        available_quantity: product.available_quantity || 0,
+        image_url: product.image_url,
+        description: product.description
       });
       
       toast.success('Товар добавлен в магазин');

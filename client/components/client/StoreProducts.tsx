@@ -7,7 +7,7 @@ import { PlusIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 
 interface Product {
   id: number;
-  nm_id: number;
+  nm_id?: number;
   article: string;
   name: string;
   brand?: string;
@@ -24,6 +24,12 @@ interface Product {
   promotion_discount_percent?: number;
   last_updated: string;
   created_at: string;
+  source?: string; // 'wildberries' | 'sima_land'
+  purchase_price?: number;
+  available_quantity?: number;
+  markup_percent?: number;
+  marketplace_targets?: string[]; // ['wb', 'ozon', 'yandex_market']
+  image_url?: string;
 }
 
 type SortField = 'name' | 'brand' | 'price' | 'none';
@@ -40,6 +46,9 @@ export default function StoreProducts() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
+  const [editingMarkup, setEditingMarkup] = useState<number | null>(null);
+  const [markupValue, setMarkupValue] = useState<string>('');
+  const [uploadingToYM, setUploadingToYM] = useState<number | null>(null);
 
   useEffect(() => {
     fetchProducts();
@@ -159,6 +168,62 @@ export default function StoreProducts() {
     });
   };
 
+  const updateMarkup = async (productId: number, markup: number) => {
+    try {
+      await api.put(`/client/store-products/${productId}/markup`, {
+        markup_percent: markup
+      });
+      toast.success('Наценка обновлена');
+      await fetchProducts();
+      setEditingMarkup(null);
+      setMarkupValue('');
+    } catch (err: any) {
+      console.error('Error updating markup:', err);
+      toast.error(err.response?.data?.error || 'Ошибка обновления наценки');
+    }
+  };
+
+  const toggleMarketplace = async (productId: number, marketplace: string) => {
+    try {
+      const product = allProducts.find(p => p.id === productId);
+      if (!product) return;
+
+      const currentTargets = product.marketplace_targets || [];
+      const newTargets = currentTargets.includes(marketplace)
+        ? currentTargets.filter(m => m !== marketplace)
+        : [...currentTargets, marketplace];
+
+      await api.put(`/client/store-products/${productId}/marketplaces`, {
+        marketplace_targets: newTargets
+      });
+      toast.success('Маркетплейсы обновлены');
+      await fetchProducts();
+    } catch (err: any) {
+      console.error('Error updating marketplaces:', err);
+      toast.error(err.response?.data?.error || 'Ошибка обновления маркетплейсов');
+    }
+  };
+
+  const uploadToYandexMarket = async (productId: number) => {
+    try {
+      setUploadingToYM(productId);
+      await api.post(`/client/store-products/${productId}/upload/yandex-market`);
+      toast.success('Товар загружен на Яндекс Маркет');
+      await fetchProducts();
+    } catch (err: any) {
+      console.error('Error uploading to Yandex Market:', err);
+      toast.error(err.response?.data?.error || 'Ошибка загрузки на Яндекс Маркет');
+    } finally {
+      setUploadingToYM(null);
+    }
+  };
+
+  const calculateSellingPrice = (purchasePrice?: number, markupPercent?: number) => {
+    if (!purchasePrice) return null;
+    const markup = markupPercent || 0;
+    return purchasePrice * (1 + markup / 100);
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -180,7 +245,7 @@ export default function StoreProducts() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Товары магазина</h1>
           <p className="mt-1 text-sm text-gray-600">
-            Просмотр и управление товарами Wildberries
+            Просмотр и управление товарами из разных источников (Wildberries, Сима Ленд)
           </p>
         </div>
         <button
@@ -299,6 +364,15 @@ export default function StoreProducts() {
                     Статус
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Закупка / Наценка
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Остаток
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Маркетплейсы
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Обновлено
                   </th>
                 </tr>
@@ -306,7 +380,10 @@ export default function StoreProducts() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredProducts
                   .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-                  .map((product) => (
+                  .map((product) => {
+                    const sellingPrice = calculateSellingPrice(product.purchase_price, product.markup_percent);
+                    const marketplaceTargets = product.marketplace_targets || [];
+                    return (
                   <tr key={product.id} className="hover:bg-gray-50">
                     <td className="px-4 py-4 whitespace-nowrap">
                       <div className="flex flex-col">
@@ -319,14 +396,21 @@ export default function StoreProducts() {
                         {product.category && (
                           <div className="text-xs text-gray-400">{product.category}</div>
                         )}
+                        {product.source && (
+                          <div className="text-xs text-blue-600 mt-1">
+                            {product.source === 'sima_land' ? 'Сима Ленд' : 'Wildberries'}
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">{product.article}</div>
-                      <div className="text-xs text-gray-500">nmId: {product.nm_id}</div>
+                      {product.nm_id && (
+                        <div className="text-xs text-gray-500">nmId: {product.nm_id}</div>
+                      )}
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatPrice(product.current_price)}
+                      {formatPrice(product.current_price || sellingPrice || undefined)}
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                       {product.commission_percent ? `${product.commission_percent}%` : '—'}
@@ -348,11 +432,112 @@ export default function StoreProducts() {
                         </div>
                       )}
                     </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="text-sm">
+                        {product.purchase_price ? (
+                          <>
+                            <div className="text-gray-900">{formatPrice(product.purchase_price)}</div>
+                            {editingMarkup === product.id ? (
+                              <div className="flex items-center gap-1 mt-1">
+                                <input
+                                  type="number"
+                                  value={markupValue}
+                                  onChange={(e) => setMarkupValue(e.target.value)}
+                                  placeholder={product.markup_percent?.toString() || '0'}
+                                  className="w-16 px-2 py-1 text-xs border border-gray-300 rounded"
+                                  autoFocus
+                                />
+                                <span className="text-xs text-gray-500">%</span>
+                                <button
+                                  onClick={() => {
+                                    const val = parseFloat(markupValue);
+                                    if (!isNaN(val) && val >= 0) {
+                                      updateMarkup(product.id, val);
+                                    }
+                                  }}
+                                  className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                                >
+                                  ✓
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setEditingMarkup(null);
+                                    setMarkupValue('');
+                                  }}
+                                  className="px-2 py-1 text-xs bg-gray-400 text-white rounded hover:bg-gray-500"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-xs text-gray-600">
+                                  Наценка: {product.markup_percent || 0}%
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    setEditingMarkup(product.id);
+                                    setMarkupValue(product.markup_percent?.toString() || '');
+                                  }}
+                                  className="text-xs text-blue-600 hover:text-blue-800"
+                                >
+                                  Изменить
+                                </button>
+                              </div>
+                            )}
+                            {sellingPrice && (
+                              <div className="text-xs text-green-600 mt-1">
+                                Продажа: {formatPrice(sellingPrice)}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {product.available_quantity !== undefined ? product.available_quantity : '—'}
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="flex flex-col gap-1">
+                        {['wb', 'ozon', 'yandex_market'].map(mp => {
+                          const isSelected = marketplaceTargets.includes(mp);
+                          const labels: Record<string, string> = {
+                            'wb': 'WB',
+                            'ozon': 'Ozon',
+                            'yandex_market': 'ЯМ'
+                          };
+                          return (
+                            <button
+                              key={mp}
+                              onClick={() => toggleMarketplace(product.id, mp)}
+                              className={`px-2 py-1 text-xs rounded ${
+                                isSelected
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                              }`}
+                            >
+                              {labels[mp]}
+                            </button>
+                          );
+                        })}
+                        {product.source === 'sima_land' && marketplaceTargets.includes('yandex_market') && (
+                          <button
+                            onClick={() => uploadToYandexMarket(product.id)}
+                            disabled={uploadingToYM === product.id}
+                            className="mt-1 px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                          >
+                            {uploadingToYM === product.id ? 'Загрузка...' : 'Загрузить на ЯМ'}
+                          </button>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-4 whitespace-nowrap text-xs text-gray-500">
                       {formatDate(product.last_updated)}
                     </td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>

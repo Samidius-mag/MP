@@ -1831,10 +1831,10 @@ router.post('/sima-land/catalog/load', async (req, res) => {
   }
 });
 
-// Добавление товара СИМА ЛЕНД в каталог клиента
+// Добавление товара СИМА ЛЕНД в каталог клиента и в товары магазина
 router.post('/sima-land/products/add', requireClient, async (req, res) => {
   try {
-    const { article, name, brand, category, purchase_price, image_url } = req.body;
+    const { article, name, brand, category, purchase_price, available_quantity, image_url, description } = req.body;
 
     if (!article || !name) {
       return res.status(400).json({ error: 'Артикул и название обязательны' });
@@ -1854,7 +1854,7 @@ router.post('/sima-land/products/add', requireClient, async (req, res) => {
 
       const clientId = clientResult.rows[0].id;
 
-      // Добавляем товар в каталог клиента
+      // Добавляем товар в каталог клиента (sima_land_products)
       const SimaLandService = require('../services/simaLandService');
       const simaLandService = new SimaLandService();
       
@@ -1864,12 +1864,73 @@ router.post('/sima-land/products/add', requireClient, async (req, res) => {
         brand,
         category,
         purchase_price,
-        image_url
+        available_quantity,
+        image_url,
+        description
       });
+
+      // Добавляем товар в товары магазина (wb_products_cache)
+      // Проверяем, существует ли уже товар с таким артикулом
+      const existingStoreProduct = await client.query(
+        `SELECT id FROM wb_products_cache 
+         WHERE client_id = $1 AND article = $2 AND source = 'sima_land'`,
+        [clientId, article]
+      );
+
+      if (existingStoreProduct.rows.length > 0) {
+        // Обновляем существующий товар
+        await client.query(
+          `UPDATE wb_products_cache 
+           SET name = $3, brand = $4, category = $5, purchase_price = $6, 
+               available_quantity = $7, image_url = $8, description = $9,
+               last_updated = NOW()
+           WHERE client_id = $1 AND article = $2 AND source = 'sima_land'`,
+          [
+            clientId,
+            article,
+            name,
+            brand,
+            category,
+            purchase_price || 0,
+            available_quantity || 0,
+            image_url,
+            description
+          ]
+        );
+      } else {
+        // Создаем новый товар в магазине
+        // Используем ON CONFLICT по уникальному индексу (client_id, article, source)
+        await client.query(
+          `INSERT INTO wb_products_cache 
+           (client_id, article, name, brand, category, purchase_price, available_quantity, 
+            image_url, description, source, is_active, marketplace_targets, markup_percent, nm_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'sima_land', true, '[]'::jsonb, 0.00, NULL)
+           ON CONFLICT (client_id, article, source) DO UPDATE SET
+             name = EXCLUDED.name,
+             brand = EXCLUDED.brand,
+             category = EXCLUDED.category,
+             purchase_price = EXCLUDED.purchase_price,
+             available_quantity = EXCLUDED.available_quantity,
+             image_url = EXCLUDED.image_url,
+             description = EXCLUDED.description,
+             last_updated = NOW()`,
+          [
+            clientId,
+            article,
+            name,
+            brand,
+            category,
+            purchase_price || 0,
+            available_quantity || 0,
+            image_url,
+            description
+          ]
+        );
+      }
 
       res.json({
         success: true,
-        message: 'Товар успешно добавлен в каталог',
+        message: 'Товар успешно добавлен в магазин',
         productId
       });
 
@@ -1879,6 +1940,168 @@ router.post('/sima-land/products/add', requireClient, async (req, res) => {
   } catch (err) {
     console.error('Add sima-land product error:', err);
     res.status(500).json({ error: 'Ошибка добавления товара' });
+  }
+});
+
+// Обновление наценки товара
+router.put('/store-products/:productId/markup', requireClient, async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const { markup_percent } = req.body;
+
+    if (markup_percent === undefined || markup_percent === null) {
+      return res.status(400).json({ error: 'Наценка обязательна' });
+    }
+
+    const markupValue = parseFloat(markup_percent);
+    if (isNaN(markupValue) || markupValue < 0) {
+      return res.status(400).json({ error: 'Наценка должна быть неотрицательным числом' });
+    }
+
+    const client = await pool.connect();
+    try {
+      // Получаем client_id
+      const clientResult = await client.query(
+        `SELECT id FROM clients WHERE user_id = $1`,
+        [req.user.id]
+      );
+
+      if (clientResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Клиент не найден' });
+      }
+
+      const clientId = clientResult.rows[0].id;
+
+      // Обновляем наценку товара
+      const updateResult = await client.query(
+        `UPDATE wb_products_cache 
+         SET markup_percent = $1, last_updated = NOW()
+         WHERE id = $2 AND client_id = $3
+         RETURNING *`,
+        [markupValue, productId, clientId]
+      );
+
+      if (updateResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Товар не найден' });
+      }
+
+      res.json({
+        success: true,
+        product: updateResult.rows[0]
+      });
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('Update markup error:', err);
+    res.status(500).json({ error: 'Ошибка обновления наценки' });
+  }
+});
+
+// Обновление списка маркетплейсов для товара
+router.put('/store-products/:productId/marketplaces', requireClient, async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const { marketplace_targets } = req.body;
+
+    if (!Array.isArray(marketplace_targets)) {
+      return res.status(400).json({ error: 'marketplace_targets должен быть массивом' });
+    }
+
+    // Проверяем, что все значения валидны
+    const validMarketplaces = ['wb', 'ozon', 'yandex_market'];
+    const invalid = marketplace_targets.filter(m => !validMarketplaces.includes(m));
+    if (invalid.length > 0) {
+      return res.status(400).json({ 
+        error: `Недопустимые маркетплейсы: ${invalid.join(', ')}. Допустимые: ${validMarketplaces.join(', ')}` 
+      });
+    }
+
+    const client = await pool.connect();
+    try {
+      // Получаем client_id
+      const clientResult = await client.query(
+        `SELECT id FROM clients WHERE user_id = $1`,
+        [req.user.id]
+      );
+
+      if (clientResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Клиент не найден' });
+      }
+
+      const clientId = clientResult.rows[0].id;
+
+      // Обновляем список маркетплейсов
+      const updateResult = await client.query(
+        `UPDATE wb_products_cache 
+         SET marketplace_targets = $1::jsonb, last_updated = NOW()
+         WHERE id = $2 AND client_id = $3
+         RETURNING *`,
+        [JSON.stringify(marketplace_targets), productId, clientId]
+      );
+
+      if (updateResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Товар не найден' });
+      }
+
+      res.json({
+        success: true,
+        product: updateResult.rows[0]
+      });
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('Update marketplaces error:', err);
+    res.status(500).json({ error: 'Ошибка обновления маркетплейсов' });
+  }
+});
+
+// Загрузка товара на Яндекс Маркет
+router.post('/store-products/:productId/upload/yandex-market', requireClient, async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const { marketCategoryId } = req.body;
+
+    const client = await pool.connect();
+    try {
+      // Получаем client_id
+      const clientResult = await client.query(
+        `SELECT id FROM clients WHERE user_id = $1`,
+        [req.user.id]
+      );
+
+      if (clientResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Клиент не найден' });
+      }
+
+      const clientId = clientResult.rows[0].id;
+
+      // Загружаем товар на Яндекс Маркет
+      const YandexMarketService = require('../services/yandexMarketService');
+      const yandexService = new YandexMarketService();
+
+      const result = await yandexService.uploadProductToMarket(clientId, productId, {
+        marketCategoryId: marketCategoryId || null
+      });
+
+      res.json({
+        success: true,
+        message: 'Товар успешно загружен на Яндекс Маркет',
+        result: result
+      });
+    } catch (err) {
+      console.error('Upload to Yandex Market error:', err);
+      res.status(500).json({ 
+        error: 'Ошибка загрузки товара на Яндекс Маркет',
+        details: err.message 
+      });
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('Upload to Yandex Market error:', err);
+    res.status(500).json({ error: 'Ошибка загрузки товара' });
   }
 });
 
