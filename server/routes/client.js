@@ -2138,7 +2138,23 @@ router.get('/yandex/categories', requireClient, async (req, res) => {
       const apiKey = await ym.getClientApiKey(clientId);
       if (!apiKey) return res.status(400).json({ error: 'API ключ Яндекс.Маркет не настроен' });
       const data = await ym.getCategoriesTree(apiKey, req.query.language || 'RU');
-      res.json(data);
+      const root = data?.categories || data?.result?.categories || data?.result || data;
+      const flat = [];
+      const walk = (nodes) => {
+        if (!Array.isArray(nodes)) return;
+        for (const n of nodes) {
+          const id = n.id || n.categoryId;
+          const name = n.name || n.title || String(id || '');
+          const children = n.children || n.childs || n.items;
+          if (Array.isArray(children) && children.length > 0) {
+            walk(children);
+          } else if (id) {
+            flat.push({ id, name });
+          }
+        }
+      };
+      walk(root);
+      res.json({ categories: flat });
     } finally {
       client.release();
     }
