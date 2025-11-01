@@ -59,6 +59,7 @@ class YandexMarketService {
       const apiKey = await this.getClientApiKey(clientId);
       if (apiKey) {
         try {
+          // Пытаемся получить через список кампаний
           const campaignsResponse = await axios.get(`${this.baseUrl}/campaigns`, {
             headers: {
               'Authorization': `OAuth ${apiKey}`
@@ -83,7 +84,33 @@ class YandexMarketService {
             return firstBusinessId;
           }
         } catch (error) {
-          console.error('Error fetching business ID from API:', error.message);
+          // Если получили 401 или другой ответ, пробуем альтернативный endpoint бизнесов
+          try {
+            const businessesResponse = await axios.get(`${this.baseUrl}/businesses`, {
+              headers: {
+                'Authorization': `OAuth ${apiKey}`
+              }
+            });
+            const businesses = businessesResponse.data?.businesses || businessesResponse.data?.result || [];
+            if (Array.isArray(businesses) && businesses.length > 0) {
+              const firstBusinessId = businesses[0].businessId || businesses[0].id;
+              if (firstBusinessId) {
+                await client.query(
+                  `UPDATE clients 
+                   SET api_keys = jsonb_set(
+                     COALESCE(api_keys, '{}'::jsonb),
+                     '{yandex_market,business_id}',
+                     $1::jsonb
+                   )
+                   WHERE id = $2`,
+                  [JSON.stringify(firstBusinessId), clientId]
+                );
+                return firstBusinessId;
+              }
+            }
+          } catch (e2) {
+            // подавляем
+          }
         }
       }
 

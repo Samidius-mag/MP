@@ -2061,7 +2061,7 @@ router.put('/store-products/:productId/marketplaces', requireClient, async (req,
 router.post('/store-products/:productId/upload/yandex-market', requireClient, async (req, res) => {
   try {
     const { productId } = req.params;
-    const { marketCategoryId } = req.body;
+    const { marketCategoryId, businessId } = req.body;
 
     const client = await pool.connect();
     try {
@@ -2076,6 +2076,25 @@ router.post('/store-products/:productId/upload/yandex-market', requireClient, as
       }
 
       const clientId = clientResult.rows[0].id;
+
+      // Если businessId передан с фронта — сохраним его в настройках клиента на будущее
+      if (businessId) {
+        try {
+          await client.query(
+            `UPDATE clients 
+             SET api_keys = jsonb_set(
+               COALESCE(api_keys, '{}'::jsonb),
+               '{yandex_market,business_id}',
+               $1::jsonb,
+               true
+             )
+             WHERE id = $2`,
+            [JSON.stringify(Number(businessId) || businessId), clientId]
+          );
+        } catch (e) {
+          // безопасно продолжаем, даже если не удалось сохранить
+        }
+      }
 
       // Загружаем товар на Яндекс Маркет
       const YandexMarketService = require('../services/yandexMarketService');
