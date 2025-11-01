@@ -29,6 +29,24 @@ class YandexMarketService {
   }
 
   /**
+   * Получить Warehouse ID из настроек клиента (yandex_market.warehouse_id)
+   */
+  async getClientWarehouseId(clientId) {
+    const client = await pool.connect();
+    try {
+      const result = await client.query(
+        'SELECT api_keys FROM clients WHERE id = $1',
+        [clientId]
+      );
+      if (result.rows.length === 0) return null;
+      const apiKeys = result.rows[0].api_keys || {};
+      return apiKeys.yandex_market?.warehouse_id || null;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
    * Получить первый доступный campaignId для клиента
    */
   async getCampaignId(clientId) {
@@ -357,22 +375,22 @@ class YandexMarketService {
       // Обновляем данные товара в БД
       await client.query(
         `UPDATE wb_products_cache 
-         SET yandex_market_sku = $1,
+         SET yandex_market_sku = $1::text,
              marketplace_sync_status = jsonb_set(
                COALESCE(marketplace_sync_status, '{}'::jsonb),
                '{yandex_market}',
                jsonb_build_object(
                  'synced', true,
-                 'last_sync', $2,
-                 'sku', $1
+                 'last_sync', $2::timestamptz,
+                 'sku', $1::text
                )
              ),
              marketplace_targets = CASE 
-               WHEN NOT (marketplace_targets ? 'yandex_market') 
-               THEN marketplace_targets || '["yandex_market"]'::jsonb
-               ELSE marketplace_targets
+               WHEN NOT (COALESCE(marketplace_targets, '[]'::jsonb) ? 'yandex_market') 
+               THEN COALESCE(marketplace_targets, '[]'::jsonb) || '["yandex_market"]'::jsonb
+               ELSE COALESCE(marketplace_targets, '[]'::jsonb)
              END
-         WHERE id = $3 AND client_id = $4`,
+         WHERE id = $3::int AND client_id = $4::int`,
         [
           product.article,
           new Date().toISOString(),
@@ -384,11 +402,12 @@ class YandexMarketService {
       // Обновляем остатки (используем склад по умолчанию 2003902)
       if (campaignId && product.available_quantity && product.available_quantity > 0) {
         try {
+          const warehouseId = await this.getClientWarehouseId(clientId);
           await this.updateStocks(apiKey, campaignId, [
             {
               sku: product.article,
               items: product.available_quantity,
-              warehouseId: 2003902
+              warehouseId: warehouseId ? Number(warehouseId) : undefined
             }
           ]);
         } catch (stockError) {

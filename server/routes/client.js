@@ -414,7 +414,7 @@ router.get('/api-keys', requireClient, async (req, res) => {
         apiKeys: {
           wildberries: apiKeys.wildberries || { api_key: '' },
           ozon: apiKeys.ozon || { api_key: '', client_id: '' },
-          yandex_market: apiKeys.yandex_market || { api_key: '', business_id: '' },
+          yandex_market: apiKeys.yandex_market || { api_key: '', business_id: '', warehouse_id: '' },
           sima_land: apiKeys.sima_land || { token: '' }
         }
       };
