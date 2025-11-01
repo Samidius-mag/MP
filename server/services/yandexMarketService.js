@@ -393,9 +393,22 @@ class YandexMarketService {
       if (sellingPrice && sellingPrice > 0) {
         try {
           if (campaignId) {
-            await this.updateCampaignPrices(apiKey, campaignId, [
-              { offerId: product.article, price: sellingPrice }
-            ]);
+            try {
+              await this.updateCampaignPrices(apiKey, campaignId, [
+                { offerId: product.article, price: sellingPrice }
+              ]);
+            } catch (e) {
+              const code = e?.response?.status;
+              const msg = e?.response?.data || e?.message || '';
+              // Fallback на бизнес-уровень, если магазинная цена недоступна
+              if (code === 423 || (typeof msg === 'object' ? (msg.errors?.[0]?.code === 'LOCKED') : String(msg).includes('LOCKED'))) {
+                await this.updatePrices(apiKey, businessId, [
+                  { offerId: product.article, price: sellingPrice }
+                ]);
+              } else {
+                throw e;
+              }
+            }
           } else {
             await this.updatePrices(apiKey, businessId, [
               { offerId: product.article, price: sellingPrice }
