@@ -152,15 +152,21 @@ class YandexMarketService {
     try {
       const url = `${this.baseUrl}/v2/businesses/${businessId}/offer-mappings/update`;
 
+      // Согласно step-by-step и спецификации метода, тело должно содержать массив offerMappings (1..500)
+      // с минимумом полей: offer.offerId, offer.name, mapping.marketCategoryId, offer.pictures, offer.vendor, offer.description
       const requestBody = {
-        offers: [
+        offerMappings: [
           {
-            offerId: productData.offerId,
-            name: productData.name,
-            marketCategoryId: productData.marketCategoryId,
-            pictures: productData.pictures || [],
-            vendor: productData.vendor || '',
-            description: productData.description || '',
+            offer: {
+              offerId: productData.offerId,
+              name: productData.name,
+              vendor: productData.vendor || '',
+              pictures: productData.pictures || [],
+              description: productData.description || ''
+            },
+            mapping: {
+              marketCategoryId: productData.marketCategoryId
+            },
             price: productData.price ? {
               value: productData.price,
               currencyId: 'RUR'
