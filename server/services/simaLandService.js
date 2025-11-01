@@ -6,6 +6,149 @@ class SimaLandService {
     this.baseUrl = 'https://www.sima-land.ru/api/v3';
   }
 
+  /**
+   * Парсинг товара из API sima-land v3
+   * Правильный парсер на основе официальной документации API v3
+   * @param {Object} product - Объект товара из API
+   * @param {Array} stockData - Массив данных об остатках (опционально)
+   * @returns {Object} - Распарсенные данные товара
+   */
+  parseProduct(product, stockData = []) {
+    if (!product || typeof product !== 'object') {
+      return null;
+    }
+
+    // ID товара - приоритет id, затем sid
+    const id = product.id || product.sid || null;
+
+    // Артикул (SID - служебный идентификатор) - это основной артикул товара
+    const article = product.sid?.toString() || 
+                   product.article?.toString() || 
+                   product.id?.toString() || 
+                   '';
+
+    // Название товара
+    const name = product.name || 
+                 product.title || 
+                 product.full_name || 
+                 'Без названия';
+
+    // Бренд - из объекта trademark или прямого поля brand
+    const brand = product.trademark?.name || 
+                  product.brand?.name || 
+                  product.brand || 
+                  null;
+
+    // Категория - правильное поле для категории (не series!)
+    // category может быть объектом {id, name} или просто ID
+    let categoryId = null;
+    let categoryName = null;
+    
+    if (product.category) {
+      if (typeof product.category === 'object') {
+        categoryId = product.category.id || product.category.category_id || null;
+        categoryName = product.category.name || product.category.title || null;
+      } else {
+        categoryId = product.category;
+      }
+    } else if (product.category_id) {
+      categoryId = product.category_id;
+    }
+
+    // Если есть category_id но нет названия, пытаемся получить из categoryName
+    if (categoryId && !categoryName && product.categoryName) {
+      categoryName = product.categoryName;
+    }
+
+    // Серия товара (series - это НЕ категория, а серия товара!)
+    // Можно использовать как дополнительную информацию
+    const series = product.series?.name || 
+                   product.series || 
+                   null;
+
+    // Цена закупки
+    // Согласно API v3, поле price содержит цену закупки
+    const purchasePrice = product.price || 
+                         product.purchase_price || 
+                         product.base_price || 
+                         product.cost_price || 
+                         0;
+
+    // Остаток на складе
+    let availableQuantity = 0;
+    
+    // Сначала пытаемся найти в stockData по артикулу
+    if (article && stockData && stockData.length > 0) {
+      const stockItem = stockData.find(s => 
+        (s.sid?.toString() === article) || 
+        (s.article?.toString() === article) || 
+        (s.id?.toString() === article)
+      );
+      if (stockItem) {
+        availableQuantity = stockItem.balance || 
+                           stockItem.quantity || 
+                           stockItem.available_quantity || 
+                           0;
+      }
+    }
+
+    // Если не нашли в stockData, используем balance из товара
+    if (availableQuantity === 0 && product.balance !== undefined && product.balance !== null) {
+      availableQuantity = parseInt(product.balance) || 0;
+    }
+
+    // Изображение товара
+    // Согласно API v3, изображения в полях img или photoUrl
+    // img может быть объектом {url} или строкой
+    let imageUrl = null;
+    
+    if (product.img) {
+      if (typeof product.img === 'object') {
+        imageUrl = product.img.url || product.img.src || product.img.link || null;
+      } else {
+        imageUrl = product.img;
+      }
+    } else if (product.photoUrl) {
+      imageUrl = product.photoUrl;
+    } else if (product.photo_url) {
+      imageUrl = product.photo_url;
+    } else if (product.image_url) {
+      imageUrl = product.image_url;
+    } else if (product.imageUrl) {
+      imageUrl = product.imageUrl;
+    } else if (product.image) {
+      imageUrl = typeof product.image === 'object' ? product.image.url : product.image;
+    } else if (product.photo) {
+      imageUrl = typeof product.photo === 'object' ? product.photo.url : product.photo;
+    }
+
+    // Описание товара
+    // stuff - материал товара, description - полное описание
+    const description = product.stuff || 
+                       product.description || 
+                       product.full_description || 
+                       product.about || 
+                       null;
+
+    // Дополнительные поля, которые могут быть полезны
+    // Можно добавить в будущем при необходимости
+    const parsedProduct = {
+      id,
+      article,
+      name,
+      brand,
+      category_id: categoryId,
+      category: categoryName || series, // Если нет категории, используем серию как fallback
+      series, // Сохраняем серию отдельно если нужно
+      purchase_price: parseFloat(purchasePrice) || 0,
+      available_quantity: parseInt(availableQuantity) || 0,
+      image_url: imageUrl,
+      description
+    };
+
+    return parsedProduct;
+  }
+
   async fetchCategories(token) {
     try {
       const response = await axios.get(`${this.baseUrl}/category/`, {
@@ -290,76 +433,60 @@ class SimaLandService {
         for (let i = 0; i < items.length; i++) {
           const product = items[i];
           try {
-          // Получаем остаток для товара из загруженных данных
-          let availableQuantity = 0;
-          const productArticle = product.sid?.toString() || product.id?.toString() || '';
-          
-          if (productArticle && stockData.length > 0) {
-            const stockItem = stockData.find(s => s.article === productArticle);
-            if (stockItem) {
-              availableQuantity = stockItem.available_quantity || stockItem.quantity || 0;
+            // Используем правильный парсер для извлечения всех полей товара
+            const parsedProduct = this.parseProduct(product, stockData);
+            
+            if (!parsedProduct || !parsedProduct.article) {
+              console.warn(`Skipping product with missing article:`, product.id || product.sid);
+              continue;
             }
-          }
-          
-          // Если в stockData нет данных, используем balance из товара
-          if (availableQuantity === 0 && product.balance) {
-            availableQuantity = product.balance;
-          }
 
-          // Пробуем разные варианты полей для изображения
-          // Согласно API СИМА ЛЕНД используются: img, photoUrl
-          const imageUrl = product.img || 
-                          product.photoUrl || 
-                          product.image_url || 
-                          product.imageUrl || 
-                          product.image || 
-                          product.photo || 
-                          product.photo_url ||
-                          product.picture ||
-                          product.picture_url;
-          
-          if (imageUrl) imagesCount++;
+            // Подсчитываем товары с изображениями
+            if (parsedProduct.image_url) {
+              imagesCount++;
+            }
 
-          await client.query(
-            `INSERT INTO sima_land_products 
-             (client_id, article, name, brand, category, purchase_price, available_quantity, image_url, description)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-             ON CONFLICT (client_id, article) 
-             DO UPDATE SET 
-               name = EXCLUDED.name,
-               brand = EXCLUDED.brand,
-               category = EXCLUDED.category,
-               purchase_price = EXCLUDED.purchase_price,
-               available_quantity = EXCLUDED.available_quantity,
-               image_url = EXCLUDED.image_url,
-               description = EXCLUDED.description,
-               updated_at = NOW()`,
-            [
-              clientId,
-              productArticle,
-              product.name,
-              product.trademark?.name || product.brand,
-              product.series?.name || product.category,
-              product.price || product.purchase_price || 0,
-              availableQuantity,
-              imageUrl,
-              product.stuff || product.description
-            ]
-          );
+            // Сохраняем товар в базу данных
+            await client.query(
+              `INSERT INTO sima_land_products 
+               (client_id, article, name, brand, category, purchase_price, available_quantity, image_url, description)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+               ON CONFLICT (client_id, article) 
+               DO UPDATE SET 
+                 name = EXCLUDED.name,
+                 brand = EXCLUDED.brand,
+                 category = EXCLUDED.category,
+                 purchase_price = EXCLUDED.purchase_price,
+                 available_quantity = EXCLUDED.available_quantity,
+                 image_url = EXCLUDED.image_url,
+                 description = EXCLUDED.description,
+                 updated_at = NOW()`,
+              [
+                clientId,
+                parsedProduct.article,
+                parsedProduct.name,
+                parsedProduct.brand,
+                parsedProduct.category,
+                parsedProduct.purchase_price,
+                parsedProduct.available_quantity,
+                parsedProduct.image_url,
+                parsedProduct.description
+              ]
+            );
 
-          savedCount++;
-          if (progressStore && progressJobId) {
-            const base = 50; // первая половина — загрузка, вторая — сохранение
-            const saveProgress = Math.min(50, Math.floor(Math.log10(1 + savedCount) * 20));
-            progressStore.setProgress(progressJobId, base + saveProgress, {
-              stage: 'saving',
-              savedItems: savedCount,
-              imagesWithUrl: imagesCount
-            });
+            savedCount++;
+            if (progressStore && progressJobId) {
+              const base = 50; // первая половина — загрузка, вторая — сохранение
+              const saveProgress = Math.min(50, Math.floor(Math.log10(1 + savedCount) * 20));
+              progressStore.setProgress(progressJobId, base + saveProgress, {
+                stage: 'saving',
+                savedItems: savedCount,
+                imagesWithUrl: imagesCount
+              });
+            }
+          } catch (err) {
+            console.error(`Error saving product ${product.sid || product.id || 'unknown'}:`, err.message);
           }
-        } catch (err) {
-          console.error(`Error saving product ${product.article || product.id}:`, err.message);
-        }
         }
 
         // Обновляем курсор последним id
@@ -464,18 +591,28 @@ class SimaLandService {
         if (items.length === 0) break;
 
         for (const product of items) {
+          // Используем правильный парсер для извлечения всех полей товара
+          const parsedProduct = this.parseProduct(product);
+          
+          if (!parsedProduct || !parsedProduct.article) {
+            console.warn(`Skipping product with missing article in catalog:`, product.id || product.sid);
+            continue;
+          }
+
+          // Формируем строку для вставки в каталог
           const row = {
-            id: product.id || product.sid,
-            article: product.sid?.toString() || product.id?.toString() || '',
-            name: product.name,
-            brand: product.trademark?.name || product.brand,
-            category_id: product.category_id || product.categoryId || null,
-            category: product.series?.name || product.category,
-            purchase_price: product.price || product.purchase_price || 0,
-            available_quantity: product.balance || 0,
-            image_url: (product.img || product.photoUrl || product.image_url || product.imageUrl || product.image || product.photo || product.photo_url || product.picture || product.picture_url) || null,
-            description: product.stuff || product.description
+            id: parsedProduct.id,
+            article: parsedProduct.article,
+            name: parsedProduct.name,
+            brand: parsedProduct.brand,
+            category_id: parsedProduct.category_id,
+            category: parsedProduct.category,
+            purchase_price: parsedProduct.purchase_price,
+            available_quantity: parsedProduct.available_quantity,
+            image_url: parsedProduct.image_url,
+            description: parsedProduct.description
           };
+          
           buffer.push(row);
           if (buffer.length >= 500) {
             await flush();
@@ -488,8 +625,17 @@ class SimaLandService {
           }
         }
 
-        const last = items[items.length - 1];
-        cursorId = last?.id || last?.sid || cursorId;
+        // Обновляем курсор последним id из распарсенных товаров
+        if (items.length > 0) {
+          const lastParsed = this.parseProduct(items[items.length - 1]);
+          if (lastParsed && lastParsed.id) {
+            cursorId = lastParsed.id;
+          } else {
+            // Fallback на исходные данные
+            const last = items[items.length - 1];
+            cursorId = last?.id || last?.sid || cursorId;
+          }
+        }
 
         console.log(`📦 Catalog batch #${batchIndex}: fetched=${items.length}, totalSaved=${savedCount + buffer.length}, cursor=${cursorId}`);
       }
