@@ -29,6 +29,26 @@ class YandexMarketService {
   }
 
   /**
+   * Получить первый доступный campaignId для клиента
+   */
+  async getCampaignId(clientId) {
+    const apiKey = await this.getClientApiKey(clientId);
+    if (!apiKey) return null;
+    try {
+      const resp = await axios.get(`${this.baseUrl}/v2/campaigns`, {
+        headers: { 'Api-Key': apiKey }
+      });
+      const campaigns = resp.data?.campaigns || resp.data?.result || [];
+      if (Array.isArray(campaigns) && campaigns.length > 0) {
+        return campaigns[0].id || campaigns[0].campaignId || campaigns[0].campaign?.id || null;
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
    * Получить business ID клиента
    * Для работы с API нужно знать business ID
    * Можно получить через API: GET /campaigns
@@ -60,11 +80,7 @@ class YandexMarketService {
       if (apiKey) {
         try {
           // Пытаемся получить через список кампаний
-          const campaignsResponse = await axios.get(`${this.baseUrl}/campaigns`, {
-            headers: {
-              'Authorization': `Bearer ${apiKey}`
-            }
-          });
+          const campaignsResponse = await axios.get(`${this.baseUrl}/campaigns`, { headers: { 'Api-Key': apiKey } });
           
           // Берем первый бизнес из списка
           const campaigns = campaignsResponse.data?.campaigns || [];
@@ -86,11 +102,7 @@ class YandexMarketService {
         } catch (error) {
           // Если получили 401 или другой ответ, пробуем альтернативный endpoint бизнесов
           try {
-            const businessesResponse = await axios.get(`${this.baseUrl}/businesses`, {
-              headers: {
-                'Authorization': `Bearer ${apiKey}`
-              }
-            });
+            const businessesResponse = await axios.get(`${this.baseUrl}/businesses`, { headers: { 'Api-Key': apiKey } });
             const businesses = businessesResponse.data?.businesses || businessesResponse.data?.result || [];
             if (Array.isArray(businesses) && businesses.length > 0) {
               const firstBusinessId = businesses[0].businessId || businesses[0].id;
@@ -159,7 +171,7 @@ class YandexMarketService {
 
       const response = await axios.post(url, requestBody, {
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
+          'Api-Key': apiKey,
           'Content-Type': 'application/json'
         },
         params: {
@@ -186,9 +198,9 @@ class YandexMarketService {
    * @param {number} stocks[].warehouseId - ID склада (по умолчанию 2003902)
    * @param {number} stocks[].items - Количество товара на складе
    */
-  async updateStocks(apiKey, businessId, stocks, warehouseId = 2003902) {
+  async updateStocks(apiKey, campaignId, stocks, warehouseId = 2003902) {
     try {
-      const url = `${this.baseUrl}/v2/businesses/${businessId}/offers/stocks`;
+      const url = `${this.baseUrl}/v2/campaigns/${campaignId}/offers/stocks`;
 
       const requestBody = {
         skus: stocks.map(stock => ({
@@ -206,7 +218,7 @@ class YandexMarketService {
 
       const response = await axios.put(url, requestBody, {
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
+          'Api-Key': apiKey,
           'Content-Type': 'application/json'
         },
         timeout: 30000
@@ -244,7 +256,7 @@ class YandexMarketService {
 
       const response = await axios.post(url, requestBody, {
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
+          'Api-Key': apiKey,
           'Content-Type': 'application/json'
         },
         timeout: 30000
@@ -267,7 +279,7 @@ class YandexMarketService {
 
       const response = await axios.post(url, {}, {
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
+          'Api-Key': apiKey,
           'Content-Type': 'application/json'
         },
         timeout: 30000
@@ -301,6 +313,9 @@ class YandexMarketService {
       if (!businessId) {
         throw new Error('Yandex Market business ID is not configured. Please configure it in settings.');
       }
+
+      // Получаем campaignId для обновления остатков
+      const campaignId = await this.getCampaignId(clientId);
 
       // Получаем данные товара
       const productResult = await client.query(
@@ -361,9 +376,9 @@ class YandexMarketService {
       );
 
       // Обновляем остатки (используем склад по умолчанию 2003902)
-      if (product.available_quantity && product.available_quantity > 0) {
+      if (campaignId && product.available_quantity && product.available_quantity > 0) {
         try {
-          await this.updateStocks(apiKey, businessId, [
+          await this.updateStocks(apiKey, campaignId, [
             {
               sku: product.article,
               items: product.available_quantity,
