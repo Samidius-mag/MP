@@ -49,6 +49,13 @@ export default function StoreProducts() {
   const [editingMarkup, setEditingMarkup] = useState<number | null>(null);
   const [markupValue, setMarkupValue] = useState<string>('');
   const [uploadingToYM, setUploadingToYM] = useState<number | null>(null);
+  const [ymModalOpen, setYmModalOpen] = useState(false);
+  const [ymTargetProductId, setYmTargetProductId] = useState<number | null>(null);
+  const [ymLoading, setYmLoading] = useState(false);
+  const [ymCategories, setYmCategories] = useState<any[]>([]);
+  const [ymSelectedCategoryId, setYmSelectedCategoryId] = useState<string>('');
+  const [ymParams, setYmParams] = useState<any[]>([]);
+  const [ymParamValues, setYmParamValues] = useState<Record<string, any>>({});
 
   useEffect(() => {
     fetchProducts();
@@ -205,16 +212,19 @@ export default function StoreProducts() {
   };
 
   const uploadToYandexMarket = async (productId: number) => {
+    // Открываем модал выбора категории и параметров
+    setYmTargetProductId(productId);
+    setYmModalOpen(true);
+    setYmLoading(true);
     try {
-      setUploadingToYM(productId);
-      await api.post(`/client/store-products/${productId}/upload/yandex-market`);
-      toast.success('Товар загружен на Яндекс Маркет');
-      await fetchProducts();
-    } catch (err: any) {
-      console.error('Error uploading to Yandex Market:', err);
-      toast.error(err.response?.data?.error || 'Ошибка загрузки на Яндекс Маркет');
+      const { data } = await api.get('/client/yandex/categories');
+      const list = (data?.categories || data?.result || data) as any[];
+      setYmCategories(Array.isArray(list) ? list : []);
+    } catch (e:any) {
+      toast.error(e.response?.data?.error || 'Ошибка загрузки категорий Яндекс.Маркет');
+      setYmModalOpen(false);
     } finally {
-      setUploadingToYM(null);
+      setYmLoading(false);
     }
   };
 
@@ -222,6 +232,52 @@ export default function StoreProducts() {
     if (!purchasePrice) return null;
     const markup = markupPercent || 0;
     return purchasePrice * (1 + markup / 100);
+  };
+
+  const loadYmParams = async (categoryId: string) => {
+    setYmParams([]);
+    setYmParamValues({});
+    if (!categoryId) return;
+    setYmLoading(true);
+    try {
+      const { data } = await api.post(`/client/yandex/category/${categoryId}/parameters`);
+      const params = data?.parameters || data?.result || [];
+      // Оставим обязательные параметры первыми
+      setYmParams(Array.isArray(params) ? params : []);
+    } catch (e:any) {
+      toast.error(e.response?.data?.error || 'Ошибка загрузки параметров категории');
+    } finally {
+      setYmLoading(false);
+    }
+  };
+
+  const submitYmUpload = async () => {
+    if (!ymTargetProductId) return;
+    if (!ymSelectedCategoryId) {
+      toast.error('Выберите категорию Яндекс.Маркет');
+      return;
+    }
+    setUploadingToYM(ymTargetProductId);
+    try {
+      // Преобразуем значения параметров в массив
+      const parameterValues = Object.entries(ymParamValues)
+        .filter(([_, v]) => v !== undefined && v !== null && String(v).trim() !== '')
+        .map(([paramId, v]) => ({ paramId: Number(paramId), value: v }));
+
+      await api.post(`/client/store-products/${ymTargetProductId}/upload/yandex-market`, {
+        marketCategoryId: Number(ymSelectedCategoryId),
+        parameterValues
+      });
+      toast.success('Товар загружен на Яндекс Маркет');
+      setYmModalOpen(false);
+      setYmTargetProductId(null);
+      await fetchProducts();
+    } catch (err:any) {
+      console.error('Error uploading to Yandex Market:', err);
+      toast.error(err.response?.data?.error || 'Ошибка загрузки на Яндекс Маркет');
+    } finally {
+      setUploadingToYM(null);
+    }
   };
 
   if (loading) {
@@ -624,6 +680,72 @@ export default function StoreProducts() {
               {formatPrice(
                 filteredProducts.reduce((sum, p) => sum + (p.current_price || 0), 0) / filteredProducts.length
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Модал: Загрузка на Яндекс.Маркет */}
+      {ymModalOpen && (
+        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-2xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold">Загрузка на Яндекс.Маркет</h3>
+              <button onClick={() => setYmModalOpen(false)} className="text-gray-500 hover:text-gray-700">×</button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="label">Категория Яндекс.Маркет</label>
+                <select
+                  value={ymSelectedCategoryId}
+                  onChange={(e) => {
+                    setYmSelectedCategoryId(e.target.value);
+                    loadYmParams(e.target.value);
+                  }}
+                  className="input"
+                >
+                  <option value="">Выберите категорию</option>
+                  {ymCategories.map((c:any) => (
+                    <option key={c.id} value={c.id}>{c.name || c.title || c.id}</option>
+                  ))}
+                </select>
+              </div>
+
+              {ymLoading && <div className="text-sm text-gray-500">Загрузка...</div>}
+
+              {!ymLoading && ymParams && ymParams.length > 0 && (
+                <div className="space-y-3 max-h-64 overflow-y-auto">
+                  <div className="text-sm text-gray-700">Характеристики категории (заполните обязательные):</div>
+                  {ymParams.map((p:any) => (
+                    <div key={p.id} className="grid grid-cols-1 md:grid-cols-3 gap-2 items-center">
+                      <div className="text-sm">
+                        <span className="font-medium">{p.name || p.title || `Параметр ${p.id}`}</span>
+                        {p.required && <span className="ml-1 text-red-600">*</span>}
+                      </div>
+                      <div className="md:col-span-2">
+                        <input
+                          type="text"
+                          className="input"
+                          placeholder={p.unit?.defaultUnitId ? `Ед.: ${p.unit?.defaultUnitId}` : ''}
+                          value={ymParamValues[p.id]?.value || ymParamValues[p.id] || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setYmParamValues(prev => ({ ...prev, [p.id]: val }));
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={() => setYmModalOpen(false)} className="btn-secondary">Отмена</button>
+                <button onClick={submitYmUpload} className="btn-primary" disabled={uploadingToYM !== null}>
+                  {uploadingToYM ? 'Загрузка...' : 'Загрузить'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
