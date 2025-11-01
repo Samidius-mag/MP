@@ -181,6 +181,9 @@ class YandexMarketService {
               vendor: productData.vendor || '',
               pictures: productData.pictures || [],
               description: productData.description || '',
+              ...(Array.isArray(productData.parameterValues) && productData.parameterValues.length > 0
+                ? { parameterValues: productData.parameterValues }
+                : {}),
               ...(productData.price ? { price: { value: productData.price, currencyId: 'RUR' } } : {})
             },
             mapping: {
@@ -206,6 +209,32 @@ class YandexMarketService {
       console.error('Yandex Market addProduct error:', error.response?.data || error.message);
       throw new Error(`Failed to add product to Yandex Market: ${error.response?.data?.message || error.message}`);
     }
+  }
+
+  /**
+   * Получить дерево категорий Яндекс Маркета
+   */
+  async getCategoriesTree(apiKey, language = 'RU') {
+    const url = `${this.baseUrl}/v2/categories/tree`;
+    const response = await axios.post(url, {}, {
+      headers: { 'Api-Key': apiKey, 'Content-Type': 'application/json' },
+      params: { language },
+      timeout: 30000
+    });
+    return response.data;
+  }
+
+  /**
+   * Получить параметры листовой категории
+   */
+  async getCategoryParameters(apiKey, categoryId, businessId, language = 'RU') {
+    const url = `${this.baseUrl}/v2/category/${categoryId}/parameters`;
+    const response = await axios.post(url, { businessId }, {
+      headers: { 'Api-Key': apiKey, 'Content-Type': 'application/json' },
+      params: { language },
+      timeout: 30000
+    });
+    return response.data;
   }
 
   /**
@@ -383,7 +412,8 @@ class YandexMarketService {
         pictures: product.image_url ? [product.image_url] : [],
         vendor: product.brand || '',
         description: product.description || product.name,
-        price: sellingPrice
+        price: sellingPrice,
+        parameterValues: Array.isArray(options.parameterValues) ? options.parameterValues : undefined
       };
 
       // Добавляем товар на Яндекс Маркет

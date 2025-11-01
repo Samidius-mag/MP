@@ -2061,7 +2061,7 @@ router.put('/store-products/:productId/marketplaces', requireClient, async (req,
 router.post('/store-products/:productId/upload/yandex-market', requireClient, async (req, res) => {
   try {
     const { productId } = req.params;
-    const { marketCategoryId, businessId } = req.body;
+    const { marketCategoryId, businessId, parameterValues } = req.body;
 
     const client = await pool.connect();
     try {
@@ -2101,7 +2101,8 @@ router.post('/store-products/:productId/upload/yandex-market', requireClient, as
       const yandexService = new YandexMarketService();
 
       const result = await yandexService.uploadProductToMarket(clientId, productId, {
-        marketCategoryId: marketCategoryId || null
+        marketCategoryId: marketCategoryId || null,
+        parameterValues: Array.isArray(parameterValues) ? parameterValues : undefined
       });
 
       res.json({
@@ -2121,6 +2122,52 @@ router.post('/store-products/:productId/upload/yandex-market', requireClient, as
   } catch (err) {
     console.error('Upload to Yandex Market error:', err);
     res.status(500).json({ error: 'Ошибка загрузки товара' });
+  }
+});
+
+// Яндекс.Маркет: дерево категорий
+router.get('/yandex/categories', requireClient, async (req, res) => {
+  try {
+    const client = await pool.connect();
+    try {
+      const r = await client.query('SELECT id FROM clients WHERE user_id = $1', [req.user.id]);
+      if (r.rows.length === 0) return res.status(404).json({ error: 'Клиент не найден' });
+      const clientId = r.rows[0].id;
+      const YandexMarketService = require('../services/yandexMarketService');
+      const ym = new YandexMarketService();
+      const apiKey = await ym.getClientApiKey(clientId);
+      if (!apiKey) return res.status(400).json({ error: 'API ключ Яндекс.Маркет не настроен' });
+      const data = await ym.getCategoriesTree(apiKey, req.query.language || 'RU');
+      res.json(data);
+    } finally {
+      client.release();
+    }
+  } catch (e) {
+    res.status(500).json({ error: 'Ошибка получения категорий Яндекс-Маркет' });
+  }
+});
+
+// Яндекс.Маркет: параметры категории
+router.post('/yandex/category/:categoryId/parameters', requireClient, async (req, res) => {
+  try {
+    const client = await pool.connect();
+    try {
+      const r = await client.query('SELECT id FROM clients WHERE user_id = $1', [req.user.id]);
+      if (r.rows.length === 0) return res.status(404).json({ error: 'Клиент не найден' });
+      const clientId = r.rows[0].id;
+      const YandexMarketService = require('../services/yandexMarketService');
+      const ym = new YandexMarketService();
+      const apiKey = await ym.getClientApiKey(clientId);
+      if (!apiKey) return res.status(400).json({ error: 'API ключ Яндекс.Маркет не настроен' });
+      const businessId = await ym.getBusinessId(clientId);
+      if (!businessId) return res.status(400).json({ error: 'Business ID не настроен' });
+      const data = await ym.getCategoryParameters(apiKey, req.params.categoryId, businessId, req.query.language || 'RU');
+      res.json(data);
+    } finally {
+      client.release();
+    }
+  } catch (e) {
+    res.status(500).json({ error: 'Ошибка получения параметров категории' });
   }
 });
 
