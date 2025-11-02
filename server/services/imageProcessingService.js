@@ -2,6 +2,7 @@ const sharp = require('sharp');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const logger = require('./logger');
 
 class ImageProcessingService {
   constructor() {
@@ -13,6 +14,14 @@ class ImageProcessingService {
     if (!fs.existsSync(this.uploadDir)) {
       fs.mkdirSync(this.uploadDir, { recursive: true });
     }
+
+    // Статистика обработки
+    this.stats = {
+      totalProcessed: 0,
+      totalSuccess: 0,
+      totalFailed: 0,
+      totalTime: 0
+    };
   }
 
   /**
@@ -21,7 +30,13 @@ class ImageProcessingService {
    * @returns {Buffer} Буфер изображения
    */
   async downloadImage(imageUrl) {
+    const startTime = Date.now();
     try {
+      await logger.info(`Начало загрузки изображения`, {
+        service: 'image-processing',
+        metadata: { imageUrl, stage: 'download_start' }
+      });
+
       const response = await axios.get(imageUrl, {
         responseType: 'arraybuffer',
         timeout: 30000,
@@ -29,8 +44,32 @@ class ImageProcessingService {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
       });
+
+      const downloadTime = Date.now() - startTime;
+      const imageSize = response.data.byteLength;
+      
+      await logger.info(`Изображение успешно загружено`, {
+        service: 'image-processing',
+        metadata: {
+          imageUrl,
+          stage: 'download_complete',
+          size: `${(imageSize / 1024).toFixed(2)} KB`,
+          downloadTime: `${downloadTime}ms`
+        }
+      });
+
       return Buffer.from(response.data);
     } catch (error) {
+      const downloadTime = Date.now() - startTime;
+      await logger.error(`Ошибка загрузки изображения`, {
+        service: 'image-processing',
+        metadata: {
+          imageUrl,
+          stage: 'download_error',
+          error: error.message,
+          downloadTime: `${downloadTime}ms`
+        }
+      });
       throw new Error(`Failed to download image from ${imageUrl}: ${error.message}`);
     }
   }
@@ -50,7 +89,18 @@ class ImageProcessingService {
       threshold = 240 // Порог для определения светлого фона
     } = options;
 
+    const startTime = Date.now();
     try {
+      await logger.debug(`Начало замены фона методом 'white'`, {
+        service: 'image-processing',
+        metadata: {
+          stage: 'process_start',
+          method: 'replaceBackgroundWithColor',
+          backgroundColor,
+          threshold
+        }
+      });
+
       const image = sharp(imageBuffer);
       const metadata = await image.metadata();
       
@@ -79,8 +129,30 @@ class ImageProcessingService {
         .png()
         .toBuffer();
 
+      const processTime = Date.now() - startTime;
+      await logger.debug(`Фон успешно заменен методом 'white'`, {
+        service: 'image-processing',
+        metadata: {
+          stage: 'process_complete',
+          method: 'replaceBackgroundWithColor',
+          size: `${metadata.width}x${metadata.height}`,
+          outputSize: `${(composite.length / 1024).toFixed(2)} KB`,
+          processTime: `${processTime}ms`
+        }
+      });
+
       return composite;
     } catch (error) {
+      const processTime = Date.now() - startTime;
+      await logger.error(`Ошибка замены фона методом 'white'`, {
+        service: 'image-processing',
+        metadata: {
+          stage: 'process_error',
+          method: 'replaceBackgroundWithColor',
+          error: error.message,
+          processTime: `${processTime}ms`
+        }
+      });
       throw new Error(`Failed to replace background: ${error.message}`);
     }
   }
@@ -102,7 +174,19 @@ class ImageProcessingService {
       replaceWithWhite = false
     } = options;
 
+    const startTime = Date.now();
     try {
+      await logger.debug(`Начало удаления фона методом 'remove'`, {
+        service: 'image-processing',
+        metadata: {
+          stage: 'process_start',
+          method: 'removeBackgroundByColor',
+          bgColor,
+          tolerance,
+          replaceWithWhite
+        }
+      });
+
       const image = sharp(imageBuffer);
       const metadata = await image.metadata();
 
@@ -174,8 +258,31 @@ class ImageProcessingService {
         output = await output.toBuffer();
       }
 
+      const processTime = Date.now() - startTime;
+      await logger.debug(`Фон успешно удален методом 'remove'`, {
+        service: 'image-processing',
+        metadata: {
+          stage: 'process_complete',
+          method: 'removeBackgroundByColor',
+          size: `${metadata.width}x${metadata.height}`,
+          outputSize: `${(output.length / 1024).toFixed(2)} KB`,
+          pixelsProcessed: pixels.length / channels,
+          processTime: `${processTime}ms`
+        }
+      });
+
       return output;
     } catch (error) {
+      const processTime = Date.now() - startTime;
+      await logger.error(`Ошибка удаления фона методом 'remove'`, {
+        service: 'image-processing',
+        metadata: {
+          stage: 'process_error',
+          method: 'removeBackgroundByColor',
+          error: error.message,
+          processTime: `${processTime}ms`
+        }
+      });
       throw new Error(`Failed to remove background: ${error.message}`);
     }
   }
@@ -190,7 +297,17 @@ class ImageProcessingService {
   async removeBackgroundAuto(imageBuffer, options = {}) {
     const { replaceWithWhite = true } = options;
 
+    const startTime = Date.now();
     try {
+      await logger.debug(`Начало автоматического удаления фона`, {
+        service: 'image-processing',
+        metadata: {
+          stage: 'process_start',
+          method: 'removeBackgroundAuto',
+          replaceWithWhite
+        }
+      });
+
       // Определяем цвет фона по краям изображения
       const image = sharp(imageBuffer);
       const metadata = await image.metadata();
@@ -201,11 +318,34 @@ class ImageProcessingService {
       // Упрощенный подход: если фон светлый (среднее значение RGB > threshold), заменяем на белый
       // Более точный вариант потребует анализа пикселей по краям
       
-      return await this.replaceBackgroundWithColor(imageBuffer, {
+      const result = await this.replaceBackgroundWithColor(imageBuffer, {
         backgroundColor: replaceWithWhite ? '#FFFFFF' : '#00000000',
         threshold: 240
       });
+
+      const processTime = Date.now() - startTime;
+      await logger.debug(`Автоматическое удаление фона завершено`, {
+        service: 'image-processing',
+        metadata: {
+          stage: 'process_complete',
+          method: 'removeBackgroundAuto',
+          size: `${metadata.width}x${metadata.height}`,
+          processTime: `${processTime}ms`
+        }
+      });
+
+      return result;
     } catch (error) {
+      const processTime = Date.now() - startTime;
+      await logger.error(`Ошибка автоматического удаления фона`, {
+        service: 'image-processing',
+        metadata: {
+          stage: 'process_error',
+          method: 'removeBackgroundAuto',
+          error: error.message,
+          processTime: `${processTime}ms`
+        }
+      });
       throw new Error(`Failed to auto-remove background: ${error.message}`);
     }
   }
@@ -225,16 +365,42 @@ class ImageProcessingService {
       method = 'auto', // 'white', 'remove', 'auto'
       filename = null,
       bgColor = '#FFFFFF',
-      replaceWithWhite = true
+      replaceWithWhite = true,
+      productArticle = null,
+      clientId = null
     } = options;
 
+    const totalStartTime = Date.now();
+    this.stats.totalProcessed++;
+
     try {
+      await logger.info(`Начало обработки изображения`, {
+        service: 'image-processing',
+        metadata: {
+          imageUrl,
+          method,
+          productArticle,
+          clientId,
+          bgColor,
+          replaceWithWhite,
+          stage: 'start'
+        }
+      });
+
       // Скачиваем изображение
-      console.log(`Downloading image from ${imageUrl}...`);
       const imageBuffer = await this.downloadImage(imageUrl);
 
       // Обрабатываем изображение
-      console.log(`Processing image with method: ${method}...`);
+      await logger.info(`Обработка изображения методом: ${method}`, {
+        service: 'image-processing',
+        metadata: {
+          imageUrl,
+          method,
+          productArticle,
+          stage: 'processing'
+        }
+      });
+
       let processedBuffer;
 
       switch (method) {
@@ -263,19 +429,79 @@ class ImageProcessingService {
       const filePath = path.join(this.uploadDir, finalFilename);
 
       // Сохраняем обработанное изображение
+      const saveStartTime = Date.now();
       await fs.promises.writeFile(filePath, processedBuffer);
-      console.log(`Processed image saved to ${filePath}`);
+      const saveTime = Date.now() - saveStartTime;
+
+      const totalTime = Date.now() - totalStartTime;
+      const originalSize = imageBuffer.length;
+      const processedSize = processedBuffer.length;
+      
+      this.stats.totalSuccess++;
+      this.stats.totalTime += totalTime;
+
+      await logger.info(`Изображение успешно обработано и сохранено`, {
+        service: 'image-processing',
+        metadata: {
+          imageUrl,
+          method,
+          productArticle,
+          clientId,
+          filename: finalFilename,
+          filePath,
+          publicUrl: `${this.publicUrl}/${finalFilename}`,
+          originalSize: `${(originalSize / 1024).toFixed(2)} KB`,
+          processedSize: `${(processedSize / 1024).toFixed(2)} KB`,
+          compression: `${((1 - processedSize / originalSize) * 100).toFixed(1)}%`,
+          saveTime: `${saveTime}ms`,
+          totalTime: `${totalTime}ms`,
+          stage: 'complete',
+          stats: {
+            totalProcessed: this.stats.totalProcessed,
+            totalSuccess: this.stats.totalSuccess,
+            totalFailed: this.stats.totalFailed,
+            avgTime: `${(this.stats.totalTime / this.stats.totalSuccess).toFixed(0)}ms`
+          }
+        }
+      });
 
       // Возвращаем путь и публичный URL
-      // Если нужно, можно настроить отдачу через Express static или через CDN
       const publicUrl = `${this.publicUrl}/${finalFilename}`;
 
       return {
         filePath,
         publicUrl,
-        filename: finalFilename
+        filename: finalFilename,
+        stats: {
+          originalSize,
+          processedSize,
+          totalTime
+        }
       };
     } catch (error) {
+      const totalTime = Date.now() - totalStartTime;
+      this.stats.totalFailed++;
+
+      await logger.error(`Ошибка обработки изображения`, {
+        service: 'image-processing',
+        metadata: {
+          imageUrl,
+          method,
+          productArticle,
+          clientId,
+          error: error.message,
+          stack: error.stack,
+          totalTime: `${totalTime}ms`,
+          stage: 'error',
+          stats: {
+            totalProcessed: this.stats.totalProcessed,
+            totalSuccess: this.stats.totalSuccess,
+            totalFailed: this.stats.totalFailed,
+            successRate: `${((this.stats.totalSuccess / this.stats.totalProcessed) * 100).toFixed(1)}%`
+          }
+        }
+      });
+
       throw new Error(`Image processing failed: ${error.message}`);
     }
   }
@@ -303,11 +529,56 @@ class ImageProcessingService {
       const filePath = path.join(this.uploadDir, filename);
       if (fs.existsSync(filePath)) {
         await fs.promises.unlink(filePath);
-        console.log(`Deleted processed image: ${filePath}`);
+        await logger.info(`Удалено обработанное изображение`, {
+          service: 'image-processing',
+          metadata: {
+            filename,
+            filePath,
+            stage: 'delete'
+          }
+        });
       }
     } catch (error) {
-      console.error(`Failed to delete processed image ${filename}:`, error.message);
+      await logger.error(`Ошибка удаления обработанного изображения`, {
+        service: 'image-processing',
+        metadata: {
+          filename,
+          error: error.message,
+          stage: 'delete_error'
+        }
+      });
     }
+  }
+
+  /**
+   * Получить статистику обработки
+   * @returns {Object} Статистика
+   */
+  getStats() {
+    return {
+      ...this.stats,
+      successRate: this.stats.totalProcessed > 0 
+        ? ((this.stats.totalSuccess / this.stats.totalProcessed) * 100).toFixed(1) + '%'
+        : '0%',
+      avgTime: this.stats.totalSuccess > 0
+        ? `${(this.stats.totalTime / this.stats.totalSuccess).toFixed(0)}ms`
+        : '0ms'
+    };
+  }
+
+  /**
+   * Сбросить статистику
+   */
+  resetStats() {
+    this.stats = {
+      totalProcessed: 0,
+      totalSuccess: 0,
+      totalFailed: 0,
+      totalTime: 0
+    };
+    logger.info(`Статистика обработки изображений сброшена`, {
+      service: 'image-processing'
+    });
   }
 }
 

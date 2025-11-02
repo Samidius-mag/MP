@@ -575,8 +575,31 @@ class SimaLandService {
    */
   async loadProductsForClient(clientId, token, progressJobId, options = {}) {
     const progressStore = progressJobId ? require('./progressStore') : null;
+    const logger = require('./logger');
     const client = await pool.connect();
+    
+    // Статистика обработки изображений
+    const imageStats = {
+      total: 0,
+      processed: 0,
+      failed: 0,
+      skipped: 0
+    };
+
     try {
+      // Логируем начало загрузки с информацией об обработке изображений
+      if (options.processImages) {
+        await logger.info(`Начало загрузки товаров с обработкой изображений`, {
+          service: 'sima-land',
+          metadata: {
+            clientId,
+            processImages: true,
+            method: options.imageProcessingMethod || 'auto',
+            categories: options.categories || []
+          }
+        });
+      }
+
       // Курсорная пагинация через id-greater-than (рекомендация API при больших оффсетах)
       const perPage = 100;
       let cursorId = null; // последний id в предыдущей пачке
@@ -636,24 +659,28 @@ class SimaLandService {
             
             // Обрабатываем изображение (заменяем фон на белый), если включено
             if (options.processImages && parsedProduct.image_url) {
+              imageStats.total++;
               try {
-                console.log(`Processing image for product ${parsedProduct.article}...`);
                 const processed = await imageProcessingService.processImage(parsedProduct.image_url, {
                   method: options.imageProcessingMethod || 'auto', // 'white', 'remove', 'auto'
                   replaceWithWhite: options.replaceWithWhite !== false, // по умолчанию true
-                  bgColor: options.bgColor || '#FFFFFF'
+                  bgColor: options.bgColor || '#FFFFFF',
+                  productArticle: parsedProduct.article,
+                  clientId: clientId
                 });
                 finalImageUrl = processed.publicUrl;
-                console.log(`✅ Image processed: ${finalImageUrl}`);
+                imageStats.processed++;
                 imagesCount++;
               } catch (imageError) {
-                console.warn(`⚠️  Failed to process image for product ${parsedProduct.article}:`, imageError.message);
+                // Логирование уже выполнено в imageProcessingService
+                imageStats.failed++;
                 // Используем оригинальное изображение, если обработка не удалась
                 if (parsedProduct.image_url) {
                   imagesCount++;
                 }
               }
             } else if (parsedProduct.image_url) {
+              imageStats.skipped++;
               imagesCount++;
             }
 
@@ -710,10 +737,32 @@ class SimaLandService {
       console.log(`✅ Saved ${savedCount} products for client ${clientId}`);
       console.log(`📸 Found images for ${imagesCount} out of ${savedCount} products`);
 
+      // Логируем статистику обработки изображений
+      if (options.processImages && imageStats.total > 0) {
+        const imageProcessingStats = imageProcessingService.getStats();
+        await logger.info(`Загрузка товаров завершена. Статистика обработки изображений`, {
+          service: 'sima-land',
+          metadata: {
+            clientId,
+            totalProducts: savedCount,
+            imagesFound: imagesCount,
+            imageProcessing: {
+              total: imageStats.total,
+              processed: imageStats.processed,
+              failed: imageStats.failed,
+              skipped: imageStats.skipped,
+              successRate: `${((imageStats.processed / imageStats.total) * 100).toFixed(1)}%`,
+              serviceStats: imageProcessingStats
+            }
+          }
+        });
+      }
+
       const result = {
         total: savedCount,
         saved: savedCount,
-        images: imagesCount
+        images: imagesCount,
+        imageProcessing: options.processImages ? imageStats : null
       };
 
       if (progressStore && progressJobId) {
@@ -817,16 +866,16 @@ class SimaLandService {
           let finalImageUrl = parsedProduct.image_url;
           if (options.processImages && parsedProduct.image_url) {
             try {
-              console.log(`Processing image for catalog product ${parsedProduct.article}...`);
               const processed = await imageProcessingService.processImage(parsedProduct.image_url, {
                 method: options.imageProcessingMethod || 'auto',
                 replaceWithWhite: options.replaceWithWhite !== false,
-                bgColor: options.bgColor || '#FFFFFF'
+                bgColor: options.bgColor || '#FFFFFF',
+                productArticle: parsedProduct.article,
+                clientId: null // Для каталога clientId = null
               });
               finalImageUrl = processed.publicUrl;
-              console.log(`✅ Catalog image processed: ${finalImageUrl}`);
             } catch (imageError) {
-              console.warn(`⚠️  Failed to process catalog image for product ${parsedProduct.article}:`, imageError.message);
+              // Логирование уже выполнено в imageProcessingService
             }
           }
 
