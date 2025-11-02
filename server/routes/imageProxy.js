@@ -15,10 +15,12 @@ router.get('/test-image-proxy', (req, res) => {
 // Публичный прокси для изображений Sima Land (обход CORS)
 // Этот маршрут доступен без аутентификации
 router.get('/sima-land/image-proxy', async (req, res) => {
-  console.log(`[IMAGE PROXY] 🎯 Route handler called! Query:`, req.query);
-  console.log(`[IMAGE PROXY] 🎯 Full URL:`, req.url);
-  console.log(`[IMAGE PROXY] 🎯 Method:`, req.method);
-  console.log(`[IMAGE PROXY] 🎯 Path:`, req.path);
+  // КРИТИЧЕСКИ ВАЖНО: Логируем ВСЕГДА, даже если потом будет ошибка
+  console.error(`[IMAGE PROXY] ========== ROUTE HANDLER CALLED ==========`);
+  console.error(`[IMAGE PROXY] Query:`, req.query);
+  console.error(`[IMAGE PROXY] Full URL:`, req.url);
+  console.error(`[IMAGE PROXY] Method:`, req.method);
+  console.error(`[IMAGE PROXY] Path:`, req.path);
   
   try {
     const imageUrl = req.query.url;
@@ -37,14 +39,44 @@ router.get('/sima-land/image-proxy', async (req, res) => {
 
     console.log(`[IMAGE PROXY] 🔄 Request to proxy image: ${imageUrl.substring(0, 100)}...`);
 
-    // Загружаем изображение
+    // Загружаем изображение с заголовками для обхода защиты Sima Land
     const protocol = imageUrl.startsWith('https') ? https : http;
     
-    protocol.get(imageUrl, (imageResponse) => {
+    const options = {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+        'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Referer': 'https://www.sima-land.ru/',
+        'Accept-Encoding': 'gzip, deflate, br'
+      }
+    };
+    
+    protocol.get(imageUrl, options, (imageResponse) => {
+      console.error(`[IMAGE PROXY] 📥 Response from Sima Land: status ${imageResponse.statusCode}`);
+      console.error(`[IMAGE PROXY]   Content-Type: ${imageResponse.headers['content-type']}`);
+      console.error(`[IMAGE PROXY]   Content-Length: ${imageResponse.headers['content-length']}`);
+      
       // Проверяем статус ответа
       if (imageResponse.statusCode !== 200) {
-        console.error(`[IMAGE PROXY] Error: status ${imageResponse.statusCode} for ${imageUrl}`);
-        return res.status(imageResponse.statusCode).json({ error: 'Ошибка загрузки изображения' });
+        console.error(`[IMAGE PROXY] ❌ Error: status ${imageResponse.statusCode} for ${imageUrl}`);
+        console.error(`[IMAGE PROXY]   Response headers:`, JSON.stringify(imageResponse.headers));
+        
+        // Для 404 пробуем альтернативный формат URL
+        if (imageResponse.statusCode === 404) {
+          // Возможно, нужно использовать другой формат URL
+          // Например: если URL содержит /items/0/1575044009.jpg, пробуем другие варианты
+          const altUrl = imageUrl.replace(/\/items\/0\//, '/items/');
+          console.error(`[IMAGE PROXY] 🔄 Trying alternative URL: ${altUrl}`);
+          
+          // НЕ пробуем альтернативный URL автоматически, просто возвращаем ошибку
+          // Клиент может попробовать использовать image_urls из БД
+        }
+        
+        return res.status(imageResponse.statusCode).json({ 
+          error: 'Ошибка загрузки изображения',
+          details: `Sima Land вернул ${imageResponse.statusCode} для URL: ${imageUrl.substring(0, 100)}...`
+        });
       }
 
       // Устанавливаем заголовки
