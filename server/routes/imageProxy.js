@@ -63,11 +63,11 @@ router.get('/sima-land/image-proxy', async (req, res) => {
         console.error(`[IMAGE PROXY]   Response headers:`, JSON.stringify(imageResponse.headers));
         
         // Для 404 возвращаем placeholder-изображение (1x1 прозрачный PNG)
-        // Это позволяет браузеру корректно обработать ошибку и показать placeholder на фронтенде
+        // Фронтенд определит это по размеру и покажет нормальный placeholder
         if (imageResponse.statusCode === 404) {
           console.error(`[IMAGE PROXY] 🔄 Returning placeholder image for 404`);
           
-          // 1x1 прозрачный PNG в base64
+          // 1x1 прозрачный PNG в base64 (фронтенд определит это как ошибку по размеру)
           const placeholderPng = Buffer.from(
             'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
             'base64'
@@ -81,7 +81,7 @@ router.get('/sima-land/image-proxy', async (req, res) => {
           return res.send(placeholderPng);
         }
         
-        // Для других ошибок также возвращаем placeholder
+        // Для других ошибок также возвращаем placeholder (1x1 PNG)
         const placeholderPng = Buffer.from(
           'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
           'base64'

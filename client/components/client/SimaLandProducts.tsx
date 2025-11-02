@@ -67,7 +67,15 @@ function ProductImage({ product }: { product: SimaLandProduct }) {
     }
   };
 
-  const handleImageLoad = () => {
+  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    // Проверяем, что изображение не является placeholder (1x1 или слишком маленькое)
+    // Placeholder от прокси имеет размер 1x1 пиксель
+    if (img.naturalWidth <= 1 && img.naturalHeight <= 1) {
+      console.log(`[CLIENT] ⚠️ Image is too small (${img.naturalWidth}x${img.naturalHeight}), treating as error`);
+      handleImageError();
+      return;
+    }
     setImageError(false);
   };
 
@@ -75,9 +83,9 @@ function ProductImage({ product }: { product: SimaLandProduct }) {
 
   if (imageError || !currentImageUrl) {
     return (
-      <div className="w-full h-48 bg-gray-100 flex flex-col items-center justify-center">
+      <div className="w-full h-48 bg-gray-100 flex flex-col items-center justify-center border-0">
         <PhotoIcon className="h-12 w-12 text-gray-400" />
-        <span className="mt-2 text-xs text-gray-500">Ошибка загрузки</span>
+        <span className="mt-2 text-xs text-gray-500">Изображение недоступно</span>
       </div>
     );
   }
@@ -86,7 +94,7 @@ function ProductImage({ product }: { product: SimaLandProduct }) {
     <img 
       src={currentImageUrl} 
       alt={product.name} 
-      className="w-full h-48 object-cover"
+      className="w-full h-48 object-cover bg-gray-100"
       loading="lazy"
       onError={handleImageError}
       onLoad={handleImageLoad}
@@ -484,7 +492,7 @@ export default function SimaLandProducts() {
             .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
             .map((product) => (
             <div key={product.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-              <div className="aspect-w-16 aspect-h-9 bg-gray-200">
+              <div className="aspect-w-16 aspect-h-9 bg-gray-100 overflow-hidden">
                 <ProductImage product={product} />
               </div>
               <div className="p-4">
