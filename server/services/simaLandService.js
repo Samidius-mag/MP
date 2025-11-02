@@ -130,8 +130,8 @@ class SimaLandService {
     // Изображения товара - извлекаем ВСЕ изображения в полном разрешении
     // API может возвращать изображения в разных форматах:
     // - массив images/photos/gallery
+    // - url_part + version (нужно собрать URL)
     // - одно изображение img
-    // - массив img
     const extractImageUrl = (img) => {
       if (!img) return null;
       
@@ -139,11 +139,24 @@ class SimaLandService {
       if (typeof img === 'string') {
         url = img;
       } else if (typeof img === 'object' && img !== null) {
-        url = img.url || img.src || img.link || img.original || img.full || null;
+        // Специальная обработка для формата url_part + version
+        // Формат: { url_part: "...", version: 123 } -> url_part + version + ".jpg"
+        if (img.url_part && img.version) {
+          const urlPart = img.url_part.toString().replace(/\/$/, ''); // Убираем trailing slash
+          const version = img.version.toString();
+          // Формируем полный URL: url_part/version.jpg
+          url = `${urlPart}/${version}.jpg`;
+        } else if (img.url_part) {
+          // Если есть только url_part, пробуем добавить .jpg
+          url = img.url_part.toString().replace(/\/$/, '') + '.jpg';
+        } else {
+          // Обычные поля
+          url = img.url || img.src || img.link || img.original || img.full || img.image || null;
+        }
       }
       
-      // Преобразуем URL в полное разрешение
-      if (url) {
+      // Преобразуем URL в полное разрешение (если это не специальный формат)
+      if (url && !url.includes('url_part')) {
         url = this.getFullResolutionImageUrl(url);
       }
       
@@ -154,55 +167,94 @@ class SimaLandService {
     
     // Согласно документации API v3:
     // - photos - массив фотографий (требует expand=photos)
+    // - images - массив изображений с url_part и version
     // - img - URL основной картинки
     // - photoUrl - ссылка на изображение товара
     // - photo_sizes - доступные размеры изображений (expand=photo_sizes)
     
-    // Приоритет 1: массив photos (основной способ получения всех фото)
-    if (product.photos && Array.isArray(product.photos)) {
+    // Приоритет 1: массив images с url_part (специальный формат Sima Land)
+    // Формат: [{ url_part: "https://...", version: 123 }, ...]
+    if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+      // Проверяем, есть ли url_part (новый формат)
+      const hasUrlPart = product.images.some(img => img && typeof img === 'object' && img.url_part);
+      if (hasUrlPart) {
+        // Это новый формат с url_part - используем его
+        imageUrls = product.images.map(extractImageUrl).filter(url => url !== null);
+      } else {
+        // Старый формат - обычные URL
+        imageUrls = product.images.map(extractImageUrl).filter(url => url !== null);
+      }
+    }
+    // Приоритет 2: массив photos (основной способ получения всех фото)
+    else if (product.photos && Array.isArray(product.photos)) {
       imageUrls = product.photos.map(extractImageUrl).filter(url => url !== null);
     }
-    // Приоритет 2: photo_sizes (если есть размеры, берем оригиналы)
+    // Приоритет 3: photo_sizes (если есть размеры, берем максимальный/оригинальный)
     else if (product.photo_sizes && Array.isArray(product.photo_sizes)) {
       // photo_sizes может содержать информацию о разных размерах
-      // Ищем оригинальный размер или максимальный
+      // Ищем оригинальный размер или максимальный (обычно самый большой размер)
+      let maxSize = null;
+      let maxDimensions = 0;
+      
       product.photo_sizes.forEach(photoSize => {
-        if (photoSize.url) {
-          const url = extractImageUrl(photoSize.url);
-          if (url && !imageUrls.includes(url)) imageUrls.push(url);
-        } else if (photoSize.original) {
-          const url = extractImageUrl(photoSize.original);
-          if (url && !imageUrls.includes(url)) imageUrls.push(url);
-        } else if (photoSize.full) {
-          const url = extractImageUrl(photoSize.full);
-          if (url && !imageUrls.includes(url)) imageUrls.push(url);
+        // Если есть размеры, выбираем максимальный
+        if (photoSize.width && photoSize.height) {
+          const dimensions = photoSize.width * photoSize.height;
+          if (dimensions > maxDimensions) {
+            maxDimensions = dimensions;
+            maxSize = photoSize;
+          }
         }
       });
-    }
-    // Приоритет 3: массив images (fallback)
-    else if (product.images && Array.isArray(product.images)) {
-      imageUrls = product.images.map(extractImageUrl).filter(url => url !== null);
+      
+      // Если нашли максимальный размер - используем его
+      if (maxSize) {
+        const url = extractImageUrl(maxSize);
+        if (url) imageUrls.push(url);
+      } else {
+        // Если размеры не указаны, берем все доступные
+        product.photo_sizes.forEach(photoSize => {
+          const url = extractImageUrl(photoSize);
+          if (url && !imageUrls.includes(url)) imageUrls.push(url);
+        });
+      }
+      
+      // Если ничего не нашлось, пробуем стандартные поля
+      if (imageUrls.length === 0) {
+        product.photo_sizes.forEach(photoSize => {
+          if (photoSize.url) {
+            const url = extractImageUrl(photoSize.url);
+            if (url && !imageUrls.includes(url)) imageUrls.push(url);
+          } else if (photoSize.original) {
+            const url = extractImageUrl(photoSize.original);
+            if (url && !imageUrls.includes(url)) imageUrls.push(url);
+          } else if (photoSize.full) {
+            const url = extractImageUrl(photoSize.full);
+            if (url && !imageUrls.includes(url)) imageUrls.push(url);
+          }
+        });
+      }
     }
     // Приоритет 4: массив gallery (fallback)
-    else if (product.gallery && Array.isArray(product.gallery)) {
+    if (imageUrls.length === 0 && product.gallery && Array.isArray(product.gallery)) {
       imageUrls = product.gallery.map(extractImageUrl).filter(url => url !== null);
     }
     // Приоритет 5: массив img (fallback)
-    else if (Array.isArray(product.img)) {
+    if (imageUrls.length === 0 && Array.isArray(product.img)) {
       imageUrls = product.img.map(extractImageUrl).filter(url => url !== null);
     }
     // Приоритет 6: одно изображение img (основное изображение из документации)
-    else if (product.img) {
+    if (imageUrls.length === 0 && product.img) {
       const url = extractImageUrl(product.img);
       if (url) imageUrls.push(url);
     }
     // Приоритет 7: photoUrl (ссылка на изображение из документации)
-    else if (product.photoUrl) {
+    if (imageUrls.length === 0 && product.photoUrl) {
       const url = extractImageUrl(product.photoUrl);
       if (url) imageUrls.push(url);
     }
     // Приоритет 8: другие поля для одного изображения (fallback)
-    else {
+    if (imageUrls.length === 0) {
       const url = extractImageUrl(product.photo_url) ||
                   extractImageUrl(product.image_url) ||
                   extractImageUrl(product.imageUrl) ||
@@ -213,6 +265,20 @@ class SimaLandService {
 
     // Убираем дубликаты
     imageUrls = [...new Set(imageUrls)];
+    
+    // Логируем для отладки (только первые несколько товаров)
+    if (process.env.NODE_ENV === 'development' || Math.random() < 0.01) {
+      console.log(`[SIMA LAND] Product ${product.id || product.sid || 'unknown'}: Found ${imageUrls.length} images`);
+      if (imageUrls.length > 0) {
+        console.log(`[SIMA LAND] First image URL: ${imageUrls[0].substring(0, 100)}...`);
+      }
+      if (product.images && Array.isArray(product.images)) {
+        console.log(`[SIMA LAND] images array structure:`, JSON.stringify(product.images[0]).substring(0, 200));
+      }
+      if (product.photo_sizes && Array.isArray(product.photo_sizes)) {
+        console.log(`[SIMA LAND] photo_sizes structure:`, JSON.stringify(product.photo_sizes[0]).substring(0, 200));
+      }
+    }
     
     // Основное изображение (первое) - для обратной совместимости
     const imageUrl = imageUrls.length > 0 ? imageUrls[0] : null;
@@ -473,7 +539,7 @@ class SimaLandService {
       const urlObj = new URL(url);
       
       // Удаляем параметры размера
-      const sizeParams = ['w', 'h', 'width', 'height', 'size', 'resize', 'thumb', 'thumbnail'];
+      const sizeParams = ['w', 'h', 'width', 'height', 'size', 'resize', 'thumb', 'thumbnail', 'format'];
       sizeParams.forEach(param => {
         urlObj.searchParams.delete(param);
       });
@@ -482,7 +548,7 @@ class SimaLandService {
       let path = urlObj.pathname;
       
       // Убираем префиксы размеров из пути
-      const sizePrefixes = ['/thumb/', '/thumbnail/', '/small/', '/medium/', '/large/'];
+      const sizePrefixes = ['/thumb/', '/thumbnail/', '/small/', '/medium/', '/large/', '/resize/'];
       for (const prefix of sizePrefixes) {
         if (path.includes(prefix)) {
           path = path.replace(prefix, '/');
@@ -493,16 +559,24 @@ class SimaLandService {
       // Убираем паттерны типа /200x200/, /150x150/ из пути
       path = path.replace(/\/\d+x\d+\//g, '/');
       path = path.replace(/\/\d+x\d+\./g, '.');
+      // Убираем паттерны с одним размером /200/ или .200.
+      path = path.replace(/\/\d+\//g, '/');
+      path = path.replace(/\.\d+\./g, '.');
       
       urlObj.pathname = path;
 
-      // Если это CDN Sima Land, можем добавить параметр для максимального качества
-      // Например, для некоторых CDN можно добавить ?quality=100
-      if (urlObj.hostname.includes('sima-land') || urlObj.hostname.includes('simaland')) {
-        // Проверяем, есть ли уже параметр quality
-        if (!urlObj.searchParams.has('quality')) {
-          urlObj.searchParams.set('quality', '100');
-        }
+      // Для CDN Sima Land: убираем ограничения размера и добавляем качество
+      if (urlObj.hostname.includes('sima-land') || urlObj.hostname.includes('simaland') || 
+          urlObj.hostname.includes('goods-photos.static1-sima-land.com') ||
+          urlObj.hostname.includes('static1-sima-land.com')) {
+        // Убираем все параметры размера
+        urlObj.searchParams.delete('w');
+        urlObj.searchParams.delete('h');
+        urlObj.searchParams.delete('width');
+        urlObj.searchParams.delete('height');
+        
+        // Для статических CDN обычно не нужны параметры качества
+        // Просто возвращаем чистый URL без параметров размера
       }
 
       return urlObj.toString();
@@ -525,7 +599,7 @@ class SimaLandService {
       console.log(`[SIMA LAND] Fetching product details for item ${itemId}`);
       
       // Запрашиваем все дополнительные поля через expand
-      const expandFields = ['description', 'attrs', 'photos', 'materials', 'photo_sizes', 
+      const expandFields = ['description', 'attrs', 'photos', 'materials', 'photo_sizes', 'images',
                            'grouped_attrs_list', 'categories', 'photo_3d_urls', 'ext_description',
                            'barcodes', 'all_categories'];
       
