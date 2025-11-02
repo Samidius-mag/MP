@@ -45,6 +45,7 @@ const { router: notificationRoutes } = require('./routes/notification');
 const pricingRoutes = require('./routes/pricing');
 const warehouseRoutes = require('./routes/warehouse');
 const apiRoutes = require('./routes/api');
+const imageProxyRoutes = require('./routes/imageProxy');
 // const testWbRoutes = require('./routes/test-wb');
 
 const { connectDB } = require('./config/database');
@@ -101,6 +102,7 @@ app.use('/uploads/products', express.static(path.join(__dirname, 'uploads', 'pro
 // Routes
 // Публичные сервисные маршруты (без JWT)
 app.use('/api', simaRoutes);
+app.use('/api', imageProxyRoutes); // Прокси для изображений (публичный)
 
 app.use('/api/auth', authRoutes);
 app.use('/api/client', authenticateToken, clientRoutes);

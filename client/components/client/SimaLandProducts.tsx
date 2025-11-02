@@ -424,9 +424,12 @@ export default function SimaLandProducts() {
                     src={product.image_url} 
                     alt={product.name} 
                     className="w-full h-48 object-cover"
+                    loading="lazy"
                     onError={(e) => {
-                      console.error(`[CLIENT] Failed to load image for product ${product.id}:`, product.image_url);
-                      console.error(`[CLIENT] Error details:`, e);
+                      console.error(`[CLIENT] ❌ Failed to load image for product ${product.id} (${product.article}):`);
+                      console.error(`[CLIENT]   Image URL: ${product.image_url}`);
+                      console.error(`[CLIENT]   Error event:`, e);
+                      console.error(`[CLIENT]   Image element:`, e.currentTarget);
                       // Скрываем img и показываем placeholder
                       e.currentTarget.style.display = 'none';
                       const placeholder = e.currentTarget.parentElement?.querySelector('.image-placeholder') as HTMLElement;
@@ -435,7 +438,8 @@ export default function SimaLandProducts() {
                       }
                     }}
                     onLoad={() => {
-                      console.log(`[CLIENT] ✅ Image loaded successfully for product ${product.id}:`, product.image_url);
+                      console.log(`[CLIENT] ✅ Image loaded successfully for product ${product.id} (${product.article}):`);
+                      console.log(`[CLIENT]   Image URL: ${product.image_url}`);
                     }}
                   />
                 ) : (

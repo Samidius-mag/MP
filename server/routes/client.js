@@ -4,52 +4,10 @@ const { pool } = require('../config/database');
 const { requireClient } = require('../middleware/auth');
 const DepositService = require('../services/depositService');
 const axios = require('axios');
-const https = require('https');
-const http = require('http');
 
 const router = express.Router();
 
-// Прокси для изображений Sima Land (обход CORS)
-// ВАЖНО: этот маршрут должен быть доступен БЕЗ аутентификации для загрузки изображений
-// НО мы используем requireClient, поэтому нужно переместить его в другой файл или сделать публичным
-router.get('/sima-land/image-proxy', requireClient, async (req, res) => {
-  try {
-    const imageUrl = req.query.url;
-    
-    if (!imageUrl) {
-      return res.status(400).json({ error: 'URL параметр обязателен' });
-    }
-
-    // Проверяем, что URL принадлежит Sima Land
-    if (!imageUrl.includes('sima-land') && !imageUrl.includes('goods-photos.static1-sima-land.com')) {
-      return res.status(403).json({ error: 'Доступ запрещен' });
-    }
-
-    // Загружаем изображение
-    const protocol = imageUrl.startsWith('https') ? https : http;
-    
-    protocol.get(imageUrl, (imageResponse) => {
-      // Проверяем статус ответа
-      if (imageResponse.statusCode !== 200) {
-        return res.status(imageResponse.statusCode).json({ error: 'Ошибка загрузки изображения' });
-      }
-
-      // Устанавливаем заголовки
-      const contentType = imageResponse.headers['content-type'] || 'image/jpeg';
-      res.setHeader('Content-Type', contentType);
-      res.setHeader('Cache-Control', 'public, max-age=86400'); // Кеш на 24 часа
-      
-      // Проксируем изображение
-      imageResponse.pipe(res);
-    }).on('error', (error) => {
-      console.error(`[IMAGE PROXY] Error proxying image ${imageUrl}:`, error.message);
-      res.status(500).json({ error: 'Ошибка загрузки изображения' });
-    });
-  } catch (error) {
-    console.error('[IMAGE PROXY] Error:', error);
-    res.status(500).json({ error: 'Ошибка проксирования изображения' });
-  }
-});
+// Прокси для изображений перенесен в routes/imageProxy.js (публичный маршрут /api/sima-land/image-proxy)
 
 // Получение баланса клиента
 router.get('/balance', requireClient, async (req, res) => {
@@ -1678,8 +1636,16 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
         }
         
         // Проксируем URL изображения через сервер (обход CORS)
-        if (product.image_url && product.image_url.includes('goods-photos.static1-sima-land.com')) {
-          product.image_url = `/api/client/sima-land/image-proxy?url=${encodeURIComponent(product.image_url)}`;
+        // Используем публичный маршрут /api/sima-land/image-proxy (не /api/client/)
+        if (product.image_url && typeof product.image_url === 'string' && product.image_url.includes('goods-photos.static1-sima-land.com')) {
+          const originalUrl = product.image_url;
+          product.image_url = `/api/sima-land/image-proxy?url=${encodeURIComponent(originalUrl)}`;
+          // Логируем замену для первых товаров
+          if (productsResult.rows.indexOf(product) < 2) {
+            console.log(`[API] 🔄 Replaced image URL for product ${product.id}:`);
+            console.log(`[API]   Original: ${originalUrl}`);
+            console.log(`[API]   Proxied:  ${product.image_url}`);
+          }
         }
         
         // Логируем для отладки (первые несколько товаров)
