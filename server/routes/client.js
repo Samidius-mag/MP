@@ -1604,20 +1604,42 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
 
       // Парсим image_urls из JSONB и используем первое изображение, если image_url пустое
       const products = productsResult.rows.map(product => {
-        // Если image_url пустое, но есть image_urls - берем первое изображение
-        if (!product.image_url && product.image_urls) {
+        // PostgreSQL может вернуть JSONB как объект или строку
+        // Обрабатываем image_urls
+        if (product.image_urls) {
           try {
-            const imageUrls = typeof product.image_urls === 'string' 
-              ? JSON.parse(product.image_urls) 
-              : product.image_urls;
+            let imageUrls = product.image_urls;
             
+            // Если это строка, парсим JSON
+            if (typeof imageUrls === 'string') {
+              imageUrls = JSON.parse(imageUrls);
+            }
+            
+            // Если это массив и image_url пустое - берем первое изображение
             if (Array.isArray(imageUrls) && imageUrls.length > 0) {
-              product.image_url = imageUrls[0];
+              if (!product.image_url || product.image_url.trim() === '') {
+                product.image_url = imageUrls[0];
+              }
             }
           } catch (e) {
-            console.warn(`Failed to parse image_urls for product ${product.id}:`, e.message);
+            console.warn(`[API] Failed to parse image_urls for product ${product.id}:`, e.message);
           }
         }
+        
+        // Убеждаемся, что image_url - это строка, а не null или undefined
+        if (!product.image_url || product.image_url === 'null' || product.image_url === 'undefined') {
+          product.image_url = null;
+        } else if (typeof product.image_url !== 'string') {
+          product.image_url = String(product.image_url);
+        }
+        
+        // Логируем для отладки (первые несколько товаров)
+        if (productsResult.rows.indexOf(product) < 3) {
+          console.log(`[API] Product ${product.id} (${product.article}):`);
+          console.log(`[API]   image_url = ${product.image_url || 'NULL'} (type: ${typeof product.image_url})`);
+          console.log(`[API]   image_urls = ${product.image_urls ? (typeof product.image_urls === 'string' ? product.image_urls.substring(0, 80) + '...' : JSON.stringify(product.image_urls).substring(0, 80) + '...') : 'NULL'} (type: ${typeof product.image_urls})`);
+        }
+        
         return product;
       });
 
@@ -2245,5 +2267,6 @@ router.post('/yandex/category/:categoryId/parameters', requireClient, async (req
 });
 
 module.exports = router;
+
 
 

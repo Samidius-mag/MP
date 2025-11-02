@@ -88,6 +88,15 @@ export default function SimaLandProducts() {
       const response = await api.get('/client/sima-land/products', { params });
       
       const products = response.data.products || [];
+      
+      // Логируем для отладки (первые несколько товаров)
+      if (products.length > 0) {
+        console.log('[CLIENT] Received products:', products.length);
+        products.slice(0, 3).forEach((p: any) => {
+          console.log(`[CLIENT] Product ${p.id} (${p.article}): image_url = ${p.image_url || 'NULL'}`);
+        });
+      }
+      
       setAllProducts(products);
       
     } catch (err: any) {
@@ -404,10 +413,22 @@ export default function SimaLandProducts() {
             <div key={product.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
               <div className="aspect-w-16 aspect-h-9 bg-gray-200">
                 {product.image_url ? (
-                  <img src={product.image_url} alt={product.name} className="w-full h-48 object-cover" />
+                  <img 
+                    src={product.image_url} 
+                    alt={product.name} 
+                    className="w-full h-48 object-cover" 
+                    onError={(e) => {
+                      console.error(`Failed to load image for product ${product.id}:`, product.image_url);
+                      e.currentTarget.style.display = 'none';
+                    }}
+                    onLoad={() => {
+                      console.log(`Image loaded for product ${product.id}:`, product.image_url);
+                    }}
+                  />
                 ) : (
                   <div className="w-full h-48 bg-gray-100 flex items-center justify-center">
                     <PhotoIcon className="h-12 w-12 text-gray-400" />
+                    <span className="ml-2 text-xs text-gray-500">Нет изображения</span>
                   </div>
                 )}
               </div>
