@@ -127,30 +127,68 @@ class SimaLandService {
       availableQuantity = parseInt(product.balance) || 0;
     }
 
-    // Изображение товара
-    // Согласно API v3, изображения в полях img или photoUrl
-    // img может быть объектом {url} или строкой
-    let imageUrl = null;
-    
-    if (product.img) {
-      if (typeof product.img === 'object') {
-        imageUrl = product.img.url || product.img.src || product.img.link || null;
-      } else {
-        imageUrl = product.img;
+    // Изображения товара - извлекаем ВСЕ изображения в полном разрешении
+    // API может возвращать изображения в разных форматах:
+    // - массив images/photos/gallery
+    // - одно изображение img
+    // - массив img
+    const extractImageUrl = (img) => {
+      if (!img) return null;
+      
+      let url = null;
+      if (typeof img === 'string') {
+        url = img;
+      } else if (typeof img === 'object' && img !== null) {
+        url = img.url || img.src || img.link || img.original || img.full || null;
       }
-    } else if (product.photoUrl) {
-      imageUrl = product.photoUrl;
-    } else if (product.photo_url) {
-      imageUrl = product.photo_url;
-    } else if (product.image_url) {
-      imageUrl = product.image_url;
-    } else if (product.imageUrl) {
-      imageUrl = product.imageUrl;
-    } else if (product.image) {
-      imageUrl = typeof product.image === 'object' ? product.image.url : product.image;
-    } else if (product.photo) {
-      imageUrl = typeof product.photo === 'object' ? product.photo.url : product.photo;
+      
+      // Преобразуем URL в полное разрешение
+      if (url) {
+        url = this.getFullResolutionImageUrl(url);
+      }
+      
+      return url;
+    };
+
+    let imageUrls = [];
+    
+    // Приоритет 1: массив images
+    if (product.images && Array.isArray(product.images)) {
+      imageUrls = product.images.map(extractImageUrl).filter(url => url !== null);
     }
+    // Приоритет 2: массив photos
+    else if (product.photos && Array.isArray(product.photos)) {
+      imageUrls = product.photos.map(extractImageUrl).filter(url => url !== null);
+    }
+    // Приоритет 3: массив gallery
+    else if (product.gallery && Array.isArray(product.gallery)) {
+      imageUrls = product.gallery.map(extractImageUrl).filter(url => url !== null);
+    }
+    // Приоритет 4: массив img
+    else if (Array.isArray(product.img)) {
+      imageUrls = product.img.map(extractImageUrl).filter(url => url !== null);
+    }
+    // Приоритет 5: одно изображение img (для обратной совместимости)
+    else if (product.img) {
+      const url = extractImageUrl(product.img);
+      if (url) imageUrls.push(url);
+    }
+    // Приоритет 6: другие поля для одного изображения
+    else {
+      const url = extractImageUrl(product.photoUrl) || 
+                  extractImageUrl(product.photo_url) ||
+                  extractImageUrl(product.image_url) ||
+                  extractImageUrl(product.imageUrl) ||
+                  extractImageUrl(product.image) ||
+                  extractImageUrl(product.photo);
+      if (url) imageUrls.push(url);
+    }
+
+    // Убираем дубликаты
+    imageUrls = [...new Set(imageUrls)];
+    
+    // Основное изображение (первое) - для обратной совместимости
+    const imageUrl = imageUrls.length > 0 ? imageUrls[0] : null;
 
     // Описание товара
     // stuff - материал товара, description - полное описание
@@ -263,12 +301,98 @@ class SimaLandService {
       series, // Сохраняем серию отдельно если нужно
       purchase_price: parseFloat(purchasePrice) || 0,
       available_quantity: parseInt(availableQuantity) || 0,
-      image_url: imageUrl,
+      image_url: imageUrl, // Основное изображение для обратной совместимости
+      image_urls: imageUrls, // Массив всех изображений
       description,
       characteristics: Object.keys(characteristics).length > 0 ? characteristics : null
     };
 
     return parsedProduct;
+  }
+
+  /**
+   * Преобразует URL изображения Sima Land в полное разрешение
+   * Убирает параметры размера и получает оригинальное изображение
+   * @param {string} url - URL изображения
+   * @returns {string} URL в полном разрешении
+   */
+  getFullResolutionImageUrl(url) {
+    if (!url || typeof url !== 'string') {
+      return url;
+    }
+
+    try {
+      // Если URL содержит параметры размера (например, ?w=200&h=200 или ?size=thumb)
+      // убираем их для получения оригинала
+      const urlObj = new URL(url);
+      
+      // Удаляем параметры размера
+      const sizeParams = ['w', 'h', 'width', 'height', 'size', 'resize', 'thumb', 'thumbnail'];
+      sizeParams.forEach(param => {
+        urlObj.searchParams.delete(param);
+      });
+
+      // Если URL содержит путь с размером (например, /thumb/, /small/, /200x200/)
+      let path = urlObj.pathname;
+      
+      // Убираем префиксы размеров из пути
+      const sizePrefixes = ['/thumb/', '/thumbnail/', '/small/', '/medium/', '/large/'];
+      for (const prefix of sizePrefixes) {
+        if (path.includes(prefix)) {
+          path = path.replace(prefix, '/');
+          break;
+        }
+      }
+      
+      // Убираем паттерны типа /200x200/, /150x150/ из пути
+      path = path.replace(/\/\d+x\d+\//g, '/');
+      path = path.replace(/\/\d+x\d+\./g, '.');
+      
+      urlObj.pathname = path;
+
+      // Если это CDN Sima Land, можем добавить параметр для максимального качества
+      // Например, для некоторых CDN можно добавить ?quality=100
+      if (urlObj.hostname.includes('sima-land') || urlObj.hostname.includes('simaland')) {
+        // Проверяем, есть ли уже параметр quality
+        if (!urlObj.searchParams.has('quality')) {
+          urlObj.searchParams.set('quality', '100');
+        }
+      }
+
+      return urlObj.toString();
+    } catch (error) {
+      // Если URL некорректен, возвращаем как есть
+      console.warn(`Failed to process image URL ${url}:`, error.message);
+      return url;
+    }
+  }
+
+  /**
+   * Получить детальную информацию о товаре по ID
+   * Может содержать больше изображений, чем в списке товаров
+   * @param {string} token - API токен
+   * @param {number|string} itemId - ID товара
+   * @returns {Object} Детальная информация о товаре
+   */
+  async fetchProductDetails(token, itemId) {
+    try {
+      console.log(`[SIMA LAND] Fetching product details for item ${itemId}`);
+      
+      const response = await axios.get(`${this.baseUrl}/item/${itemId}`, {
+        headers: {
+          'x-api-key': token,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        timeout: 30000
+      });
+
+      return response.data || null;
+    } catch (error) {
+      console.error(`[SIMA LAND] Failed to fetch product details for item ${itemId}:`, error.response?.data || error.message);
+      // Не критичная ошибка, возвращаем null
+      return null;
+    }
   }
 
   /**
@@ -493,7 +617,7 @@ class SimaLandService {
     const client = await pool.connect();
     try {
       const result = await client.query(
-        `SELECT id, article, name, brand, category, purchase_price, available_quantity, image_url, description, characteristics
+        `SELECT id, article, name, brand, category, purchase_price, available_quantity, image_url, image_urls, description, characteristics
          FROM sima_land_products
          WHERE client_id = $1
          ORDER BY created_at DESC`,
@@ -523,8 +647,8 @@ class SimaLandService {
         const updateResult = await client.query(
           `UPDATE sima_land_products 
            SET name = $3, brand = $4, category = $5, purchase_price = $6, 
-               available_quantity = $7, image_url = $8, description = $9, 
-               characteristics = $10, updated_at = NOW()
+               available_quantity = $7, image_url = $8, image_urls = $9, description = $10, 
+               characteristics = $11, updated_at = NOW()
            WHERE client_id = $1 AND article = $2
            RETURNING id`,
           [
@@ -536,6 +660,7 @@ class SimaLandService {
             productData.purchase_price,
             productData.available_quantity || 0,
             productData.image_url,
+            productData.image_urls ? JSON.stringify(productData.image_urls) : null,
             productData.description,
             productData.characteristics ? JSON.stringify(productData.characteristics) : '{}'
           ]
@@ -546,8 +671,8 @@ class SimaLandService {
         // Создаем новый товар
         const insertResult = await client.query(
           `INSERT INTO sima_land_products 
-           (client_id, article, name, brand, category, purchase_price, available_quantity, image_url, description, characteristics)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           (client_id, article, name, brand, category, purchase_price, available_quantity, image_url, image_urls, description, characteristics)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
            RETURNING id`,
           [
             clientId,
@@ -558,6 +683,7 @@ class SimaLandService {
             productData.purchase_price,
             productData.available_quantity || 0,
             productData.image_url,
+            productData.image_urls ? JSON.stringify(productData.image_urls) : null,
             productData.description,
             productData.characteristics ? JSON.stringify(productData.characteristics) : '{}'
           ]
@@ -662,44 +788,79 @@ class SimaLandService {
               continue;
             }
 
-            // Подсчитываем товары с изображениями
-            let finalImageUrl = parsedProduct.image_url;
+            // Обрабатываем все изображения товара
+            let finalImageUrls = parsedProduct.image_urls || [];
+            let finalImageUrl = parsedProduct.image_url; // Основное изображение для обратной совместимости
             
-            // Обрабатываем изображение (заменяем фон на белый), если включено
-            if (options.processImages && parsedProduct.image_url) {
-              imageStats.total++;
-              console.log(`[SIMA LAND] 📸 Обработка изображения для товара ${parsedProduct.article}...`);
+            // Если детальная информация о товаре не была загружена и включена опция, пробуем загрузить
+            if (options.fetchDetails && parsedProduct.id && (!finalImageUrls || finalImageUrls.length <= 1)) {
               try {
-                const processed = await imageProcessingService.processImage(parsedProduct.image_url, {
-                  method: options.imageProcessingMethod || 'auto', // 'white', 'remove', 'auto'
-                  replaceWithWhite: options.replaceWithWhite !== false, // по умолчанию true
-                  bgColor: options.bgColor || '#FFFFFF',
-                  productArticle: parsedProduct.article,
-                  clientId: clientId
-                });
-                finalImageUrl = processed.publicUrl;
-                imageStats.processed++;
-                imagesCount++;
-                console.log(`[SIMA LAND] ✅ Изображение обработано для товара ${parsedProduct.article}`);
-              } catch (imageError) {
-                // Логирование уже выполнено в imageProcessingService
-                imageStats.failed++;
-                console.error(`[SIMA LAND] ❌ Ошибка обработки изображения для товара ${parsedProduct.article}:`, imageError.message);
-                // Используем оригинальное изображение, если обработка не удалась
-                if (parsedProduct.image_url) {
+                console.log(`[SIMA LAND] 📥 Загрузка детальной информации для товара ${parsedProduct.article}...`);
+                const details = await this.fetchProductDetails(token, parsedProduct.id);
+                if (details) {
+                  // Парсим товар заново с детальной информацией
+                  const detailedParsed = this.parseProduct(details);
+                  if (detailedParsed && detailedParsed.image_urls && detailedParsed.image_urls.length > finalImageUrls.length) {
+                    console.log(`[SIMA LAND] ✅ Найдено больше изображений: ${detailedParsed.image_urls.length} вместо ${finalImageUrls.length}`);
+                    finalImageUrls = detailedParsed.image_urls;
+                    finalImageUrl = detailedParsed.image_url;
+                  }
+                }
+              } catch (detailError) {
+                console.warn(`[SIMA LAND] ⚠️  Не удалось загрузить детали для товара ${parsedProduct.article}:`, detailError.message);
+              }
+            }
+
+            // Обрабатываем все изображения (заменяем фон на белый), если включено
+            if (options.processImages && finalImageUrls && finalImageUrls.length > 0) {
+              console.log(`[SIMA LAND] 📸 Обработка ${finalImageUrls.length} изображений для товара ${parsedProduct.article}...`);
+              
+              const processedUrls = [];
+              for (let i = 0; i < finalImageUrls.length; i++) {
+                const imgUrl = finalImageUrls[i];
+                imageStats.total++;
+                
+                try {
+                  const processed = await imageProcessingService.processImage(imgUrl, {
+                    method: options.imageProcessingMethod || 'auto',
+                    replaceWithWhite: options.replaceWithWhite !== false,
+                    bgColor: options.bgColor || '#FFFFFF',
+                    productArticle: parsedProduct.article,
+                    clientId: clientId,
+                    filename: `${parsedProduct.article}-${i + 1}.png` // Номер изображения в имени файла
+                  });
+                  processedUrls.push(processed.publicUrl);
+                  imageStats.processed++;
                   imagesCount++;
+                  
+                  // Первое обработанное изображение становится основным
+                  if (i === 0) {
+                    finalImageUrl = processed.publicUrl;
+                  }
+                } catch (imageError) {
+                  imageStats.failed++;
+                  console.error(`[SIMA LAND] ❌ Ошибка обработки изображения ${i + 1} для товара ${parsedProduct.article}:`, imageError.message);
+                  // Используем оригинальное изображение, если обработка не удалась
+                  processedUrls.push(imgUrl);
+                  imagesCount++;
+                  if (i === 0) {
+                    finalImageUrl = imgUrl;
+                  }
                 }
               }
-            } else if (parsedProduct.image_url) {
-              imageStats.skipped++;
-              imagesCount++;
+              
+              finalImageUrls = processedUrls;
+            } else if (finalImageUrls && finalImageUrls.length > 0) {
+              // Если обработка отключена, просто считаем изображения
+              imageStats.skipped += finalImageUrls.length;
+              imagesCount += finalImageUrls.length;
             }
 
             // Сохраняем товар в базу данных
             await client.query(
               `INSERT INTO sima_land_products 
-               (client_id, article, name, brand, category, purchase_price, available_quantity, image_url, description, characteristics)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+               (client_id, article, name, brand, category, purchase_price, available_quantity, image_url, image_urls, description, characteristics)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                ON CONFLICT (client_id, article) 
                DO UPDATE SET 
                  name = EXCLUDED.name,
@@ -708,6 +869,7 @@ class SimaLandService {
                  purchase_price = EXCLUDED.purchase_price,
                  available_quantity = EXCLUDED.available_quantity,
                  image_url = EXCLUDED.image_url,
+                 image_urls = EXCLUDED.image_urls,
                  description = EXCLUDED.description,
                  characteristics = EXCLUDED.characteristics,
                  updated_at = NOW()`,
@@ -719,7 +881,8 @@ class SimaLandService {
                 parsedProduct.category,
                 parsedProduct.purchase_price,
                 parsedProduct.available_quantity,
-                finalImageUrl, // Используем обработанное или оригинальное изображение
+                finalImageUrl, // Основное изображение для обратной совместимости
+                finalImageUrls && finalImageUrls.length > 0 ? JSON.stringify(finalImageUrls) : null, // Массив всех изображений
                 parsedProduct.description,
                 parsedProduct.characteristics ? JSON.stringify(parsedProduct.characteristics) : '{}'
               ]
@@ -831,13 +994,13 @@ class SimaLandService {
       let buffer = [];
       const flush = async () => {
         if (buffer.length === 0) return;
-        const cols = ['id','article','name','brand','category_id','category','purchase_price','available_quantity','image_url','description','characteristics'];
+        const cols = ['id','article','name','brand','category_id','category','purchase_price','available_quantity','image_url','image_urls','description','characteristics'];
         const values = [];
         const params = [];
         let p = 1;
         for (const it of buffer) {
-          values.push(`($${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++})`);
-          params.push(it.id, it.article, it.name, it.brand, it.category_id, it.category, it.purchase_price, it.available_quantity, it.image_url, it.description, it.characteristics ? JSON.stringify(it.characteristics) : '{}');
+          values.push(`($${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++})`);
+          params.push(it.id, it.article, it.name, it.brand, it.category_id, it.category, it.purchase_price, it.available_quantity, it.image_url, it.image_urls ? JSON.stringify(it.image_urls) : null, it.description, it.characteristics ? JSON.stringify(it.characteristics) : '{}');
         }
         const sql = `INSERT INTO sima_land_catalog (${cols.join(',')}) VALUES ${values.join(',')}
           ON CONFLICT (id) DO UPDATE SET
@@ -849,6 +1012,7 @@ class SimaLandService {
             purchase_price=EXCLUDED.purchase_price,
             available_quantity=EXCLUDED.available_quantity,
             image_url=EXCLUDED.image_url,
+            image_urls=EXCLUDED.image_urls,
             description=EXCLUDED.description,
             characteristics=EXCLUDED.characteristics,
             updated_at=NOW()`;
@@ -886,21 +1050,36 @@ class SimaLandService {
             continue;
           }
 
-          // Обрабатываем изображение, если включено
+          // Обрабатываем все изображения, если включено
+          let finalImageUrls = parsedProduct.image_urls || [];
           let finalImageUrl = parsedProduct.image_url;
-          if (options.processImages && parsedProduct.image_url) {
-            try {
-              const processed = await imageProcessingService.processImage(parsedProduct.image_url, {
-                method: options.imageProcessingMethod || 'auto',
-                replaceWithWhite: options.replaceWithWhite !== false,
-                bgColor: options.bgColor || '#FFFFFF',
-                productArticle: parsedProduct.article,
-                clientId: null // Для каталога clientId = null
-              });
-              finalImageUrl = processed.publicUrl;
-            } catch (imageError) {
-              // Логирование уже выполнено в imageProcessingService
+          
+          if (options.processImages && finalImageUrls && finalImageUrls.length > 0) {
+            const processedUrls = [];
+            for (let i = 0; i < finalImageUrls.length; i++) {
+              const imgUrl = finalImageUrls[i];
+              try {
+                const processed = await imageProcessingService.processImage(imgUrl, {
+                  method: options.imageProcessingMethod || 'auto',
+                  replaceWithWhite: options.replaceWithWhite !== false,
+                  bgColor: options.bgColor || '#FFFFFF',
+                  productArticle: parsedProduct.article,
+                  clientId: null, // Для каталога clientId = null
+                  filename: `catalog-${parsedProduct.article}-${i + 1}.png`
+                });
+                processedUrls.push(processed.publicUrl);
+                if (i === 0) {
+                  finalImageUrl = processed.publicUrl;
+                }
+              } catch (imageError) {
+                // Используем оригинальное изображение, если обработка не удалась
+                processedUrls.push(imgUrl);
+                if (i === 0) {
+                  finalImageUrl = imgUrl;
+                }
+              }
             }
+            finalImageUrls = processedUrls;
           }
 
           // Формируем строку для вставки в каталог
@@ -913,7 +1092,8 @@ class SimaLandService {
             category: parsedProduct.category,
             purchase_price: parsedProduct.purchase_price,
             available_quantity: parsedProduct.available_quantity,
-            image_url: finalImageUrl, // Используем обработанное или оригинальное изображение
+            image_url: finalImageUrl, // Основное изображение для обратной совместимости
+            image_urls: finalImageUrls, // Массив всех изображений
             description: parsedProduct.description,
             characteristics: parsedProduct.characteristics
           };
