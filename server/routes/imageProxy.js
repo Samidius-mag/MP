@@ -4,13 +4,29 @@ const http = require('http');
 
 const router = express.Router();
 
+console.log('[IMAGE PROXY] 🔧 Registering route: GET /sima-land/image-proxy');
+
+// Тестовый маршрут для проверки
+router.get('/test-image-proxy', (req, res) => {
+  console.log('[IMAGE PROXY] ✅ Test route called!');
+  res.json({ message: 'Image proxy router is working!' });
+});
+
 // Публичный прокси для изображений Sima Land (обход CORS)
 // Этот маршрут доступен без аутентификации
 router.get('/sima-land/image-proxy', async (req, res) => {
+  console.log(`[IMAGE PROXY] 🎯 Route handler called! Query:`, req.query);
+  console.log(`[IMAGE PROXY] 🎯 Full URL:`, req.url);
+  console.log(`[IMAGE PROXY] 🎯 Method:`, req.method);
+  console.log(`[IMAGE PROXY] 🎯 Path:`, req.path);
+  
   try {
     const imageUrl = req.query.url;
     
+    console.log(`[IMAGE PROXY] 📥 Received request with url param:`, imageUrl);
+    
     if (!imageUrl) {
+      console.error(`[IMAGE PROXY] ❌ No URL parameter provided`);
       return res.status(400).json({ error: 'URL параметр обязателен' });
     }
 

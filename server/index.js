@@ -101,8 +101,11 @@ app.use('/uploads/products', express.static(path.join(__dirname, 'uploads', 'pro
 
 // Routes
 // Публичные сервисные маршруты (без JWT)
+// ВАЖНО: imageProxy должен быть ПЕРЕД simaRoutes, чтобы не было конфликтов
+console.log('[SERVER] 📌 Registering imageProxy routes at /api');
+app.use('/api', imageProxyRoutes); // Прокси для изображений (публичный) - ПЕРВЫМ!
+console.log('[SERVER] 📌 Registering simaRoutes at /api');
 app.use('/api', simaRoutes);
-app.use('/api', imageProxyRoutes); // Прокси для изображений (публичный)
 
 app.use('/api/auth', authRoutes);
 app.use('/api/client', authenticateToken, clientRoutes);
@@ -142,8 +145,14 @@ app.get('/favicon.ico', (req, res) => {
 // Error handling
 app.use(errorHandler);
 
-// 404 handler
+// 404 handler - должен быть ПОСЛЕ всех маршрутов и обработчика ошибок
 app.use('*', (req, res) => {
+  // Логируем необработанные маршруты для отладки
+  if (req.path.startsWith('/api')) {
+    console.log(`[SERVER] ⚠️  404 - Route not found: ${req.method} ${req.path}`);
+    console.log(`[SERVER]   Full URL: ${req.url}`);
+    console.log(`[SERVER]   Original URL: ${req.originalUrl}`);
+  }
   res.status(404).json({ error: 'Route not found' });
 });
 
