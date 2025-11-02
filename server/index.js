@@ -102,7 +102,7 @@ app.use('/uploads/products', express.static(path.join(__dirname, 'uploads', 'pro
 // Routes
 // Публичные сервисные маршруты (без JWT)
 // ВАЖНО: imageProxy должен быть ПЕРЕД simaRoutes, чтобы не было конфликтов
-console.log('[SERVER] 📌 Registering imageProxy routes at /api');
+console.log('[SERVER]  Registering imageProxy routes at /api');
 app.use('/api', imageProxyRoutes); // Прокси для изображений (публичный) - ПЕРВЫМ!
 console.log('[SERVER] 📌 Registering simaRoutes at /api');
 app.use('/api', simaRoutes);

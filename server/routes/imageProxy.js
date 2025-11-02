@@ -8,7 +8,7 @@ console.log('[IMAGE PROXY] 🔧 Registering route: GET /sima-land/image-proxy');
 
 // Тестовый маршрут для проверки
 router.get('/test-image-proxy', (req, res) => {
-  console.log('[IMAGE PROXY] ✅ Test route called!');
+  console.log('[IMAGE PROXY]  Test route called!');
   res.json({ message: 'Image proxy router is working!' });
 });
 
