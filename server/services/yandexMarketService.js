@@ -468,8 +468,14 @@ class YandexMarketService {
       });
       return response.data;
     } catch (error) {
-      console.error('Yandex Market updateCampaignPrices error:', error.response?.data || error.message);
-      throw new Error(`Failed to update campaign prices on Yandex Market: ${error.response?.data?.message || error.message}`);
+      // Сохраняем response в ошибке для последующей обработки
+      const errorData = error.response?.data || {};
+      const errorMessage = errorData.message || error.message || 'Unknown error';
+      const lockedError = new Error(`Failed to update campaign prices on Yandex Market: ${errorMessage}`);
+      lockedError.response = error.response;
+      lockedError.statusCode = error.response?.status;
+      lockedError.errorData = errorData;
+      throw lockedError;
     }
   }
 
@@ -616,20 +622,35 @@ class YandexMarketService {
 
       // Устанавливаем цену через pricing API (обязательно после успешного добавления товара)
       // Цена НЕ передается в offer-mappings, только через отдельный pricing API
+      let priceSet = false;
       try {
         if (campaignId) {
           try {
             await this.updateCampaignPrices(apiKey, campaignId, [
               { offerId: product.article, price: sellingPrice }
             ]);
+            priceSet = true;
+            console.log(`✅ Price set via campaign API for product ${product.article}`);
           } catch (e) {
-            const code = e?.response?.status;
-            const msg = e?.response?.data || e?.message || '';
-            // Fallback на бизнес-уровень, если магазинная цена недоступна
-            if (code === 423 || (typeof msg === 'object' ? (msg.errors?.[0]?.code === 'LOCKED') : String(msg).includes('LOCKED'))) {
-              await this.updatePrices(apiKey, businessId, [
-                { offerId: product.article, price: sellingPrice }
-              ]);
+            const statusCode = e?.statusCode || e?.response?.status;
+            const errorData = e?.errorData || e?.response?.data || {};
+            const errors = errorData.errors || [];
+            const hasLockedError = errors.some(err => err.code === 'LOCKED') || 
+                                   errorData.status === 'ERROR' && errors.some(err => err.code === 'LOCKED');
+            
+            // Fallback на бизнес-уровень, если магазинная цена недоступна (LOCKED или 423)
+            if (statusCode === 423 || hasLockedError) {
+              console.log(`⚠️  Campaign price locked, using business-level pricing for product ${product.article}`);
+              try {
+                await this.updatePrices(apiKey, businessId, [
+                  { offerId: product.article, price: sellingPrice }
+                ]);
+                priceSet = true;
+                console.log(`✅ Price set via business API for product ${product.article}`);
+              } catch (businessErr) {
+                console.error('Failed to set price via business API:', businessErr.message);
+                throw businessErr;
+              }
             } else {
               throw e;
             }
@@ -638,12 +659,21 @@ class YandexMarketService {
           await this.updatePrices(apiKey, businessId, [
             { offerId: product.article, price: sellingPrice }
           ]);
+          priceSet = true;
+          console.log(`✅ Price set via business API for product ${product.article}`);
         }
       } catch (priceErr) {
         console.error('Set price failed:', priceErr.message);
-        console.error('Price error details:', priceErr.response?.data || priceErr);
-        // Это критичная ошибка - товар добавлен, но цена не установлена
-        throw new Error(`Failed to set price for product ${product.article}: ${priceErr.message}`);
+        console.error('Price error details:', priceErr.response?.data || priceErr.errorData || priceErr);
+        
+        // Если цена не установлена, это не критично - товар уже добавлен
+        // Логируем предупреждение, но не прерываем процесс
+        console.warn(`⚠️  Warning: Price could not be set for product ${product.article}, but product was added to Yandex Market`);
+        console.warn(`   You may need to set the price manually in Yandex Market dashboard`);
+      }
+      
+      if (!priceSet) {
+        console.warn(`⚠️  Price was not set for product ${product.article}. Please set it manually in Yandex Market.`);
       }
 
       // Обновляем данные товара в БД
