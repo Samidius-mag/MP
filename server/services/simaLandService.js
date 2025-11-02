@@ -159,8 +159,99 @@ class SimaLandService {
                        product.about || 
                        null;
 
-    // Дополнительные поля, которые могут быть полезны
-    // Можно добавить в будущем при необходимости
+    // Извлекаем характеристики товара
+    // Проверяем различные возможные поля для цвета
+    const color = product.color || 
+                  product.цвет || 
+                  product.colour ||
+                  product.color_name ||
+                  product.colour_name ||
+                  null;
+
+    // Проверяем различные возможные поля для размера
+    const size = product.size || 
+                 product.размер || 
+                 product.sizes || // может быть массивом
+                 (product.sizes && Array.isArray(product.sizes) && product.sizes.length > 0 ? product.sizes[0] : null) ||
+                 null;
+
+    // Извлекаем материал (может быть в stuff, material и т.д.)
+    const material = product.material || 
+                     product.материал || 
+                     product.material_name ||
+                     product.composition || // состав
+                     (product.stuff && typeof product.stuff === 'string' ? product.stuff : null) ||
+                     null;
+
+    // Извлекаем массив параметров/характеристик
+    let parameters = [];
+    
+    // Вариант 1: массив parameters
+    if (product.parameters && Array.isArray(product.parameters)) {
+      parameters = product.parameters.map(param => {
+        if (typeof param === 'string') {
+          return { name: param, value: null };
+        } else if (typeof param === 'object' && param !== null) {
+          return {
+            name: param.name || param.title || param.key || '',
+            value: param.value || param.val || param.text || null,
+            id: param.id || null
+          };
+        }
+        return null;
+      }).filter(p => p !== null);
+    }
+    
+    // Вариант 2: массив attributes
+    if (parameters.length === 0 && product.attributes && Array.isArray(product.attributes)) {
+      parameters = product.attributes.map(attr => {
+        if (typeof attr === 'object' && attr !== null) {
+          return {
+            name: attr.name || attr.attribute_name || attr.key || '',
+            value: attr.value || attr.attribute_value || attr.val || null,
+            id: attr.id || attr.attribute_id || null
+          };
+        }
+        return null;
+      }).filter(a => a !== null);
+    }
+    
+    // Вариант 3: объект specifications или specs
+    if (parameters.length === 0 && (product.specifications || product.specs)) {
+      const specs = product.specifications || product.specs;
+      if (typeof specs === 'object' && specs !== null && !Array.isArray(specs)) {
+        parameters = Object.entries(specs).map(([key, value]) => ({
+          name: key,
+          value: typeof value === 'object' ? JSON.stringify(value) : String(value),
+          id: null
+        }));
+      }
+    }
+
+    // Формируем объект характеристик
+    const characteristics = {};
+    if (color) characteristics.color = color;
+    if (size) characteristics.size = size;
+    if (material) characteristics.material = material;
+    if (parameters.length > 0) characteristics.parameters = parameters;
+    
+    // Добавляем другие возможные характеристики, если они есть
+    // Вес, габариты и т.д.
+    if (product.weight) characteristics.weight = product.weight;
+    if (product.width) characteristics.width = product.width;
+    if (product.height) characteristics.height = product.height;
+    if (product.length || product.depth) characteristics.length = product.length || product.depth;
+    if (product.volume) characteristics.volume = product.volume;
+    if (product.country || product.country_of_origin) {
+      characteristics.country = product.country || product.country_of_origin;
+    }
+    if (product.age || product.age_group) {
+      characteristics.age = product.age || product.age_group;
+    }
+    if (product.gender || product.sex) {
+      characteristics.gender = product.gender || product.sex;
+    }
+
     const parsedProduct = {
       id,
       article,
@@ -172,7 +263,8 @@ class SimaLandService {
       purchase_price: parseFloat(purchasePrice) || 0,
       available_quantity: parseInt(availableQuantity) || 0,
       image_url: imageUrl,
-      description
+      description,
+      characteristics: Object.keys(characteristics).length > 0 ? characteristics : null
     };
 
     return parsedProduct;
@@ -400,7 +492,7 @@ class SimaLandService {
     const client = await pool.connect();
     try {
       const result = await client.query(
-        `SELECT id, article, name, brand, category, purchase_price, available_quantity, image_url, description
+        `SELECT id, article, name, brand, category, purchase_price, available_quantity, image_url, description, characteristics
          FROM sima_land_products
          WHERE client_id = $1
          ORDER BY created_at DESC`,
@@ -430,7 +522,8 @@ class SimaLandService {
         const updateResult = await client.query(
           `UPDATE sima_land_products 
            SET name = $3, brand = $4, category = $5, purchase_price = $6, 
-               available_quantity = $7, image_url = $8, description = $9, updated_at = NOW()
+               available_quantity = $7, image_url = $8, description = $9, 
+               characteristics = $10, updated_at = NOW()
            WHERE client_id = $1 AND article = $2
            RETURNING id`,
           [
@@ -442,7 +535,8 @@ class SimaLandService {
             productData.purchase_price,
             productData.available_quantity || 0,
             productData.image_url,
-            productData.description
+            productData.description,
+            productData.characteristics ? JSON.stringify(productData.characteristics) : '{}'
           ]
         );
 
@@ -451,8 +545,8 @@ class SimaLandService {
         // Создаем новый товар
         const insertResult = await client.query(
           `INSERT INTO sima_land_products 
-           (client_id, article, name, brand, category, purchase_price, available_quantity, image_url, description)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           (client_id, article, name, brand, category, purchase_price, available_quantity, image_url, description, characteristics)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
            RETURNING id`,
           [
             clientId,
@@ -463,7 +557,8 @@ class SimaLandService {
             productData.purchase_price,
             productData.available_quantity || 0,
             productData.image_url,
-            productData.description
+            productData.description,
+            productData.characteristics ? JSON.stringify(productData.characteristics) : '{}'
           ]
         );
 
@@ -543,8 +638,8 @@ class SimaLandService {
             // Сохраняем товар в базу данных
             await client.query(
               `INSERT INTO sima_land_products 
-               (client_id, article, name, brand, category, purchase_price, available_quantity, image_url, description)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+               (client_id, article, name, brand, category, purchase_price, available_quantity, image_url, description, characteristics)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                ON CONFLICT (client_id, article) 
                DO UPDATE SET 
                  name = EXCLUDED.name,
@@ -554,6 +649,7 @@ class SimaLandService {
                  available_quantity = EXCLUDED.available_quantity,
                  image_url = EXCLUDED.image_url,
                  description = EXCLUDED.description,
+                 characteristics = EXCLUDED.characteristics,
                  updated_at = NOW()`,
               [
                 clientId,
@@ -564,7 +660,8 @@ class SimaLandService {
                 parsedProduct.purchase_price,
                 parsedProduct.available_quantity,
                 parsedProduct.image_url,
-                parsedProduct.description
+                parsedProduct.description,
+                parsedProduct.characteristics ? JSON.stringify(parsedProduct.characteristics) : '{}'
               ]
             );
 
@@ -639,13 +736,13 @@ class SimaLandService {
       let buffer = [];
       const flush = async () => {
         if (buffer.length === 0) return;
-        const cols = ['id','article','name','brand','category_id','category','purchase_price','available_quantity','image_url','description'];
+        const cols = ['id','article','name','brand','category_id','category','purchase_price','available_quantity','image_url','description','characteristics'];
         const values = [];
         const params = [];
         let p = 1;
         for (const it of buffer) {
-          values.push(`($${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++})`);
-          params.push(it.id, it.article, it.name, it.brand, it.category_id, it.category, it.purchase_price, it.available_quantity, it.image_url, it.description);
+          values.push(`($${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++},$${p++})`);
+          params.push(it.id, it.article, it.name, it.brand, it.category_id, it.category, it.purchase_price, it.available_quantity, it.image_url, it.description, it.characteristics ? JSON.stringify(it.characteristics) : '{}');
         }
         const sql = `INSERT INTO sima_land_catalog (${cols.join(',')}) VALUES ${values.join(',')}
           ON CONFLICT (id) DO UPDATE SET
@@ -658,6 +755,7 @@ class SimaLandService {
             available_quantity=EXCLUDED.available_quantity,
             image_url=EXCLUDED.image_url,
             description=EXCLUDED.description,
+            characteristics=EXCLUDED.characteristics,
             updated_at=NOW()`;
         await client.query(sql, params);
         savedCount += buffer.length;
@@ -704,7 +802,8 @@ class SimaLandService {
             purchase_price: parsedProduct.purchase_price,
             available_quantity: parsedProduct.available_quantity,
             image_url: parsedProduct.image_url,
-            description: parsedProduct.description
+            description: parsedProduct.description,
+            characteristics: parsedProduct.characteristics
           };
           
           buffer.push(row);

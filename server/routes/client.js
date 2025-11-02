@@ -1877,12 +1877,16 @@ router.post('/sima-land/products/add', requireClient, async (req, res) => {
         [clientId, article]
       );
 
+      // Извлекаем characteristics из запроса
+      const characteristics = req.body.characteristics || req.body.chars || null;
+
       if (existingStoreProduct.rows.length > 0) {
         // Обновляем существующий товар
         await client.query(
           `UPDATE wb_products_cache 
            SET name = $3, brand = $4, category = $5, purchase_price = $6, 
                available_quantity = $7, image_url = $8, description = $9,
+               characteristics = $10,
                last_updated = NOW()
            WHERE client_id = $1 AND article = $2 AND source = 'sima_land'`,
           [
@@ -1894,7 +1898,8 @@ router.post('/sima-land/products/add', requireClient, async (req, res) => {
             purchase_price || 0,
             available_quantity || 0,
             image_url,
-            description
+            description,
+            characteristics ? JSON.stringify(characteristics) : '{}'
           ]
         );
       } else {
@@ -1903,8 +1908,8 @@ router.post('/sima-land/products/add', requireClient, async (req, res) => {
         await client.query(
           `INSERT INTO wb_products_cache 
            (client_id, article, name, brand, category, purchase_price, available_quantity, 
-            image_url, description, source, is_active, marketplace_targets, markup_percent, nm_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'sima_land', true, '[]'::jsonb, 0.00, NULL)
+            image_url, description, characteristics, source, is_active, marketplace_targets, markup_percent, nm_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'sima_land', true, '[]'::jsonb, 0.00, NULL)
            ON CONFLICT (client_id, article, source) DO UPDATE SET
              name = EXCLUDED.name,
              brand = EXCLUDED.brand,
@@ -1913,6 +1918,7 @@ router.post('/sima-land/products/add', requireClient, async (req, res) => {
              available_quantity = EXCLUDED.available_quantity,
              image_url = EXCLUDED.image_url,
              description = EXCLUDED.description,
+             characteristics = EXCLUDED.characteristics,
              last_updated = NOW()`,
           [
             clientId,
@@ -1923,7 +1929,8 @@ router.post('/sima-land/products/add', requireClient, async (req, res) => {
             purchase_price || 0,
             available_quantity || 0,
             image_url,
-            description
+            description,
+            characteristics ? JSON.stringify(characteristics) : '{}'
           ]
         );
       }

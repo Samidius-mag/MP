@@ -172,6 +172,18 @@ class YandexMarketService {
 
       // Согласно step-by-step и спецификации метода, тело должно содержать массив offerMappings (1..500)
       // с минимумом полей: offer.offerId, offer.name, mapping.marketCategoryId, offer.pictures, offer.vendor, offer.description
+      // ВАЖНО: price НЕ должен передаваться в offer-mappings! Цена передается отдельно через pricing API.
+      
+      // Проверяем и улучшаем описание
+      let description = productData.description || '';
+      if (!description || description.trim().length < 50) {
+        // Генерируем базовое описание, если его нет или оно слишком короткое
+        const parts = [productData.name];
+        if (productData.vendor) parts.push(`Бренд: ${productData.vendor}`);
+        if (productData.category) parts.push(`Категория: ${productData.category}`);
+        description = parts.join('. ') + '.';
+      }
+      
       const requestBody = {
         offerMappings: [
           {
@@ -180,11 +192,11 @@ class YandexMarketService {
               name: productData.name,
               vendor: productData.vendor || '',
               pictures: productData.pictures || [],
-              description: productData.description || '',
+              description: description,
               ...(Array.isArray(productData.parameterValues) && productData.parameterValues.length > 0
                 ? { parameterValues: productData.parameterValues }
-                : {}),
-              ...(productData.price ? { price: { value: productData.price, currencyId: 'RUR' } } : {})
+                : {})
+              // ВАЖНО: price НЕ передается здесь! Цена передается отдельно через updatePrices/updateCampaignPrices
             },
             mapping: {
               marketCategoryId: productData.marketCategoryId
@@ -239,6 +251,124 @@ class YandexMarketService {
     });
     console.log('[YM] category.parameters ok');
     return response.data;
+  }
+
+  /**
+   * Маппить характеристики товара Sima Land на параметры Яндекс.Маркет
+   * @param {Object} characteristics - Характеристики товара из БД
+   * @param {Object} yandexParameters - Параметры категории из Яндекс.Маркет
+   * @returns {Array} Массив parameterValues для Яндекс.Маркет
+   */
+  mapCharacteristicsToYandexMarket(characteristics, yandexParameters) {
+    if (!characteristics || typeof characteristics !== 'object') {
+      return [];
+    }
+
+    const parameterValues = [];
+    const paramDefs = yandexParameters?.result?.parameterDefinitions || yandexParameters?.parameterDefinitions || [];
+
+    // Маппинг основных полей
+    const fieldMapping = {
+      'color': ['Цвет', 'color', 'Colour', 'цвет'],
+      'size': ['Размер', 'size', 'Size', 'размер'],
+      'material': ['Материал', 'material', 'Материал изготовления', 'Material'],
+      'weight': ['Вес', 'weight', 'Weight', 'вес'],
+      'country': ['Страна', 'country', 'Страна производства', 'Country'],
+      'age': ['Возраст', 'age', 'Возрастная группа', 'Age'],
+      'gender': ['Пол', 'gender', 'Половая принадлежность', 'Gender']
+    };
+
+    // Проходим по известным полям
+    for (const [fieldName, yandexNames] of Object.entries(fieldMapping)) {
+      if (!characteristics[fieldName]) continue;
+
+      const value = characteristics[fieldName];
+      // Ищем соответствующий параметр в Яндекс.Маркет
+      const paramDef = paramDefs.find(param => {
+        const paramName = (param.name || '').toLowerCase();
+        return yandexNames.some(yn => paramName.includes(yn.toLowerCase()));
+      });
+
+      if (paramDef && value) {
+        // Проверяем, есть ли словарь значений для этого параметра
+        if (paramDef.dictionaryValues && Array.isArray(paramDef.dictionaryValues)) {
+          // Пытаемся найти значение в словаре
+          const dictValue = paramDef.dictionaryValues.find(dv => {
+            const dvName = (dv.name || '').toLowerCase();
+            const valueStr = String(value).toLowerCase();
+            return dvName.includes(valueStr) || valueStr.includes(dvName);
+          });
+
+          if (dictValue) {
+            parameterValues.push({
+              parameterId: paramDef.id,
+              valueId: dictValue.id
+            });
+          } else {
+            // Используем текстовое значение, если словарное не найдено
+            parameterValues.push({
+              parameterId: paramDef.id,
+              value: String(value)
+            });
+          }
+        } else {
+          // Параметр без словаря - используем текстовое значение
+          parameterValues.push({
+            parameterId: paramDef.id,
+            value: String(value)
+          });
+        }
+      }
+    }
+
+    // Обрабатываем массив parameters (если есть)
+    if (Array.isArray(characteristics.parameters)) {
+      for (const param of characteristics.parameters) {
+        if (!param || !param.name) continue;
+
+        const paramName = String(param.name).toLowerCase();
+        const paramValue = param.value || param.val || param.text;
+
+        // Ищем параметр в Яндекс.Маркет по имени
+        const paramDef = paramDefs.find(yp => {
+          const ypName = (yp.name || '').toLowerCase();
+          return ypName.includes(paramName) || paramName.includes(ypName);
+        });
+
+        if (paramDef && paramValue) {
+          // Проверяем, не добавили ли мы уже этот параметр
+          const alreadyAdded = parameterValues.find(pv => pv.parameterId === paramDef.id);
+          if (!alreadyAdded) {
+            if (paramDef.dictionaryValues && Array.isArray(paramDef.dictionaryValues)) {
+              const dictValue = paramDef.dictionaryValues.find(dv => {
+                const dvName = (dv.name || '').toLowerCase();
+                const valueStr = String(paramValue).toLowerCase();
+                return dvName.includes(valueStr) || valueStr.includes(dvName);
+              });
+
+              if (dictValue) {
+                parameterValues.push({
+                  parameterId: paramDef.id,
+                  valueId: dictValue.id
+                });
+              } else {
+                parameterValues.push({
+                  parameterId: paramDef.id,
+                  value: String(paramValue)
+                });
+              }
+            } else {
+              parameterValues.push({
+                parameterId: paramDef.id,
+                value: String(paramValue)
+              });
+            }
+          }
+        }
+      }
+    }
+
+    return parameterValues;
   }
 
   /**
@@ -402,11 +532,63 @@ class YandexMarketService {
       }
 
       const product = productResult.rows[0];
+      
+      // PostgreSQL автоматически конвертирует JSONB в объект, но проверим
+      if (product.characteristics && typeof product.characteristics === 'string') {
+        try {
+          product.characteristics = JSON.parse(product.characteristics);
+        } catch (e) {
+          console.warn('Failed to parse characteristics:', e.message);
+          product.characteristics = null;
+        }
+      }
+      
+      // Если characteristics пустой объект или null, устанавливаем в null
+      if (product.characteristics && typeof product.characteristics === 'object' && Object.keys(product.characteristics).length === 0) {
+        product.characteristics = null;
+      }
 
       // Вычисляем цену продажи с учетом наценки
       const purchasePrice = parseFloat(product.purchase_price) || 0;
       const markupPercent = parseFloat(product.markup_percent) || 0;
       const sellingPrice = purchasePrice * (1 + markupPercent / 100);
+
+      // Проверяем, что цена валидна
+      if (!sellingPrice || sellingPrice <= 0) {
+        throw new Error(`Invalid selling price: ${sellingPrice}. Purchase price: ${purchasePrice}, markup: ${markupPercent}%`);
+      }
+
+      // Получаем характеристики товара из БД
+      let characteristics = null;
+      if (product.characteristics) {
+        try {
+          characteristics = typeof product.characteristics === 'string' 
+            ? JSON.parse(product.characteristics) 
+            : product.characteristics;
+        } catch (e) {
+          console.warn('Failed to parse product characteristics:', e.message);
+        }
+      }
+
+      // Маппинг характеристик на параметры Яндекс.Маркет
+      let parameterValues = Array.isArray(options.parameterValues) ? options.parameterValues : undefined;
+      
+      // Если характеристик нет в options, но есть в БД и указана категория - получаем параметры категории и маппим
+      if (!parameterValues && characteristics && Object.keys(characteristics).length > 0) {
+        const marketCategoryId = options.marketCategoryId || product.yandex_market_category_id;
+        
+        if (marketCategoryId) {
+          try {
+            console.log(`[YM] Getting category parameters for category ${marketCategoryId}`);
+            const yandexParameters = await this.getCategoryParameters(apiKey, marketCategoryId, businessId);
+            parameterValues = this.mapCharacteristicsToYandexMarket(characteristics, yandexParameters);
+            console.log(`[YM] Mapped ${parameterValues.length} characteristics to Yandex Market parameters`);
+          } catch (paramError) {
+            console.warn('[YM] Failed to get or map category parameters:', paramError.message);
+            // Продолжаем без параметров, не критично
+          }
+        }
+      }
 
       // Подготавливаем данные для загрузки
       const productData = {
@@ -415,42 +597,53 @@ class YandexMarketService {
         marketCategoryId: options.marketCategoryId || product.yandex_market_category_id || null,
         pictures: product.image_url ? [product.image_url] : [],
         vendor: product.brand || '',
-        description: product.description || product.name,
-        price: sellingPrice,
-        parameterValues: Array.isArray(options.parameterValues) ? options.parameterValues : undefined
+        description: product.description || null, // Передаем null, метод addProduct сгенерирует описание если нужно
+        category: product.category || null,
+        parameterValues: parameterValues && parameterValues.length > 0 ? parameterValues : undefined
       };
+
+      // Проверяем обязательные поля
+      if (!productData.marketCategoryId) {
+        throw new Error('Yandex Market category ID is required. Please set marketCategoryId in options or product.yandex_market_category_id');
+      }
+      
+      if (!productData.pictures || productData.pictures.length === 0) {
+        throw new Error('At least one product image is required for Yandex Market');
+      }
 
       // Добавляем товар на Яндекс Маркет
       const result = await this.addProduct(apiKey, businessId, productData);
 
-      // Устанавливаем цену через pricing API (после успешного добавления товара)
-      if (sellingPrice && sellingPrice > 0) {
-        try {
-          if (campaignId) {
-            try {
-              await this.updateCampaignPrices(apiKey, campaignId, [
-                { offerId: product.article, price: sellingPrice }
-              ]);
-            } catch (e) {
-              const code = e?.response?.status;
-              const msg = e?.response?.data || e?.message || '';
-              // Fallback на бизнес-уровень, если магазинная цена недоступна
-              if (code === 423 || (typeof msg === 'object' ? (msg.errors?.[0]?.code === 'LOCKED') : String(msg).includes('LOCKED'))) {
-                await this.updatePrices(apiKey, businessId, [
-                  { offerId: product.article, price: sellingPrice }
-                ]);
-              } else {
-                throw e;
-              }
-            }
-          } else {
-            await this.updatePrices(apiKey, businessId, [
+      // Устанавливаем цену через pricing API (обязательно после успешного добавления товара)
+      // Цена НЕ передается в offer-mappings, только через отдельный pricing API
+      try {
+        if (campaignId) {
+          try {
+            await this.updateCampaignPrices(apiKey, campaignId, [
               { offerId: product.article, price: sellingPrice }
             ]);
+          } catch (e) {
+            const code = e?.response?.status;
+            const msg = e?.response?.data || e?.message || '';
+            // Fallback на бизнес-уровень, если магазинная цена недоступна
+            if (code === 423 || (typeof msg === 'object' ? (msg.errors?.[0]?.code === 'LOCKED') : String(msg).includes('LOCKED'))) {
+              await this.updatePrices(apiKey, businessId, [
+                { offerId: product.article, price: sellingPrice }
+              ]);
+            } else {
+              throw e;
+            }
           }
-        } catch (priceErr) {
-          console.error('Set price failed:', priceErr.message);
+        } else {
+          await this.updatePrices(apiKey, businessId, [
+            { offerId: product.article, price: sellingPrice }
+          ]);
         }
+      } catch (priceErr) {
+        console.error('Set price failed:', priceErr.message);
+        console.error('Price error details:', priceErr.response?.data || priceErr);
+        // Это критичная ошибка - товар добавлен, но цена не установлена
+        throw new Error(`Failed to set price for product ${product.article}: ${priceErr.message}`);
       }
 
       // Обновляем данные товара в БД
