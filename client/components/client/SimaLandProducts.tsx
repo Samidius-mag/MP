@@ -15,6 +15,7 @@ interface SimaLandProduct {
   purchase_price?: number;
   available_quantity?: number;
   image_url?: string;
+  image_urls?: string[];
   description?: string;
 }
 
@@ -27,6 +28,71 @@ interface Category {
 
 type SortField = 'name' | 'brand' | 'price' | 'available' | 'none';
 type SortDirection = 'asc' | 'desc';
+
+// Компонент для отображения изображения товара с поддержкой альтернативных URL
+function ProductImage({ product }: { product: SimaLandProduct }) {
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [imageError, setImageError] = useState(false);
+  const [allImageUrls, setAllImageUrls] = useState<string[]>([]);
+
+  useEffect(() => {
+    // Собираем все доступные URL изображений
+    const urls: string[] = [];
+    if (product.image_url) {
+      urls.push(product.image_url);
+    }
+    if (product.image_urls && Array.isArray(product.image_urls)) {
+      // Добавляем альтернативные URL, избегая дубликатов
+      product.image_urls.forEach(url => {
+        if (url && !urls.includes(url)) {
+          urls.push(url);
+        }
+      });
+    }
+    setAllImageUrls(urls);
+    setCurrentImageIndex(0);
+    setImageError(false);
+  }, [product.image_url, product.image_urls]);
+
+  const handleImageError = () => {
+    const nextIndex = currentImageIndex + 1;
+    if (nextIndex < allImageUrls.length) {
+      // Пробуем следующее изображение
+      console.log(`[CLIENT] ❌ Image ${currentImageIndex} failed, trying next: ${allImageUrls[nextIndex]}`);
+      setCurrentImageIndex(nextIndex);
+    } else {
+      // Все изображения не загрузились
+      console.log(`[CLIENT] ❌ All ${allImageUrls.length} images failed for product ${product.id}`);
+      setImageError(true);
+    }
+  };
+
+  const handleImageLoad = () => {
+    setImageError(false);
+  };
+
+  const currentImageUrl = allImageUrls[currentImageIndex];
+
+  if (imageError || !currentImageUrl) {
+    return (
+      <div className="w-full h-48 bg-gray-100 flex flex-col items-center justify-center">
+        <PhotoIcon className="h-12 w-12 text-gray-400" />
+        <span className="mt-2 text-xs text-gray-500">Ошибка загрузки</span>
+      </div>
+    );
+  }
+
+  return (
+    <img 
+      src={currentImageUrl} 
+      alt={product.name} 
+      className="w-full h-48 object-cover"
+      loading="lazy"
+      onError={handleImageError}
+      onLoad={handleImageLoad}
+    />
+  );
+}
 
 export default function SimaLandProducts() {
   const [allProducts, setAllProducts] = useState<SimaLandProduct[]>([]);
@@ -419,42 +485,7 @@ export default function SimaLandProducts() {
             .map((product) => (
             <div key={product.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
               <div className="aspect-w-16 aspect-h-9 bg-gray-200">
-                {product.image_url ? (
-                  <img 
-                    src={product.image_url} 
-                    alt={product.name} 
-                    className="w-full h-48 object-cover"
-                    loading="lazy"
-                    onError={(e) => {
-                      console.error(`[CLIENT] ❌ Failed to load image for product ${product.id} (${product.article}):`);
-                      console.error(`[CLIENT]   Image URL: ${product.image_url}`);
-                      console.error(`[CLIENT]   Error event:`, e);
-                      console.error(`[CLIENT]   Image element:`, e.currentTarget);
-                      // Скрываем img и показываем placeholder
-                      e.currentTarget.style.display = 'none';
-                      const placeholder = e.currentTarget.parentElement?.querySelector('.image-placeholder') as HTMLElement;
-                      if (placeholder) {
-                        placeholder.style.display = 'flex';
-                      }
-                    }}
-                    onLoad={() => {
-                      console.log(`[CLIENT] ✅ Image loaded successfully for product ${product.id} (${product.article}):`);
-                      console.log(`[CLIENT]   Image URL: ${product.image_url}`);
-                    }}
-                  />
-                ) : (
-                  <div className="w-full h-48 bg-gray-100 flex items-center justify-center image-placeholder">
-                    <PhotoIcon className="h-12 w-12 text-gray-400" />
-                    <span className="ml-2 text-xs text-gray-500">Нет изображения</span>
-                  </div>
-                )}
-                {/* Скрытый placeholder на случай ошибки загрузки */}
-                {product.image_url && (
-                  <div className="w-full h-48 bg-gray-100 flex items-center justify-center image-placeholder" style={{ display: 'none' }}>
-                    <PhotoIcon className="h-12 w-12 text-gray-400" />
-                    <span className="ml-2 text-xs text-gray-500">Ошибка загрузки</span>
-                  </div>
-                )}
+                <ProductImage product={product} />
               </div>
               <div className="p-4">
                 <div className="flex justify-between items-start mb-2">

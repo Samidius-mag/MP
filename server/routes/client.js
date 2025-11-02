@@ -1608,6 +1608,7 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
       const products = productsResult.rows.map(product => {
         // PostgreSQL может вернуть JSONB как объект или строку
         // Обрабатываем image_urls
+        let imageUrlsArray = [];
         if (product.image_urls) {
           try {
             let imageUrls = product.image_urls;
@@ -1617,15 +1618,27 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
               imageUrls = JSON.parse(imageUrls);
             }
             
+            // Преобразуем в массив строк
+            if (Array.isArray(imageUrls)) {
+              imageUrlsArray = imageUrls.filter(url => url && typeof url === 'string');
+            } else if (typeof imageUrls === 'string') {
+              imageUrlsArray = [imageUrls];
+            }
+            
             // Если это массив и image_url пустое - берем первое изображение
-            if (Array.isArray(imageUrls) && imageUrls.length > 0) {
+            if (imageUrlsArray.length > 0) {
               if (!product.image_url || product.image_url.trim() === '') {
-                product.image_url = imageUrls[0];
+                product.image_url = imageUrlsArray[0];
               }
+              // Устанавливаем image_urls как массив для дальнейшей обработки
+              product.image_urls = imageUrlsArray;
             }
           } catch (e) {
             console.warn(`[API] Failed to parse image_urls for product ${product.id}:`, e.message);
+            product.image_urls = [];
           }
+        } else {
+          product.image_urls = [];
         }
         
         // Убеждаемся, что image_url - это строка, а не null или undefined

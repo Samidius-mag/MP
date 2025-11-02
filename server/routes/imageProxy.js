@@ -62,21 +62,37 @@ router.get('/sima-land/image-proxy', async (req, res) => {
         console.error(`[IMAGE PROXY] ❌ Error: status ${imageResponse.statusCode} for ${imageUrl}`);
         console.error(`[IMAGE PROXY]   Response headers:`, JSON.stringify(imageResponse.headers));
         
-        // Для 404 пробуем альтернативный формат URL
+        // Для 404 возвращаем placeholder-изображение (1x1 прозрачный PNG)
+        // Это позволяет браузеру корректно обработать ошибку и показать placeholder на фронтенде
         if (imageResponse.statusCode === 404) {
-          // Возможно, нужно использовать другой формат URL
-          // Например: если URL содержит /items/0/1575044009.jpg, пробуем другие варианты
-          const altUrl = imageUrl.replace(/\/items\/0\//, '/items/');
-          console.error(`[IMAGE PROXY] 🔄 Trying alternative URL: ${altUrl}`);
+          console.error(`[IMAGE PROXY] 🔄 Returning placeholder image for 404`);
           
-          // НЕ пробуем альтернативный URL автоматически, просто возвращаем ошибку
-          // Клиент может попробовать использовать image_urls из БД
+          // 1x1 прозрачный PNG в base64
+          const placeholderPng = Buffer.from(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+            'base64'
+          );
+          
+          res.setHeader('Content-Type', 'image/png');
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('X-Image-Error', '404'); // Специальный заголовок для фронтенда
+          res.status(404);
+          return res.send(placeholderPng);
         }
         
-        return res.status(imageResponse.statusCode).json({ 
-          error: 'Ошибка загрузки изображения',
-          details: `Sima Land вернул ${imageResponse.statusCode} для URL: ${imageUrl.substring(0, 100)}...`
-        });
+        // Для других ошибок также возвращаем placeholder
+        const placeholderPng = Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+          'base64'
+        );
+        
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('X-Image-Error', String(imageResponse.statusCode));
+        res.status(imageResponse.statusCode);
+        return res.send(placeholderPng);
       }
 
       // Устанавливаем заголовки
@@ -96,11 +112,35 @@ router.get('/sima-land/image-proxy', async (req, res) => {
       imageResponse.pipe(res);
     }).on('error', (error) => {
       console.error(`[IMAGE PROXY] Error proxying image ${imageUrl}:`, error.message);
-      res.status(500).json({ error: 'Ошибка загрузки изображения' });
+      
+      // Возвращаем placeholder-изображение вместо JSON ошибки
+      const placeholderPng = Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        'base64'
+      );
+      
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('X-Image-Error', '500');
+      res.status(500);
+      return res.send(placeholderPng);
     });
   } catch (error) {
     console.error('[IMAGE PROXY] Error:', error);
-    res.status(500).json({ error: 'Ошибка проксирования изображения' });
+    
+    // Возвращаем placeholder-изображение вместо JSON ошибки
+    const placeholderPng = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+      'base64'
+    );
+    
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('X-Image-Error', '500');
+    res.status(500);
+    return res.send(placeholderPng);
   }
 });
 
