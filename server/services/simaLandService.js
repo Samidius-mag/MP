@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { pool } = require('../config/database');
+const imageProcessingService = require('./imageProcessingService');
 
 class SimaLandService {
   constructor() {
@@ -631,7 +632,28 @@ class SimaLandService {
             }
 
             // Подсчитываем товары с изображениями
-            if (parsedProduct.image_url) {
+            let finalImageUrl = parsedProduct.image_url;
+            
+            // Обрабатываем изображение (заменяем фон на белый), если включено
+            if (options.processImages && parsedProduct.image_url) {
+              try {
+                console.log(`Processing image for product ${parsedProduct.article}...`);
+                const processed = await imageProcessingService.processImage(parsedProduct.image_url, {
+                  method: options.imageProcessingMethod || 'auto', // 'white', 'remove', 'auto'
+                  replaceWithWhite: options.replaceWithWhite !== false, // по умолчанию true
+                  bgColor: options.bgColor || '#FFFFFF'
+                });
+                finalImageUrl = processed.publicUrl;
+                console.log(`✅ Image processed: ${finalImageUrl}`);
+                imagesCount++;
+              } catch (imageError) {
+                console.warn(`⚠️  Failed to process image for product ${parsedProduct.article}:`, imageError.message);
+                // Используем оригинальное изображение, если обработка не удалась
+                if (parsedProduct.image_url) {
+                  imagesCount++;
+                }
+              }
+            } else if (parsedProduct.image_url) {
               imagesCount++;
             }
 
@@ -659,7 +681,7 @@ class SimaLandService {
                 parsedProduct.category,
                 parsedProduct.purchase_price,
                 parsedProduct.available_quantity,
-                parsedProduct.image_url,
+                finalImageUrl, // Используем обработанное или оригинальное изображение
                 parsedProduct.description,
                 parsedProduct.characteristics ? JSON.stringify(parsedProduct.characteristics) : '{}'
               ]
@@ -791,6 +813,23 @@ class SimaLandService {
             continue;
           }
 
+          // Обрабатываем изображение, если включено
+          let finalImageUrl = parsedProduct.image_url;
+          if (options.processImages && parsedProduct.image_url) {
+            try {
+              console.log(`Processing image for catalog product ${parsedProduct.article}...`);
+              const processed = await imageProcessingService.processImage(parsedProduct.image_url, {
+                method: options.imageProcessingMethod || 'auto',
+                replaceWithWhite: options.replaceWithWhite !== false,
+                bgColor: options.bgColor || '#FFFFFF'
+              });
+              finalImageUrl = processed.publicUrl;
+              console.log(`✅ Catalog image processed: ${finalImageUrl}`);
+            } catch (imageError) {
+              console.warn(`⚠️  Failed to process catalog image for product ${parsedProduct.article}:`, imageError.message);
+            }
+          }
+
           // Формируем строку для вставки в каталог
           const row = {
             id: parsedProduct.id,
@@ -801,7 +840,7 @@ class SimaLandService {
             category: parsedProduct.category,
             purchase_price: parsedProduct.purchase_price,
             available_quantity: parsedProduct.available_quantity,
-            image_url: parsedProduct.image_url,
+            image_url: finalImageUrl, // Используем обработанное или оригинальное изображение
             description: parsedProduct.description,
             characteristics: parsedProduct.characteristics
           };

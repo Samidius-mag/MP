@@ -1651,12 +1651,24 @@ router.post('/sima-land/products/load', requireClient, async (req, res) => {
 
       // Создаём фоновую задачу и возвращаем jobId
       const categories = Array.isArray(req.body?.categories) ? req.body.categories.filter(Boolean) : [];
-      const jobId = progressStore.createJob('simaLandImport', { clientId, categories });
+      // Опции обработки изображений
+      const processImages = req.body.processImages === true;
+      const imageProcessingMethod = req.body.imageProcessingMethod || 'auto';
+      const replaceWithWhite = req.body.replaceWithWhite !== false;
+      const bgColor = req.body.bgColor || '#FFFFFF';
+      
+      const jobId = progressStore.createJob('simaLandImport', { clientId, categories, processImages });
 
       // Запускаем фоновую загрузку без ожидания результата
       const SimaLandService = require('../services/simaLandService');
       const simaLandService = new SimaLandService();
-      simaLandService.loadProductsForClient(clientId, simaLandToken, jobId, { categories })
+      simaLandService.loadProductsForClient(clientId, simaLandToken, jobId, { 
+        categories,
+        processImages,
+        imageProcessingMethod,
+        replaceWithWhite,
+        bgColor
+      })
         .catch(err => {
           console.error('Sima-land import failed:', err);
           progressStore.failJob(jobId, err.message);

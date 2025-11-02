@@ -95,6 +95,9 @@ app.use(express.urlencoded({ extended: true }));
 // Request logging middleware
 app.use(requestLogger);
 
+// Статическая отдача обработанных изображений
+app.use('/uploads/products', express.static(path.join(__dirname, 'uploads', 'products')));
+
 // Routes
 // Публичные сервисные маршруты (без JWT)
 app.use('/api', simaRoutes);
