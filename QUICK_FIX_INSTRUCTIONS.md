@@ -21,7 +21,7 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_type VARCHAR(10) DEFAULT 'FBS'
 UPDATE orders SET order_type = 'FBS' WHERE order_type IS NULL;
 ```
 
-### Вариант 2: Использовать готовый скрипт
+### Вариант 2:
 ```bash
 # Выполните SQL из файла:
 cat add-order-type-column.sql
