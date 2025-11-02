@@ -1511,7 +1511,7 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
         // Если нет ни поиска, ни категорий — вернем пустой список
         productsResult = { rows: [] };
       } else {
-        let query = `SELECT id, article, name, brand, category, category_id, purchase_price, available_quantity, image_url, description
+        let query = `SELECT id, article, name, brand, category, category_id, purchase_price, available_quantity, image_url, image_urls, description
                      FROM sima_land_catalog
                      WHERE 1=1`;
         const params = [];
@@ -1602,9 +1602,28 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
         productsResult = await client.query(query, params);
       }
 
+      // Парсим image_urls из JSONB и используем первое изображение, если image_url пустое
+      const products = productsResult.rows.map(product => {
+        // Если image_url пустое, но есть image_urls - берем первое изображение
+        if (!product.image_url && product.image_urls) {
+          try {
+            const imageUrls = typeof product.image_urls === 'string' 
+              ? JSON.parse(product.image_urls) 
+              : product.image_urls;
+            
+            if (Array.isArray(imageUrls) && imageUrls.length > 0) {
+              product.image_url = imageUrls[0];
+            }
+          } catch (e) {
+            console.warn(`Failed to parse image_urls for product ${product.id}:`, e.message);
+          }
+        }
+        return product;
+      });
+
       res.json({
         success: true,
-        products: productsResult.rows
+        products: products
       });
 
     } finally {

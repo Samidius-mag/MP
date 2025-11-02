@@ -186,53 +186,64 @@ class SimaLandService {
       }
     }
     // Приоритет 2: массив photos (основной способ получения всех фото)
-    else if (product.photos && Array.isArray(product.photos)) {
+    if (imageUrls.length === 0 && product.photos && Array.isArray(product.photos)) {
       imageUrls = product.photos.map(extractImageUrl).filter(url => url !== null);
     }
     // Приоритет 3: photo_sizes (если есть размеры, берем максимальный/оригинальный)
-    else if (product.photo_sizes && Array.isArray(product.photo_sizes)) {
-      // photo_sizes может содержать информацию о разных размерах
-      // Ищем оригинальный размер или максимальный (обычно самый большой размер)
-      let maxSize = null;
-      let maxDimensions = 0;
-      
-      product.photo_sizes.forEach(photoSize => {
-        // Если есть размеры, выбираем максимальный
-        if (photoSize.width && photoSize.height) {
-          const dimensions = photoSize.width * photoSize.height;
-          if (dimensions > maxDimensions) {
-            maxDimensions = dimensions;
-            maxSize = photoSize;
+    // ВНИМАНИЕ: photo_sizes может прийти как строка, а не массив!
+    if (imageUrls.length === 0 && product.photo_sizes) {
+      if (Array.isArray(product.photo_sizes) && product.photo_sizes.length > 0) {
+        // photo_sizes может содержать информацию о разных размерах
+        // Ищем оригинальный размер или максимальный (обычно самый большой размер)
+        let maxSize = null;
+        let maxDimensions = 0;
+        
+        product.photo_sizes.forEach(photoSize => {
+          // Если есть размеры, выбираем максимальный
+          if (photoSize && typeof photoSize === 'object' && photoSize.width && photoSize.height) {
+            const dimensions = photoSize.width * photoSize.height;
+            if (dimensions > maxDimensions) {
+              maxDimensions = dimensions;
+              maxSize = photoSize;
+            }
           }
+        });
+        
+        // Если нашли максимальный размер - используем его
+        if (maxSize) {
+          const url = extractImageUrl(maxSize);
+          if (url) imageUrls.push(url);
+        } else {
+          // Если размеры не указаны, берем все доступные
+          product.photo_sizes.forEach(photoSize => {
+            if (photoSize) {
+              const url = extractImageUrl(photoSize);
+              if (url && !imageUrls.includes(url)) imageUrls.push(url);
+            }
+          });
         }
-      });
-      
-      // Если нашли максимальный размер - используем его
-      if (maxSize) {
-        const url = extractImageUrl(maxSize);
-        if (url) imageUrls.push(url);
-      } else {
-        // Если размеры не указаны, берем все доступные
-        product.photo_sizes.forEach(photoSize => {
-          const url = extractImageUrl(photoSize);
-          if (url && !imageUrls.includes(url)) imageUrls.push(url);
-        });
-      }
-      
-      // Если ничего не нашлось, пробуем стандартные поля
-      if (imageUrls.length === 0) {
-        product.photo_sizes.forEach(photoSize => {
-          if (photoSize.url) {
-            const url = extractImageUrl(photoSize.url);
-            if (url && !imageUrls.includes(url)) imageUrls.push(url);
-          } else if (photoSize.original) {
-            const url = extractImageUrl(photoSize.original);
-            if (url && !imageUrls.includes(url)) imageUrls.push(url);
-          } else if (photoSize.full) {
-            const url = extractImageUrl(photoSize.full);
-            if (url && !imageUrls.includes(url)) imageUrls.push(url);
-          }
-        });
+        
+        // Если ничего не нашлось, пробуем стандартные поля
+        if (imageUrls.length === 0) {
+          product.photo_sizes.forEach(photoSize => {
+            if (photoSize && typeof photoSize === 'object') {
+              if (photoSize.url) {
+                const url = extractImageUrl(photoSize.url);
+                if (url && !imageUrls.includes(url)) imageUrls.push(url);
+              } else if (photoSize.original) {
+                const url = extractImageUrl(photoSize.original);
+                if (url && !imageUrls.includes(url)) imageUrls.push(url);
+              } else if (photoSize.full) {
+                const url = extractImageUrl(photoSize.full);
+                if (url && !imageUrls.includes(url)) imageUrls.push(url);
+              }
+            }
+          });
+        }
+      } else if (typeof product.photo_sizes === 'string') {
+        // Если photo_sizes - это строка, возможно это просто число размера
+        // Игнорируем и продолжаем поиск в других местах
+        console.warn(`[SIMA LAND] photo_sizes is a string (value: ${product.photo_sizes}), skipping...`);
       }
     }
     // Приоритет 4: массив gallery (fallback)
@@ -270,13 +281,35 @@ class SimaLandService {
     if (process.env.NODE_ENV === 'development' || Math.random() < 0.01) {
       console.log(`[SIMA LAND] Product ${product.id || product.sid || 'unknown'}: Found ${imageUrls.length} images`);
       if (imageUrls.length > 0) {
-        console.log(`[SIMA LAND] First image URL: ${imageUrls[0].substring(0, 100)}...`);
-      }
-      if (product.images && Array.isArray(product.images)) {
-        console.log(`[SIMA LAND] images array structure:`, JSON.stringify(product.images[0]).substring(0, 200));
-      }
-      if (product.photo_sizes && Array.isArray(product.photo_sizes)) {
-        console.log(`[SIMA LAND] photo_sizes structure:`, JSON.stringify(product.photo_sizes[0]).substring(0, 200));
+        console.log(`[SIMA LAND] First image URL: ${imageUrls[0]}`);
+        if (imageUrls.length > 1) {
+          console.log(`[SIMA LAND] All image URLs:`, imageUrls.slice(0, 3).map(url => url.substring(0, 80) + '...'));
+        }
+      } else {
+        console.log(`[SIMA LAND] ⚠️  NO IMAGES FOUND for product ${product.id || product.sid}`);
+        console.log(`[SIMA LAND] Available fields:`, {
+          has_img: !!product.img,
+          has_photoUrl: !!product.photoUrl,
+          has_images: !!product.images,
+          has_photos: !!product.photos,
+          has_photo_sizes: !!product.photo_sizes,
+          img_type: typeof product.img,
+          images_type: Array.isArray(product.images) ? 'array' : typeof product.images,
+          photos_type: Array.isArray(product.photos) ? 'array' : typeof product.photos,
+          photo_sizes_type: Array.isArray(product.photo_sizes) ? 'array' : typeof product.photo_sizes
+        });
+        if (product.img) {
+          console.log(`[SIMA LAND] img value:`, typeof product.img === 'string' ? product.img.substring(0, 100) : JSON.stringify(product.img).substring(0, 200));
+        }
+        if (product.images) {
+          console.log(`[SIMA LAND] images value:`, JSON.stringify(product.images).substring(0, 300));
+        }
+        if (product.photos) {
+          console.log(`[SIMA LAND] photos value:`, JSON.stringify(product.photos).substring(0, 300));
+        }
+        if (product.photo_sizes) {
+          console.log(`[SIMA LAND] photo_sizes value:`, JSON.stringify(product.photo_sizes).substring(0, 300));
+        }
       }
     }
     
