@@ -424,8 +424,6 @@ export default function SimaLandProducts() {
                     src={product.image_url} 
                     alt={product.name} 
                     className="w-full h-48 object-cover"
-                    crossOrigin="anonymous"
-                    referrerPolicy="no-referrer"
                     onError={(e) => {
                       console.error(`[CLIENT] Failed to load image for product ${product.id}:`, product.image_url);
                       console.error(`[CLIENT] Error details:`, e);
