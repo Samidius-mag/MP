@@ -152,31 +152,58 @@ class SimaLandService {
 
     let imageUrls = [];
     
-    // Приоритет 1: массив images
-    if (product.images && Array.isArray(product.images)) {
-      imageUrls = product.images.map(extractImageUrl).filter(url => url !== null);
-    }
-    // Приоритет 2: массив photos
-    else if (product.photos && Array.isArray(product.photos)) {
+    // Согласно документации API v3:
+    // - photos - массив фотографий (требует expand=photos)
+    // - img - URL основной картинки
+    // - photoUrl - ссылка на изображение товара
+    // - photo_sizes - доступные размеры изображений (expand=photo_sizes)
+    
+    // Приоритет 1: массив photos (основной способ получения всех фото)
+    if (product.photos && Array.isArray(product.photos)) {
       imageUrls = product.photos.map(extractImageUrl).filter(url => url !== null);
     }
-    // Приоритет 3: массив gallery
+    // Приоритет 2: photo_sizes (если есть размеры, берем оригиналы)
+    else if (product.photo_sizes && Array.isArray(product.photo_sizes)) {
+      // photo_sizes может содержать информацию о разных размерах
+      // Ищем оригинальный размер или максимальный
+      product.photo_sizes.forEach(photoSize => {
+        if (photoSize.url) {
+          const url = extractImageUrl(photoSize.url);
+          if (url && !imageUrls.includes(url)) imageUrls.push(url);
+        } else if (photoSize.original) {
+          const url = extractImageUrl(photoSize.original);
+          if (url && !imageUrls.includes(url)) imageUrls.push(url);
+        } else if (photoSize.full) {
+          const url = extractImageUrl(photoSize.full);
+          if (url && !imageUrls.includes(url)) imageUrls.push(url);
+        }
+      });
+    }
+    // Приоритет 3: массив images (fallback)
+    else if (product.images && Array.isArray(product.images)) {
+      imageUrls = product.images.map(extractImageUrl).filter(url => url !== null);
+    }
+    // Приоритет 4: массив gallery (fallback)
     else if (product.gallery && Array.isArray(product.gallery)) {
       imageUrls = product.gallery.map(extractImageUrl).filter(url => url !== null);
     }
-    // Приоритет 4: массив img
+    // Приоритет 5: массив img (fallback)
     else if (Array.isArray(product.img)) {
       imageUrls = product.img.map(extractImageUrl).filter(url => url !== null);
     }
-    // Приоритет 5: одно изображение img (для обратной совместимости)
+    // Приоритет 6: одно изображение img (основное изображение из документации)
     else if (product.img) {
       const url = extractImageUrl(product.img);
       if (url) imageUrls.push(url);
     }
-    // Приоритет 6: другие поля для одного изображения
+    // Приоритет 7: photoUrl (ссылка на изображение из документации)
+    else if (product.photoUrl) {
+      const url = extractImageUrl(product.photoUrl);
+      if (url) imageUrls.push(url);
+    }
+    // Приоритет 8: другие поля для одного изображения (fallback)
     else {
-      const url = extractImageUrl(product.photoUrl) || 
-                  extractImageUrl(product.photo_url) ||
+      const url = extractImageUrl(product.photo_url) ||
                   extractImageUrl(product.image_url) ||
                   extractImageUrl(product.imageUrl) ||
                   extractImageUrl(product.image) ||
@@ -191,9 +218,13 @@ class SimaLandService {
     const imageUrl = imageUrls.length > 0 ? imageUrls[0] : null;
 
     // Описание товара
-    // stuff - материал товара, description - полное описание
-    const description = product.stuff || 
-                       product.description || 
+    // Согласно документации API v3:
+    // - stuff - материалы, строка со списком материалов через запятую
+    // - description - полное описание (требует expand=description)
+    // - ext_description - дополнительное описание (expand=ext_description)
+    const description = product.description ||  // Полное описание (приоритет)
+                       product.ext_description ||  // Дополнительное описание
+                       product.stuff ||  // Материалы как fallback
                        product.full_description || 
                        product.about || 
                        null;
@@ -208,25 +239,122 @@ class SimaLandService {
                   null;
 
     // Проверяем различные возможные поля для размера
-    const size = product.size || 
-                 product.размер || 
-                 product.sizes || // может быть массивом
-                 (product.sizes && Array.isArray(product.sizes) && product.sizes.length > 0 ? product.sizes[0] : null) ||
-                 null;
+    // Согласно документации: size - это строка "глубина × ширина × высота"
+    // Также могут быть отдельные поля: width, height, depth
+    let size = product.size || 
+               product.размер || 
+               null;
+    
+    // Если size не задан, но есть габариты - формируем размер из них
+    if (!size && (product.width || product.height || product.depth || product.length)) {
+      const parts = [];
+      if (product.depth || product.length) parts.push(`${product.depth || product.length} см`);
+      if (product.width) parts.push(`${product.width} см`);
+      if (product.height) parts.push(`${product.height} см`);
+      if (parts.length > 0) {
+        size = parts.join(' × ');
+      }
+    }
+    
+    // Fallback: sizes (может быть массивом)
+    if (!size && product.sizes) {
+      if (Array.isArray(product.sizes) && product.sizes.length > 0) {
+        size = product.sizes[0];
+      } else if (typeof product.sizes === 'string') {
+        size = product.sizes;
+      }
+    }
 
-    // Извлекаем материал (может быть в stuff, material и т.д.)
-    const material = product.material || 
-                     product.материал || 
-                     product.material_name ||
-                     product.composition || // состав
-                     (product.stuff && typeof product.stuff === 'string' ? product.stuff : null) ||
-                     null;
+    // Извлекаем материал
+    // Согласно документации:
+    // - stuff - материалы, строка со списком материалов через запятую
+    // - materials - материалы товара (массив, требует expand=materials)
+    let material = null;
+    
+    // Приоритет 1: массив materials (расширенная информация)
+    if (product.materials && Array.isArray(product.materials) && product.materials.length > 0) {
+      // materials может быть массивом объектов или строк
+      material = product.materials.map(m => {
+        if (typeof m === 'string') {
+          return m;
+        } else if (typeof m === 'object' && m !== null) {
+          return m.name || m.title || m.material || String(m);
+        }
+        return String(m);
+      }).filter(Boolean).join(', ');
+    }
+    
+    // Приоритет 2: stuff (строка со списком материалов)
+    if (!material && product.stuff && typeof product.stuff === 'string') {
+      material = product.stuff;
+    }
+    
+    // Приоритет 3: другие поля
+    if (!material) {
+      material = product.material || 
+                 product.материал || 
+                 product.material_name ||
+                 product.composition || 
+                 null;
+    }
 
     // Извлекаем массив параметров/характеристик
+    // Согласно документации API v3:
+    // - attrs - атрибуты товара (требует expand=attrs)
+    // - grouped_attrs_list - список атрибутов по группам (expand=grouped_attrs_list)
     let parameters = [];
     
-    // Вариант 1: массив parameters
-    if (product.parameters && Array.isArray(product.parameters)) {
+    // Приоритет 1: grouped_attrs_list (разбито по группам, более структурировано)
+    if (product.grouped_attrs_list && Array.isArray(product.grouped_attrs_list)) {
+      // grouped_attrs_list - массив групп атрибутов
+      // Каждая группа: { group_name: "...", attrs: [...] }
+      product.grouped_attrs_list.forEach(group => {
+        if (group.attrs && Array.isArray(group.attrs)) {
+          group.attrs.forEach(attr => {
+            if (attr && typeof attr === 'object') {
+              parameters.push({
+                name: attr.name || attr.attribute_name || attr.title || '',
+                value: attr.value || attr.attribute_value || attr.val || attr.text || null,
+                id: attr.id || attr.attribute_id || null,
+                group: group.group_name || group.name || null
+              });
+            }
+          });
+        }
+      });
+    }
+    
+    // Приоритет 2: attrs (плоский массив атрибутов)
+    if (parameters.length === 0 && product.attrs && Array.isArray(product.attrs)) {
+      parameters = product.attrs.map(attr => {
+        if (typeof attr === 'object' && attr !== null) {
+          return {
+            name: attr.name || attr.attribute_name || attr.title || attr.key || '',
+            value: attr.value || attr.attribute_value || attr.val || attr.text || null,
+            id: attr.id || attr.attribute_id || null,
+            group: attr.group || attr.group_name || null
+          };
+        }
+        return null;
+      }).filter(a => a !== null);
+    }
+    
+    // Приоритет 3: массив attributes (fallback)
+    if (parameters.length === 0 && product.attributes && Array.isArray(product.attributes)) {
+      parameters = product.attributes.map(attr => {
+        if (typeof attr === 'object' && attr !== null) {
+          return {
+            name: attr.name || attr.attribute_name || attr.key || '',
+            value: attr.value || attr.attribute_value || attr.val || null,
+            id: attr.id || attr.attribute_id || null
+          };
+        }
+        return null;
+      }).filter(a => a !== null);
+    }
+    
+    // Приоритет 4: массив parameters (fallback)
+    if (parameters.length === 0 && product.parameters && Array.isArray(product.parameters)) {
       parameters = product.parameters.map(param => {
         if (typeof param === 'string') {
           return { name: param, value: null };
@@ -241,21 +369,7 @@ class SimaLandService {
       }).filter(p => p !== null);
     }
     
-    // Вариант 2: массив attributes
-    if (parameters.length === 0 && product.attributes && Array.isArray(product.attributes)) {
-      parameters = product.attributes.map(attr => {
-        if (typeof attr === 'object' && attr !== null) {
-          return {
-            name: attr.name || attr.attribute_name || attr.key || '',
-            value: attr.value || attr.attribute_value || attr.val || null,
-            id: attr.id || attr.attribute_id || null
-          };
-        }
-        return null;
-      }).filter(a => a !== null);
-    }
-    
-    // Вариант 3: объект specifications или specs
+    // Приоритет 5: объект specifications или specs (fallback)
     if (parameters.length === 0 && (product.specifications || product.specs)) {
       const specs = product.specifications || product.specs;
       if (typeof specs === 'object' && specs !== null && !Array.isArray(specs)) {
@@ -274,21 +388,53 @@ class SimaLandService {
     if (material) characteristics.material = material;
     if (parameters.length > 0) characteristics.parameters = parameters;
     
-    // Добавляем другие возможные характеристики, если они есть
-    // Вес, габариты и т.д.
-    if (product.weight) characteristics.weight = product.weight;
-    if (product.width) characteristics.width = product.width;
-    if (product.height) characteristics.height = product.height;
-    if (product.length || product.depth) characteristics.length = product.length || product.depth;
-    if (product.volume) characteristics.volume = product.volume;
-    if (product.country || product.country_of_origin) {
-      characteristics.country = product.country || product.country_of_origin;
+    // Добавляем другие возможные характеристики из документации API
+    // Физические характеристики
+    if (product.weight) characteristics.weight = product.weight; // Вес, г
+    if (product.width) characteristics.width = product.width; // Ширина, см
+    if (product.height) characteristics.height = product.height; // Высота, см
+    if (product.depth) characteristics.depth = product.depth; // Глубина, см
+    if (product.length) characteristics.length = product.length; // Длина, см
+    if (product.volume) characteristics.volume = product.volume; // Объем, л
+    if (product.surface_area) characteristics.surface_area = product.surface_area; // Площадь поверхности, кв. м
+    if (product.linear_meters) characteristics.linear_meters = product.linear_meters; // Погонные метры
+    
+    // Упаковка
+    if (product.box_width) characteristics.box_width = product.box_width; // Ширина упаковки, см
+    if (product.box_height) characteristics.box_height = product.box_height; // Высота упаковки, см
+    if (product.box_depth) characteristics.box_depth = product.box_depth; // Глубина упаковки, см
+    if (product.in_box) characteristics.in_box = product.in_box; // Количество в боксе
+    if (product.in_set) characteristics.in_set = product.in_set; // Количество в наборе
+    if (product.package_volume) characteristics.package_volume = product.package_volume; // Объем упаковки, куб. дм
+    
+    // Страна и возраст
+    if (product.country) {
+      // country может быть объектом или ID
+      if (typeof product.country === 'object' && product.country !== null) {
+        characteristics.country = product.country.name || product.country.title || null;
+        characteristics.country_id = product.country.id || null;
+      } else {
+        characteristics.country = product.country;
+      }
     }
+    if (product.country_id) characteristics.country_id = product.country_id;
+    
+    if (product.min_age) characteristics.min_age = product.min_age; // Рекомендуемый возраст
     if (product.age || product.age_group) {
       characteristics.age = product.age || product.age_group;
     }
     if (product.gender || product.sex) {
       characteristics.gender = product.gender || product.sex;
+    }
+    
+    // Дополнительные поля
+    if (product.minimum_order_quantity) characteristics.minimum_order_quantity = product.minimum_order_quantity;
+    if (product.page_count) characteristics.page_count = product.page_count; // Количество страниц
+    if (product.isbn) characteristics.isbn = product.isbn;
+    
+    // Штрихкоды (expand=barcodes)
+    if (product.barcodes && Array.isArray(product.barcodes)) {
+      characteristics.barcodes = product.barcodes;
     }
 
     const parsedProduct = {
@@ -378,7 +524,15 @@ class SimaLandService {
     try {
       console.log(`[SIMA LAND] Fetching product details for item ${itemId}`);
       
-      const response = await axios.get(`${this.baseUrl}/item/${itemId}`, {
+      // Запрашиваем все дополнительные поля через expand
+      const expandFields = ['description', 'attrs', 'photos', 'materials', 'photo_sizes', 
+                           'grouped_attrs_list', 'categories', 'photo_3d_urls', 'ext_description',
+                           'barcodes', 'all_categories'];
+      
+      const response = await axios.get(`${this.baseUrl}/item/${itemId}/`, {
+        params: {
+          expand: expandFields.join(',')
+        },
         headers: {
           'x-api-key': token,
           'Accept': 'application/json',
@@ -502,6 +656,12 @@ class SimaLandService {
         'per-page': perPage,
         ...(idGreaterThan ? { 'id-greater-than': idGreaterThan } : { page }),
       };
+      
+      // Добавляем expand параметр для получения дополнительных полей
+      // Согласно документации: description, attrs, photos, materials, photo_sizes и т.д.
+      const expandFields = ['description', 'attrs', 'photos', 'materials', 'photo_sizes', 'grouped_attrs_list', 'categories'];
+      params['expand'] = expandFields.join(',');
+      
       // Фильтрация по категориям согласно документации API v3
       // Параметр может быть category_id или category_ids
       if (options?.categories && Array.isArray(options.categories) && options.categories.length > 0) {
