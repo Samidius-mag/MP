@@ -566,7 +566,27 @@ class SimaLandService {
       return url;
     }
 
+    // Для Sima Land CDN не нужно обрабатывать URL - возвращаем как есть
+    // если URL уже содержит полный путь вида /items/0/123.jpg
+    if (url.includes('goods-photos.static1-sima-land.com') && url.includes('/items/')) {
+      // Проверяем, что URL уже правильный
+      // Если есть параметры размера - убираем их, но путь не трогаем
+      try {
+        const urlObj = new URL(url);
+        // Только убираем параметры запроса, путь не меняем
+        urlObj.searchParams.delete('w');
+        urlObj.searchParams.delete('h');
+        urlObj.searchParams.delete('width');
+        urlObj.searchParams.delete('height');
+        urlObj.searchParams.delete('size');
+        return urlObj.toString();
+      } catch (e) {
+        return url; // Если ошибка - возвращаем как есть
+      }
+    }
+
     try {
+      // Для других URL обрабатываем как раньше
       // Если URL содержит параметры размера (например, ?w=200&h=200 или ?size=thumb)
       // убираем их для получения оригинала
       const urlObj = new URL(url);
@@ -592,9 +612,25 @@ class SimaLandService {
       // Убираем паттерны типа /200x200/, /150x150/ из пути
       path = path.replace(/\/\d+x\d+\//g, '/');
       path = path.replace(/\/\d+x\d+\./g, '.');
+      
+      // ВАЖНО: Для Sima Land путь /items/0/ или /items/1/ - это часть правильного пути!
+      // Сохраняем оригинальный путь перед обработкой
+      const originalPath = path;
+      const itemsMatch = originalPath.match(/\/items\/\d+\//);
+      
       // Убираем паттерны с одним размером /200/ или .200.
-      path = path.replace(/\/\d+\//g, '/');
+      // НО НЕ убираем /items/0/ - это часть пути к изображению!
+      // Используем более точное регулярное выражение, которое НЕ трогает /items/N/
+      path = path.replace(/\/(?!items\/\d+\/)\d+\//g, '/');
       path = path.replace(/\.\d+\./g, '.');
+      
+      // Восстанавливаем путь /items/N/, если он был поврежден
+      if (itemsMatch && !path.includes(itemsMatch[0])) {
+        const filename = path.split('/').pop();
+        if (filename) {
+          path = itemsMatch[0] + filename;
+        }
+      }
       
       urlObj.pathname = path;
 
