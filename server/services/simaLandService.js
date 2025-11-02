@@ -566,23 +566,14 @@ class SimaLandService {
       return url;
     }
 
-    // Для Sima Land CDN не нужно обрабатывать URL - возвращаем как есть
-    // если URL уже содержит полный путь вида /items/0/123.jpg
-    if (url.includes('goods-photos.static1-sima-land.com') && url.includes('/items/')) {
-      // Проверяем, что URL уже правильный
-      // Если есть параметры размера - убираем их, но путь не трогаем
-      try {
-        const urlObj = new URL(url);
-        // Только убираем параметры запроса, путь не меняем
-        urlObj.searchParams.delete('w');
-        urlObj.searchParams.delete('h');
-        urlObj.searchParams.delete('width');
-        urlObj.searchParams.delete('height');
-        urlObj.searchParams.delete('size');
-        return urlObj.toString();
-      } catch (e) {
-        return url; // Если ошибка - возвращаем как есть
-      }
+    // Для Sima Land CDN НЕ ОБРАБАТЫВАЕМ URL - возвращаем как есть
+    // API уже возвращает правильные URL, не нужно их менять
+    if (url.includes('goods-photos.static1-sima-land.com') || 
+        url.includes('sima-land') || 
+        url.includes('simaland')) {
+      // Просто возвращаем URL как есть, без обработки
+      // API Sima Land уже возвращает правильные URL
+      return url;
     }
 
     try {
