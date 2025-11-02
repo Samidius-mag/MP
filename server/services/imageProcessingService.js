@@ -32,9 +32,13 @@ class ImageProcessingService {
   async downloadImage(imageUrl) {
     const startTime = Date.now();
     try {
+      console.log(`[IMAGE PROCESSING] Начало загрузки изображения: ${imageUrl}`);
+      
       await logger.info(`Начало загрузки изображения`, {
         service: 'image-processing',
         metadata: { imageUrl, stage: 'download_start' }
+      }).catch(err => {
+        console.error('[IMAGE PROCESSING] Logger error:', err.message);
       });
 
       const response = await axios.get(imageUrl, {
@@ -48,6 +52,8 @@ class ImageProcessingService {
       const downloadTime = Date.now() - startTime;
       const imageSize = response.data.byteLength;
       
+      console.log(`[IMAGE PROCESSING] Изображение загружено: ${(imageSize / 1024).toFixed(2)} KB за ${downloadTime}ms`);
+      
       await logger.info(`Изображение успешно загружено`, {
         service: 'image-processing',
         metadata: {
@@ -56,11 +62,15 @@ class ImageProcessingService {
           size: `${(imageSize / 1024).toFixed(2)} KB`,
           downloadTime: `${downloadTime}ms`
         }
+      }).catch(err => {
+        console.error('[IMAGE PROCESSING] Logger error:', err.message);
       });
 
       return Buffer.from(response.data);
     } catch (error) {
       const downloadTime = Date.now() - startTime;
+      console.error(`[IMAGE PROCESSING] Ошибка загрузки изображения ${imageUrl}:`, error.message);
+      
       await logger.error(`Ошибка загрузки изображения`, {
         service: 'image-processing',
         metadata: {
@@ -69,7 +79,10 @@ class ImageProcessingService {
           error: error.message,
           downloadTime: `${downloadTime}ms`
         }
+      }).catch(err => {
+        console.error('[IMAGE PROCESSING] Logger error:', err.message);
       });
+      
       throw new Error(`Failed to download image from ${imageUrl}: ${error.message}`);
     }
   }
@@ -91,6 +104,8 @@ class ImageProcessingService {
 
     const startTime = Date.now();
     try {
+      console.log(`[IMAGE PROCESSING] Начало замены фона методом 'white' (${backgroundColor})`);
+      
       await logger.debug(`Начало замены фона методом 'white'`, {
         service: 'image-processing',
         metadata: {
@@ -99,6 +114,8 @@ class ImageProcessingService {
           backgroundColor,
           threshold
         }
+      }).catch(err => {
+        console.error('[IMAGE PROCESSING] Logger error:', err.message);
       });
 
       const image = sharp(imageBuffer);
@@ -130,6 +147,8 @@ class ImageProcessingService {
         .toBuffer();
 
       const processTime = Date.now() - startTime;
+      console.log(`[IMAGE PROCESSING] Фон заменен методом 'white': ${metadata.width}x${metadata.height}, ${(composite.length / 1024).toFixed(2)} KB за ${processTime}ms`);
+      
       await logger.debug(`Фон успешно заменен методом 'white'`, {
         service: 'image-processing',
         metadata: {
@@ -139,11 +158,15 @@ class ImageProcessingService {
           outputSize: `${(composite.length / 1024).toFixed(2)} KB`,
           processTime: `${processTime}ms`
         }
+      }).catch(err => {
+        console.error('[IMAGE PROCESSING] Logger error:', err.message);
       });
 
       return composite;
     } catch (error) {
       const processTime = Date.now() - startTime;
+      console.error(`[IMAGE PROCESSING] Ошибка замены фона методом 'white':`, error.message);
+      
       await logger.error(`Ошибка замены фона методом 'white'`, {
         service: 'image-processing',
         metadata: {
@@ -152,7 +175,10 @@ class ImageProcessingService {
           error: error.message,
           processTime: `${processTime}ms`
         }
+      }).catch(err => {
+        console.error('[IMAGE PROCESSING] Logger error:', err.message);
       });
+      
       throw new Error(`Failed to replace background: ${error.message}`);
     }
   }
@@ -176,6 +202,8 @@ class ImageProcessingService {
 
     const startTime = Date.now();
     try {
+      console.log(`[IMAGE PROCESSING] Начало удаления фона методом 'remove' (цвет: ${bgColor}, tolerance: ${tolerance})`);
+      
       await logger.debug(`Начало удаления фона методом 'remove'`, {
         service: 'image-processing',
         metadata: {
@@ -185,6 +213,8 @@ class ImageProcessingService {
           tolerance,
           replaceWithWhite
         }
+      }).catch(err => {
+        console.error('[IMAGE PROCESSING] Logger error:', err.message);
       });
 
       const image = sharp(imageBuffer);
@@ -259,6 +289,8 @@ class ImageProcessingService {
       }
 
       const processTime = Date.now() - startTime;
+      console.log(`[IMAGE PROCESSING] Фон удален методом 'remove': ${metadata.width}x${metadata.height}, ${(output.length / 1024).toFixed(2)} KB за ${processTime}ms`);
+      
       await logger.debug(`Фон успешно удален методом 'remove'`, {
         service: 'image-processing',
         metadata: {
@@ -269,11 +301,15 @@ class ImageProcessingService {
           pixelsProcessed: pixels.length / channels,
           processTime: `${processTime}ms`
         }
+      }).catch(err => {
+        console.error('[IMAGE PROCESSING] Logger error:', err.message);
       });
 
       return output;
     } catch (error) {
       const processTime = Date.now() - startTime;
+      console.error(`[IMAGE PROCESSING] Ошибка удаления фона методом 'remove':`, error.message);
+      
       await logger.error(`Ошибка удаления фона методом 'remove'`, {
         service: 'image-processing',
         metadata: {
@@ -282,7 +318,10 @@ class ImageProcessingService {
           error: error.message,
           processTime: `${processTime}ms`
         }
+      }).catch(err => {
+        console.error('[IMAGE PROCESSING] Logger error:', err.message);
       });
+      
       throw new Error(`Failed to remove background: ${error.message}`);
     }
   }
@@ -299,6 +338,8 @@ class ImageProcessingService {
 
     const startTime = Date.now();
     try {
+      console.log(`[IMAGE PROCESSING] Начало автоматического удаления фона`);
+      
       await logger.debug(`Начало автоматического удаления фона`, {
         service: 'image-processing',
         metadata: {
@@ -306,6 +347,8 @@ class ImageProcessingService {
           method: 'removeBackgroundAuto',
           replaceWithWhite
         }
+      }).catch(err => {
+        console.error('[IMAGE PROCESSING] Logger error:', err.message);
       });
 
       // Определяем цвет фона по краям изображения
@@ -324,6 +367,8 @@ class ImageProcessingService {
       });
 
       const processTime = Date.now() - startTime;
+      console.log(`[IMAGE PROCESSING] Автоматическое удаление фона завершено: ${metadata.width}x${metadata.height} за ${processTime}ms`);
+      
       await logger.debug(`Автоматическое удаление фона завершено`, {
         service: 'image-processing',
         metadata: {
@@ -332,11 +377,15 @@ class ImageProcessingService {
           size: `${metadata.width}x${metadata.height}`,
           processTime: `${processTime}ms`
         }
+      }).catch(err => {
+        console.error('[IMAGE PROCESSING] Logger error:', err.message);
       });
 
       return result;
     } catch (error) {
       const processTime = Date.now() - startTime;
+      console.error(`[IMAGE PROCESSING] Ошибка автоматического удаления фона:`, error.message);
+      
       await logger.error(`Ошибка автоматического удаления фона`, {
         service: 'image-processing',
         metadata: {
@@ -345,7 +394,10 @@ class ImageProcessingService {
           error: error.message,
           processTime: `${processTime}ms`
         }
+      }).catch(err => {
+        console.error('[IMAGE PROCESSING] Logger error:', err.message);
       });
+      
       throw new Error(`Failed to auto-remove background: ${error.message}`);
     }
   }
@@ -374,6 +426,12 @@ class ImageProcessingService {
     this.stats.totalProcessed++;
 
     try {
+      console.log(`[IMAGE PROCESSING] ===== Начало обработки изображения =====`);
+      console.log(`[IMAGE PROCESSING] URL: ${imageUrl}`);
+      console.log(`[IMAGE PROCESSING] Метод: ${method}`);
+      console.log(`[IMAGE PROCESSING] Товар: ${productArticle || 'N/A'}`);
+      console.log(`[IMAGE PROCESSING] Клиент: ${clientId || 'N/A'}`);
+      
       await logger.info(`Начало обработки изображения`, {
         service: 'image-processing',
         metadata: {
@@ -385,12 +443,16 @@ class ImageProcessingService {
           replaceWithWhite,
           stage: 'start'
         }
+      }).catch(err => {
+        console.error('[IMAGE PROCESSING] Logger error:', err.message);
       });
 
       // Скачиваем изображение
       const imageBuffer = await this.downloadImage(imageUrl);
 
       // Обрабатываем изображение
+      console.log(`[IMAGE PROCESSING] Обработка изображения методом: ${method}`);
+      
       await logger.info(`Обработка изображения методом: ${method}`, {
         service: 'image-processing',
         metadata: {
@@ -399,6 +461,8 @@ class ImageProcessingService {
           productArticle,
           stage: 'processing'
         }
+      }).catch(err => {
+        console.error('[IMAGE PROCESSING] Logger error:', err.message);
       });
 
       let processedBuffer;
@@ -440,6 +504,13 @@ class ImageProcessingService {
       this.stats.totalSuccess++;
       this.stats.totalTime += totalTime;
 
+      console.log(`[IMAGE PROCESSING] ✅ Изображение успешно обработано!`);
+      console.log(`[IMAGE PROCESSING] Файл: ${finalFilename}`);
+      console.log(`[IMAGE PROCESSING] Размер: ${(originalSize / 1024).toFixed(2)} KB -> ${(processedSize / 1024).toFixed(2)} KB`);
+      console.log(`[IMAGE PROCESSING] Время обработки: ${totalTime}ms`);
+      console.log(`[IMAGE PROCESSING] URL: ${this.publicUrl}/${finalFilename}`);
+      console.log(`[IMAGE PROCESSING] ===== Обработка завершена =====`);
+
       await logger.info(`Изображение успешно обработано и сохранено`, {
         service: 'image-processing',
         metadata: {
@@ -463,6 +534,8 @@ class ImageProcessingService {
             avgTime: `${(this.stats.totalTime / this.stats.totalSuccess).toFixed(0)}ms`
           }
         }
+      }).catch(err => {
+        console.error('[IMAGE PROCESSING] Logger error:', err.message);
       });
 
       // Возвращаем путь и публичный URL
@@ -482,6 +555,13 @@ class ImageProcessingService {
       const totalTime = Date.now() - totalStartTime;
       this.stats.totalFailed++;
 
+      console.error(`[IMAGE PROCESSING] ❌ Ошибка обработки изображения:`, error.message);
+      console.error(`[IMAGE PROCESSING] URL: ${imageUrl}`);
+      console.error(`[IMAGE PROCESSING] Время до ошибки: ${totalTime}ms`);
+      if (error.stack) {
+        console.error(`[IMAGE PROCESSING] Stack:`, error.stack);
+      }
+
       await logger.error(`Ошибка обработки изображения`, {
         service: 'image-processing',
         metadata: {
@@ -500,6 +580,8 @@ class ImageProcessingService {
             successRate: `${((this.stats.totalSuccess / this.stats.totalProcessed) * 100).toFixed(1)}%`
           }
         }
+      }).catch(err => {
+        console.error('[IMAGE PROCESSING] Logger error:', err.message);
       });
 
       throw new Error(`Image processing failed: ${error.message}`);

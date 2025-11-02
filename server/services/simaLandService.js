@@ -589,6 +589,10 @@ class SimaLandService {
     try {
       // Логируем начало загрузки с информацией об обработке изображений
       if (options.processImages) {
+        console.log(`[SIMA LAND] 🔄 Загрузка товаров с ОБРАБОТКОЙ ИЗОБРАЖЕНИЙ включена`);
+        console.log(`[SIMA LAND] Метод обработки: ${options.imageProcessingMethod || 'auto'}`);
+        console.log(`[SIMA LAND] Категории: ${(options.categories || []).join(', ') || 'Все'}`);
+        
         await logger.info(`Начало загрузки товаров с обработкой изображений`, {
           service: 'sima-land',
           metadata: {
@@ -597,7 +601,11 @@ class SimaLandService {
             method: options.imageProcessingMethod || 'auto',
             categories: options.categories || []
           }
+        }).catch(err => {
+          console.error('[SIMA LAND] Logger error:', err.message);
         });
+      } else {
+        console.log(`[SIMA LAND] ℹ️  Обработка изображений отключена`);
       }
 
       // Курсорная пагинация через id-greater-than (рекомендация API при больших оффсетах)
@@ -660,6 +668,7 @@ class SimaLandService {
             // Обрабатываем изображение (заменяем фон на белый), если включено
             if (options.processImages && parsedProduct.image_url) {
               imageStats.total++;
+              console.log(`[SIMA LAND] 📸 Обработка изображения для товара ${parsedProduct.article}...`);
               try {
                 const processed = await imageProcessingService.processImage(parsedProduct.image_url, {
                   method: options.imageProcessingMethod || 'auto', // 'white', 'remove', 'auto'
@@ -671,9 +680,11 @@ class SimaLandService {
                 finalImageUrl = processed.publicUrl;
                 imageStats.processed++;
                 imagesCount++;
+                console.log(`[SIMA LAND] ✅ Изображение обработано для товара ${parsedProduct.article}`);
               } catch (imageError) {
                 // Логирование уже выполнено в imageProcessingService
                 imageStats.failed++;
+                console.error(`[SIMA LAND] ❌ Ошибка обработки изображения для товара ${parsedProduct.article}:`, imageError.message);
                 // Используем оригинальное изображение, если обработка не удалась
                 if (parsedProduct.image_url) {
                   imagesCount++;
@@ -740,6 +751,17 @@ class SimaLandService {
       // Логируем статистику обработки изображений
       if (options.processImages && imageStats.total > 0) {
         const imageProcessingStats = imageProcessingService.getStats();
+        const successRate = ((imageStats.processed / imageStats.total) * 100).toFixed(1);
+        
+        console.log(`[SIMA LAND] ===== Статистика обработки изображений =====`);
+        console.log(`[SIMA LAND] Всего изображений: ${imageStats.total}`);
+        console.log(`[SIMA LAND] Успешно обработано: ${imageStats.processed}`);
+        console.log(`[SIMA LAND] Ошибок: ${imageStats.failed}`);
+        console.log(`[SIMA LAND] Пропущено: ${imageStats.skipped}`);
+        console.log(`[SIMA LAND] Процент успеха: ${successRate}%`);
+        console.log(`[SIMA LAND] Среднее время: ${imageProcessingStats.avgTime}`);
+        console.log(`[SIMA LAND] =============================================`);
+        
         await logger.info(`Загрузка товаров завершена. Статистика обработки изображений`, {
           service: 'sima-land',
           metadata: {
@@ -751,10 +773,12 @@ class SimaLandService {
               processed: imageStats.processed,
               failed: imageStats.failed,
               skipped: imageStats.skipped,
-              successRate: `${((imageStats.processed / imageStats.total) * 100).toFixed(1)}%`,
+              successRate: `${successRate}%`,
               serviceStats: imageProcessingStats
             }
           }
+        }).catch(err => {
+          console.error('[SIMA LAND] Logger error:', err.message);
         });
       }
 
