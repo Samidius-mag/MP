@@ -1513,7 +1513,7 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
         // Если нет ни поиска, ни категорий — вернем пустой список
         productsResult = { rows: [] };
       } else {
-        let query = `SELECT id, article, name, brand, category, category_id, purchase_price, available_quantity, image_url, image_urls, description
+        let query = `SELECT id, article, name, brand, category, category_id, purchase_price, available_quantity, image_url, image_urls, description, characteristics
                      FROM sima_land_catalog
                      WHERE 1=1`;
         const params = [];
@@ -1676,6 +1676,26 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
             }
             return url;
           });
+        }
+
+        // Обрабатываем characteristics (JSONB может быть объектом или строкой)
+        if (product.characteristics) {
+          try {
+            let characteristics = product.characteristics;
+            // Если это строка, парсим JSON
+            if (typeof characteristics === 'string') {
+              characteristics = JSON.parse(characteristics);
+            }
+            // Убеждаемся, что это объект или массив
+            if (typeof characteristics === 'object' && characteristics !== null) {
+              product.characteristics = characteristics;
+            } else {
+              product.characteristics = null;
+            }
+          } catch (e) {
+            console.warn(`[API] Failed to parse characteristics for product ${product.id}:`, e.message);
+            product.characteristics = null;
+          }
         }
         
         // Логируем для отладки (первые несколько товаров)

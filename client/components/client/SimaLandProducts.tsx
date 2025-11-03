@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
 import toast from 'react-hot-toast';
-import { MagnifyingGlassIcon, PhotoIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, PhotoIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 interface SimaLandProduct {
   id: number;
@@ -17,6 +17,7 @@ interface SimaLandProduct {
   image_url?: string;
   image_urls?: string[];
   description?: string;
+  characteristics?: any;
 }
 
 interface Category {
@@ -190,6 +191,8 @@ export default function SimaLandProducts() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [hasToken, setHasToken] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<SimaLandProduct | null>(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   useEffect(() => {
     checkToken();
@@ -565,7 +568,14 @@ export default function SimaLandProducts() {
           {filteredProducts
             .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
             .map((product) => (
-            <div key={product.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+            <div 
+              key={product.id} 
+              className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => {
+                setSelectedProduct(product);
+                setSelectedImageIndex(0);
+              }}
+            >
               <div className="aspect-w-16 aspect-h-9 bg-gray-100 overflow-hidden">
                 <ProductImage product={product} />
               </div>
@@ -589,7 +599,10 @@ export default function SimaLandProducts() {
                     </p>
                   </div>
                   <button
-                    onClick={() => addToStore(product)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      addToStore(product);
+                    }}
                     className="px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
                   >
                     Добавить
@@ -675,6 +688,202 @@ export default function SimaLandProducts() {
               {formatPrice(
                 filteredProducts.reduce((sum, p) => sum + (p.purchase_price || 0), 0) / filteredProducts.length
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Модальное окно детального просмотра товара */}
+      {selectedProduct && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+          onClick={() => {
+            setSelectedProduct(null);
+            setSelectedImageIndex(0);
+          }}
+        >
+          <div 
+            className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Заголовок модального окна */}
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-start z-10">
+              <div className="flex-1 pr-4">
+                <h2 className="text-2xl font-bold text-gray-900">{selectedProduct.name}</h2>
+                {selectedProduct.brand && (
+                  <p className="text-sm text-gray-500 mt-1">Бренд: {selectedProduct.brand}</p>
+                )}
+                {selectedProduct.article && (
+                  <p className="text-sm text-gray-500">Артикул: {selectedProduct.article}</p>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  setSelectedProduct(null);
+                  setSelectedImageIndex(0);
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <XMarkIcon className="h-6 w-6" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Галерея фотографий */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Фотографии</h3>
+                  {selectedProduct.image_urls && selectedProduct.image_urls.length > 0 ? (
+                    <div className="space-y-4">
+                      {/* Основное изображение */}
+                      <div className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden">
+                        <img
+                          src={selectedProduct.image_urls[selectedImageIndex] || selectedProduct.image_url || ''}
+                          alt={selectedProduct.name}
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                      {/* Миниатюры */}
+                      {selectedProduct.image_urls.length > 1 && (
+                        <div className="grid grid-cols-4 gap-2">
+                          {selectedProduct.image_urls.map((url, index) => (
+                            <button
+                              key={index}
+                              onClick={() => setSelectedImageIndex(index)}
+                              className={`relative aspect-square bg-gray-100 rounded-lg overflow-hidden border-2 transition-all ${
+                                selectedImageIndex === index
+                                  ? 'border-primary-600 ring-2 ring-primary-200'
+                                  : 'border-gray-200 hover:border-gray-300'
+                              }`}
+                            >
+                              <img
+                                src={url}
+                                alt={`${selectedProduct.name} - фото ${index + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : selectedProduct.image_url ? (
+                    <div className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden">
+                      <img
+                        src={selectedProduct.image_url}
+                        alt={selectedProduct.name}
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  ) : (
+                    <div className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
+                      <PhotoIcon className="h-24 w-24 text-gray-400" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Информация о товаре */}
+                <div>
+                  <div className="space-y-6">
+                    {/* Цена и остаток */}
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Цена и наличие</h3>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">Цена закупки:</span>
+                          <span className="text-xl font-bold text-gray-900">
+                            {formatPrice(selectedProduct.purchase_price)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">Остаток на складе:</span>
+                          <span className={`text-lg font-semibold ${
+                            (selectedProduct.available_quantity || 0) > 0 ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            {selectedProduct.available_quantity || 0} шт.
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Описание */}
+                    {selectedProduct.description && (
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Описание</h3>
+                        <div 
+                          className="text-gray-700 prose prose-sm max-w-none"
+                          dangerouslySetInnerHTML={{ __html: selectedProduct.description }}
+                        />
+                      </div>
+                    )}
+
+                    {/* Характеристики */}
+                    {selectedProduct.characteristics && (
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Характеристики</h3>
+                        <div className="bg-gray-50 rounded-lg p-4">
+                          {typeof selectedProduct.characteristics === 'object' ? (
+                            <div className="space-y-2">
+                              {Object.entries(selectedProduct.characteristics).map(([key, value]) => {
+                                if (value === null || value === undefined || value === '') return null;
+                                if (key === 'parameters' && Array.isArray(value)) {
+                                  return (
+                                    <div key={key} className="border-b border-gray-200 pb-2 mb-2">
+                                      <div className="font-medium text-gray-900 mb-2">
+                                        {key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')}:
+                                      </div>
+                                      <div className="space-y-1">
+                                        {value.map((param: any, idx: number) => (
+                                          <div key={idx} className="text-sm text-gray-700 ml-4">
+                                            {param.name && <span className="font-medium">{param.name}: </span>}
+                                            {param.value && <span>{String(param.value)}</span>}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                                if (Array.isArray(value)) {
+                                  return (
+                                    <div key={key} className="flex justify-between items-start border-b border-gray-200 pb-2 mb-2">
+                                      <span className="font-medium text-gray-900">
+                                        {key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')}:
+                                      </span>
+                                      <span className="text-gray-700 text-right">{value.join(', ')}</span>
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <div key={key} className="flex justify-between items-start border-b border-gray-200 pb-2 mb-2">
+                                    <span className="font-medium text-gray-900">
+                                      {key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')}:
+                                    </span>
+                                    <span className="text-gray-700 text-right">{String(value)}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="text-gray-700">{String(selectedProduct.characteristics)}</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Кнопка добавления */}
+                    <div className="pt-4">
+                      <button
+                        onClick={() => {
+                          addToStore(selectedProduct);
+                          setSelectedProduct(null);
+                        }}
+                        className="w-full px-4 py-3 bg-primary-600 text-white text-lg font-medium rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
+                      >
+                        Добавить в магазин
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
