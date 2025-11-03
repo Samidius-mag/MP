@@ -1615,14 +1615,38 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
             
             // Если это строка, парсим JSON
             if (typeof imageUrls === 'string') {
-              imageUrls = JSON.parse(imageUrls);
+              // Убираем возможные двойные экранирования кавычек
+              // PostgreSQL может возвращать JSON строку как: "[""url1"", ""url2""]"
+              let cleaned = imageUrls.trim();
+              // Если строка начинается и заканчивается кавычками, убираем их
+              if (cleaned.startsWith('"') && cleaned.endsWith('"')) {
+                cleaned = cleaned.slice(1, -1);
+              }
+              // Заменяем двойные кавычки на одинарные для парсинга
+              // Но сначала пробуем просто распарсить
+              try {
+                imageUrls = JSON.parse(cleaned);
+              } catch (parseError) {
+                // Если не получилось, пробуем заменить двойные экранированные кавычки
+                cleaned = cleaned.replace(/""/g, '"');
+                imageUrls = JSON.parse(cleaned);
+              }
             }
             
             // Преобразуем в массив строк
             if (Array.isArray(imageUrls)) {
-              imageUrlsArray = imageUrls.filter(url => url && typeof url === 'string');
+              // Фильтруем и очищаем URL от возможных лишних кавычек
+              imageUrlsArray = imageUrls
+                .map(url => {
+                  if (typeof url === 'string') {
+                    // Убираем возможные экранированные кавычки в начале/конце
+                    return url.trim().replace(/^"+|"+$/g, '');
+                  }
+                  return url;
+                })
+                .filter(url => url && typeof url === 'string' && url.length > 0);
             } else if (typeof imageUrls === 'string') {
-              imageUrlsArray = [imageUrls];
+              imageUrlsArray = [imageUrls.trim().replace(/^"+|"+$/g, '')];
             }
             
             // Если это массив и image_url пустое - берем первое изображение
@@ -1635,6 +1659,7 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
             }
           } catch (e) {
             console.warn(`[API] Failed to parse image_urls for product ${product.id}:`, e.message);
+            console.warn(`[API] Raw image_urls value:`, product.image_urls);
             product.image_urls = [];
           }
         } else {
