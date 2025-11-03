@@ -56,33 +56,8 @@ function ProductImage({ product }: { product: SimaLandProduct }) {
     setImageError(false);
     setIsLoading(true);
     
-    // Проверяем первое изображение через fetch для проверки заголовка X-Image-Error
-    if (urls.length > 0 && urls[0].includes('image-proxy')) {
-      fetch(urls[0], { method: 'HEAD' })
-        .then(response => {
-          const errorHeader = response.headers.get('X-Image-Error');
-          if (errorHeader) {
-            // Это placeholder - запускаем обработку ошибки
-            console.log(`[CLIENT] ⚠️ First image has error header: ${errorHeader}, trying alternatives`);
-            // Пробуем следующее изображение или показываем ошибку
-            if (urls.length > 1) {
-              setCurrentImageIndex(1);
-              setIsLoading(false);
-            } else {
-              setImageError(true);
-              setIsLoading(false);
-            }
-          } else {
-            setIsLoading(false);
-          }
-        })
-        .catch(err => {
-          console.error(`[CLIENT] Error checking image:`, err);
-          setIsLoading(false);
-        });
-    } else {
-      setIsLoading(false);
-    }
+    // Используем прямые URL, поэтому просто включаем загрузку
+    setIsLoading(false);
   }, [product.image_url, product.image_urls]);
 
   const handleImageError = () => {
@@ -105,34 +80,6 @@ function ProductImage({ product }: { product: SimaLandProduct }) {
   const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
     setIsLoading(false);
-    
-    // Проверяем, что изображение не является placeholder
-    // Placeholder от прокси - это SVG с текстом "Изображение недоступно" (400x300)
-    // Реальные изображения обычно больше
-    const src = img.src || '';
-    
-    // Если это SVG placeholder от прокси (размер 400x300), считаем это ошибкой
-    // Но только если это точно placeholder, а не реальное изображение такого размера
-    // Поэтому дополнительно проверяем URL
-    if (src.includes('image-proxy') && img.naturalWidth === 400 && img.naturalHeight === 300) {
-      // Это может быть placeholder - дополнительно проверим через fetch
-      fetch(src, { method: 'HEAD' })
-        .then(response => {
-          const errorHeader = response.headers.get('X-Image-Error');
-          if (errorHeader) {
-            console.log(`[CLIENT] ⚠️ Image is placeholder (has X-Image-Error header)`);
-            handleImageError();
-          } else {
-            // Это реальное изображение размера 400x300
-            setImageError(false);
-          }
-        })
-        .catch(() => {
-          // Ошибка проверки - считаем что изображение загрузилось
-          setImageError(false);
-        });
-      return;
-    }
     
     // Если изображение слишком маленькое (менее 10x10), считаем его ошибкой
     if (img.naturalWidth < 10 && img.naturalHeight < 10) {
@@ -825,19 +772,62 @@ export default function SimaLandProducts() {
                             <div className="space-y-2">
                               {Object.entries(selectedProduct.characteristics).map(([key, value]) => {
                                 if (value === null || value === undefined || value === '') return null;
+                                
+                                // Словарь переводов названий характеристик на русский
+                                const characteristicNames: { [key: string]: string } = {
+                                  'size': 'Размер',
+                                  'depth': 'Глубина',
+                                  'width': 'Ширина',
+                                  'height': 'Высота',
+                                  'weight': 'Вес',
+                                  'in_box': 'В упаковке',
+                                  'in_set': 'В наборе',
+                                  'country': 'Страна',
+                                  'country_id': 'ID страны',
+                                  'material': 'Материал',
+                                  'box_depth': 'Глубина упаковки',
+                                  'box_width': 'Ширина упаковки',
+                                  'box_height': 'Высота упаковки',
+                                  'package_volume': 'Объем упаковки',
+                                  'minimum_order_quantity': 'Минимальный заказ',
+                                  'parameters': 'Параметры',
+                                  'barcodes': 'Штрихкоды',
+                                  'color': 'Цвет',
+                                  'gender': 'Пол',
+                                  'isbn': 'ISBN',
+                                  'page_count': 'Количество страниц',
+                                  'brand': 'Бренд',
+                                  'category': 'Категория',
+                                };
+                                
+                                // Получаем русское название характеристики
+                                const getCharacteristicName = (key: string): string => {
+                                  // Сначала проверяем словарь
+                                  if (characteristicNames[key.toLowerCase()]) {
+                                    return characteristicNames[key.toLowerCase()];
+                                  }
+                                  // Если не найдено, форматируем название
+                                  return key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
+                                };
+                                
                                 if (key === 'parameters' && Array.isArray(value)) {
                                   return (
                                     <div key={key} className="border-b border-gray-200 pb-2 mb-2">
                                       <div className="font-medium text-gray-900 mb-2">
-                                        {key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')}:
+                                        {getCharacteristicName(key)}:
                                       </div>
                                       <div className="space-y-1">
-                                        {value.map((param: any, idx: number) => (
-                                          <div key={idx} className="text-sm text-gray-700 ml-4">
-                                            {param.name && <span className="font-medium">{param.name}: </span>}
-                                            {param.value && <span>{String(param.value)}</span>}
-                                          </div>
-                                        ))}
+                                        {value.map((param: any, idx: number) => {
+                                          if (!param || (!param.name && !param.value)) return null;
+                                          return (
+                                            <div key={idx} className="text-sm text-gray-700 ml-4">
+                                              {param.name && param.name.trim() && (
+                                                <span className="font-medium">{param.name}: </span>
+                                              )}
+                                              {param.value && <span>{String(param.value)}</span>}
+                                            </div>
+                                          );
+                                        })}
                                       </div>
                                     </div>
                                   );
@@ -846,7 +836,7 @@ export default function SimaLandProducts() {
                                   return (
                                     <div key={key} className="flex justify-between items-start border-b border-gray-200 pb-2 mb-2">
                                       <span className="font-medium text-gray-900">
-                                        {key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')}:
+                                        {getCharacteristicName(key)}:
                                       </span>
                                       <span className="text-gray-700 text-right">{value.join(', ')}</span>
                                     </div>
@@ -855,7 +845,7 @@ export default function SimaLandProducts() {
                                 return (
                                   <div key={key} className="flex justify-between items-start border-b border-gray-200 pb-2 mb-2">
                                     <span className="font-medium text-gray-900">
-                                      {key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')}:
+                                      {getCharacteristicName(key)}:
                                     </span>
                                     <span className="text-gray-700 text-right">{String(value)}</span>
                                   </div>

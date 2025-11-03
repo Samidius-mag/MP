@@ -1648,35 +1648,9 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
           product.image_url = String(product.image_url);
         }
         
-        // Проксируем URL изображения через сервер (обход CORS)
-        // Используем публичный маршрут /api/sima-land/image-proxy (не /api/client/)
-        // Проксируем только если URL действительно принадлежит Sima Land
-        if (product.image_url && typeof product.image_url === 'string') {
-          // Проксируем все URL Sima Land
-          if (product.image_url.includes('goods-photos.static1-sima-land.com') || 
-              product.image_url.includes('sima-land') ||
-              product.image_url.includes('simaland')) {
-            const originalUrl = product.image_url;
-            product.image_url = `/api/sima-land/image-proxy?url=${encodeURIComponent(originalUrl)}`;
-            // Логируем замену для первых товаров
-            if (productsResult.rows.indexOf(product) < 2) {
-              console.log(`[API] 🔄 Replaced image URL for product ${product.id}:`);
-              console.log(`[API]   Original: ${originalUrl}`);
-              console.log(`[API]   Proxied:  ${product.image_url}`);
-            }
-          }
-        }
-        
-        // Также проксируем image_urls, если они есть
-        if (product.image_urls && Array.isArray(product.image_urls) && product.image_urls.length > 0) {
-          product.image_urls = product.image_urls.map(url => {
-            if (typeof url === 'string' && (url.includes('goods-photos.static1-sima-land.com') || 
-                url.includes('sima-land') || url.includes('simaland'))) {
-              return `/api/sima-land/image-proxy?url=${encodeURIComponent(url)}`;
-            }
-            return url;
-          });
-        }
+        // Используем прямые URL изображений Sima Land (без проксирования)
+        // Проксирование было убрано, так как многие изображения возвращают 404
+        // Браузер сам справится с загрузкой прямых URL
 
         // Обрабатываем characteristics (JSONB может быть объектом или строкой)
         if (product.characteristics) {
