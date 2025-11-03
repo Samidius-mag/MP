@@ -140,6 +140,7 @@ export default function SimaLandProducts() {
   const [hasToken, setHasToken] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<SimaLandProduct | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [loadingProductDetails, setLoadingProductDetails] = useState(false);
 
   useEffect(() => {
     checkToken();
@@ -308,6 +309,30 @@ export default function SimaLandProducts() {
       style: 'currency',
       currency: 'RUB'
     }).format(price);
+  };
+
+  const loadProductDetails = async (productId: number) => {
+    try {
+      setLoadingProductDetails(true);
+      const response = await api.get(`/client/sima-land/products/${productId}/details`);
+      
+      if (response.data.success && response.data.product) {
+        const updatedProduct = response.data.product;
+        // Обновляем изображения и описание товара
+        setSelectedProduct(prev => prev ? {
+          ...prev,
+          image_url: updatedProduct.image_url || prev.image_url,
+          image_urls: updatedProduct.image_urls || prev.image_urls,
+          description: updatedProduct.description || prev.description,
+          characteristics: updatedProduct.characteristics || prev.characteristics
+        } : null);
+      }
+    } catch (err: any) {
+      console.error('Error loading product details:', err);
+      // Не показываем ошибку пользователю, просто используем данные из БД
+    } finally {
+      setLoadingProductDetails(false);
+    }
   };
 
   const addToStore = async (product: SimaLandProduct) => {
@@ -518,9 +543,11 @@ export default function SimaLandProducts() {
             <div 
               key={product.id} 
               className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-              onClick={() => {
+              onClick={async () => {
                 setSelectedProduct(product);
                 setSelectedImageIndex(0);
+                // Загружаем актуальные данные товара через API
+                await loadProductDetails(product.id);
               }}
             >
               <div className="aspect-w-16 aspect-h-9 bg-gray-100 overflow-hidden">
@@ -679,7 +706,12 @@ export default function SimaLandProducts() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Галерея фотографий */}
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Фотографии</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    Фотографии
+                    {loadingProductDetails && (
+                      <span className="ml-2 text-sm text-gray-500">(загрузка...)</span>
+                    )}
+                  </h3>
                   {selectedProduct.image_urls && selectedProduct.image_urls.length > 0 ? (
                     <div className="space-y-4">
                       {/* Основное изображение */}

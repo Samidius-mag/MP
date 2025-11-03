@@ -1648,9 +1648,27 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
           product.image_url = String(product.image_url);
         }
         
-        // Используем прямые URL изображений Sima Land (без проксирования)
-        // Проксирование было убрано, так как многие изображения возвращают 404
-        // Браузер сам справится с загрузкой прямых URL
+        // Проксируем URL изображения через сервер для обхода CORS
+        // Sima Land CDN может блокировать прямые запросы из браузера
+        if (product.image_url && typeof product.image_url === 'string') {
+          if (product.image_url.includes('goods-photos.static1-sima-land.com') || 
+              product.image_url.includes('sima-land') ||
+              product.image_url.includes('simaland')) {
+            const originalUrl = product.image_url;
+            product.image_url = `/api/sima-land/image-proxy?url=${encodeURIComponent(originalUrl)}`;
+          }
+        }
+        
+        // Также проксируем image_urls
+        if (product.image_urls && Array.isArray(product.image_urls) && product.image_urls.length > 0) {
+          product.image_urls = product.image_urls.map(url => {
+            if (typeof url === 'string' && (url.includes('goods-photos.static1-sima-land.com') || 
+                url.includes('sima-land') || url.includes('simaland'))) {
+              return `/api/sima-land/image-proxy?url=${encodeURIComponent(url)}`;
+            }
+            return url;
+          });
+        }
 
         // Обрабатываем characteristics (JSONB может быть объектом или строкой)
         if (product.characteristics) {
@@ -1693,6 +1711,70 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
   } catch (err) {
     console.error('Get sima-land products error:', err);
     res.status(500).json({ error: 'Ошибка получения товаров СИМА ЛЕНД' });
+  }
+});
+
+// Получение детальной информации о товаре СИМА ЛЕНД через API
+router.get('/sima-land/products/:id/details', requireClient, async (req, res) => {
+  try {
+    const client = await pool.connect();
+    try {
+      // Получаем client_id и API ключи
+      const clientResult = await client.query(
+        `SELECT id, api_keys, user_id FROM clients WHERE user_id = $1`,
+        [req.user.id]
+      );
+
+      if (clientResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Клиент не найден' });
+      }
+
+      const apiKeys = clientResult.rows[0].api_keys || {};
+      const simaLandToken = apiKeys.sima_land?.token;
+
+      if (!simaLandToken) {
+        return res.status(400).json({ 
+          error: 'Токен API СИМА ЛЕНД не настроен',
+          details: 'Необходимо настроить токен API в настройках'
+        });
+      }
+
+      const productId = parseInt(req.params.id);
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: 'Неверный ID товара' });
+      }
+
+      // Запрашиваем детальную информацию через API Sima Land
+      const SimaLandService = require('../services/simaLandService');
+      const simaLandService = new SimaLandService();
+      
+      const productDetails = await simaLandService.fetchProductDetails(simaLandToken, productId);
+      
+      if (!productDetails) {
+        return res.status(404).json({ error: 'Товар не найден в API Sima Land' });
+      }
+
+      // Парсим товар и извлекаем изображения
+      const parsedProduct = simaLandService.parseProduct(productDetails);
+      
+      // Возвращаем обновленные данные товара с актуальными изображениями
+      res.json({
+        success: true,
+        product: {
+          id: parsedProduct.id,
+          image_url: parsedProduct.image_url,
+          image_urls: parsedProduct.image_urls || [],
+          description: parsedProduct.description,
+          characteristics: parsedProduct.characteristics
+        }
+      });
+
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('Get product details error:', err);
+    res.status(500).json({ error: 'Ошибка получения детальной информации о товаре' });
   }
 });
 
