@@ -23,21 +23,47 @@ router.get('/sima-land/image-proxy', async (req, res) => {
   console.error(`[IMAGE PROXY] Path:`, req.path);
   
   try {
-    const imageUrl = req.query.url;
+    let imageUrl = req.query.url;
     
-    console.log(`[IMAGE PROXY] 📥 Received request with url param:`, imageUrl);
+    console.log(`[IMAGE PROXY] 📥 Received request with url param (raw):`, imageUrl);
+    console.log(`[IMAGE PROXY] 📥 Query object:`, JSON.stringify(req.query));
     
     if (!imageUrl) {
       console.error(`[IMAGE PROXY] ❌ No URL parameter provided`);
       return res.status(400).json({ error: 'URL параметр обязателен' });
     }
 
+    // Проверяем, не закодирован ли URL дважды
+    // Express обычно автоматически декодирует query параметры, но иногда может быть двойное кодирование
+    // Если URL содержит закодированные символы (например, %3A вместо :), попробуем декодировать
+    if (typeof imageUrl === 'string' && (imageUrl.includes('%3A') || imageUrl.includes('%2F'))) {
+      // Проверяем, если это похоже на двойное кодирование (URL не начинается с http:// или https://)
+      if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
+        console.log(`[IMAGE PROXY] 🔄 URL appears to be encoded, attempting to decode...`);
+        console.log(`[IMAGE PROXY]   Before decode: ${imageUrl.substring(0, 100)}`);
+        try {
+          imageUrl = decodeURIComponent(imageUrl);
+          console.log(`[IMAGE PROXY]   After decode: ${imageUrl.substring(0, 100)}`);
+        } catch (decodeError) {
+          console.error(`[IMAGE PROXY] ❌ Failed to decode URL:`, decodeError.message);
+          // Продолжаем с оригинальным URL
+        }
+      }
+    }
+
+    // Убеждаемся, что URL начинается с http:// или https://
+    if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
+      console.error(`[IMAGE PROXY] ❌ Invalid URL format (must start with http:// or https://):`, imageUrl);
+      return res.status(400).json({ error: 'Некорректный формат URL' });
+    }
+
     // Проверяем, что URL принадлежит Sima Land (безопасность)
     if (!imageUrl.includes('sima-land') && !imageUrl.includes('goods-photos.static1-sima-land.com')) {
+      console.error(`[IMAGE PROXY] ❌ URL not from Sima Land:`, imageUrl);
       return res.status(403).json({ error: 'Доступ запрещен' });
     }
 
-    console.log(`[IMAGE PROXY] 🔄 Request to proxy image: ${imageUrl.substring(0, 100)}...`);
+    console.log(`[IMAGE PROXY] 🔄 Request to proxy image: ${imageUrl}`);
 
     // Загружаем изображение с заголовками для обхода защиты Sima Land
     const protocol = imageUrl.startsWith('https') ? https : http;
@@ -60,14 +86,24 @@ router.get('/sima-land/image-proxy', async (req, res) => {
       // Проверяем статус ответа
       if (imageResponse.statusCode !== 200) {
         console.error(`[IMAGE PROXY] ❌ Error: status ${imageResponse.statusCode} for ${imageUrl}`);
-        console.error(`[IMAGE PROXY]   Response headers:`, JSON.stringify(imageResponse.headers));
+        console.error(`[IMAGE PROXY]   Request URL was: ${imageUrl}`);
+        console.error(`[IMAGE PROXY]   Response headers:`, JSON.stringify(imageResponse.headers, null, 2));
+        
+        // Если это 404, возможно изображение действительно не существует
+        // Но также может быть проблема с URL (неправильное кодирование или путь)
+        if (imageResponse.statusCode === 404) {
+          console.error(`[IMAGE PROXY]   ⚠️  404 - Image not found. Check if URL is correct:`);
+          console.error(`[IMAGE PROXY]      ${imageUrl}`);
+          console.error(`[IMAGE PROXY]   💡 Tip: Verify the image URL exists on Sima Land servers`);
+        }
         
         // Просто возвращаем ошибку - клиент сам обработает
         res.setHeader('X-Image-Error', String(imageResponse.statusCode));
         res.setHeader('Access-Control-Allow-Origin', '*');
         return res.status(imageResponse.statusCode).json({ 
           error: 'Изображение не найдено',
-          statusCode: imageResponse.statusCode 
+          statusCode: imageResponse.statusCode,
+          url: imageUrl // Добавляем URL в ответ для отладки (можно убрать в продакшене)
         });
       }
 
