@@ -34,6 +34,7 @@ function ProductImage({ product }: { product: SimaLandProduct }) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [imageError, setImageError] = useState(false);
   const [allImageUrls, setAllImageUrls] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     // Собираем все доступные URL изображений
@@ -52,34 +53,107 @@ function ProductImage({ product }: { product: SimaLandProduct }) {
     setAllImageUrls(urls);
     setCurrentImageIndex(0);
     setImageError(false);
+    setIsLoading(true);
+    
+    // Проверяем первое изображение через fetch для проверки заголовка X-Image-Error
+    if (urls.length > 0 && urls[0].includes('image-proxy')) {
+      fetch(urls[0], { method: 'HEAD' })
+        .then(response => {
+          const errorHeader = response.headers.get('X-Image-Error');
+          if (errorHeader) {
+            // Это placeholder - запускаем обработку ошибки
+            console.log(`[CLIENT] ⚠️ First image has error header: ${errorHeader}, trying alternatives`);
+            // Пробуем следующее изображение или показываем ошибку
+            if (urls.length > 1) {
+              setCurrentImageIndex(1);
+              setIsLoading(false);
+            } else {
+              setImageError(true);
+              setIsLoading(false);
+            }
+          } else {
+            setIsLoading(false);
+          }
+        })
+        .catch(err => {
+          console.error(`[CLIENT] Error checking image:`, err);
+          setIsLoading(false);
+        });
+    } else {
+      setIsLoading(false);
+    }
   }, [product.image_url, product.image_urls]);
 
   const handleImageError = () => {
-    const nextIndex = currentImageIndex + 1;
-    if (nextIndex < allImageUrls.length) {
-      // Пробуем следующее изображение
-      console.log(`[CLIENT] ❌ Image ${currentImageIndex} failed, trying next: ${allImageUrls[nextIndex]}`);
-      setCurrentImageIndex(nextIndex);
-    } else {
-      // Все изображения не загрузились
-      console.log(`[CLIENT] ❌ All ${allImageUrls.length} images failed for product ${product.id}`);
-      setImageError(true);
-    }
+    setCurrentImageIndex(prevIndex => {
+      const nextIndex = prevIndex + 1;
+      if (nextIndex < allImageUrls.length) {
+        // Пробуем следующее изображение
+        console.log(`[CLIENT] ❌ Image ${prevIndex} failed, trying next: ${allImageUrls[nextIndex]}`);
+        return nextIndex;
+      } else {
+        // Все изображения не загрузились
+        console.log(`[CLIENT] ❌ All ${allImageUrls.length} images failed for product ${product.id}`);
+        setImageError(true);
+        setIsLoading(false);
+        return prevIndex;
+      }
+    });
   };
 
   const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
-    // Проверяем, что изображение не является placeholder (1x1 или слишком маленькое)
-    // Placeholder от прокси имеет размер 1x1 пиксель
-    if (img.naturalWidth <= 1 && img.naturalHeight <= 1) {
+    setIsLoading(false);
+    
+    // Проверяем, что изображение не является placeholder
+    // Placeholder от прокси - это SVG с текстом "Изображение недоступно" (400x300)
+    // Реальные изображения обычно больше
+    const src = img.src || '';
+    
+    // Если это SVG placeholder от прокси (размер 400x300), считаем это ошибкой
+    // Но только если это точно placeholder, а не реальное изображение такого размера
+    // Поэтому дополнительно проверяем URL
+    if (src.includes('image-proxy') && img.naturalWidth === 400 && img.naturalHeight === 300) {
+      // Это может быть placeholder - дополнительно проверим через fetch
+      fetch(src, { method: 'HEAD' })
+        .then(response => {
+          const errorHeader = response.headers.get('X-Image-Error');
+          if (errorHeader) {
+            console.log(`[CLIENT] ⚠️ Image is placeholder (has X-Image-Error header)`);
+            handleImageError();
+          } else {
+            // Это реальное изображение размера 400x300
+            setImageError(false);
+          }
+        })
+        .catch(() => {
+          // Ошибка проверки - считаем что изображение загрузилось
+          setImageError(false);
+        });
+      return;
+    }
+    
+    // Если изображение слишком маленькое (менее 10x10), считаем его ошибкой
+    if (img.naturalWidth < 10 && img.naturalHeight < 10) {
       console.log(`[CLIENT] ⚠️ Image is too small (${img.naturalWidth}x${img.naturalHeight}), treating as error`);
       handleImageError();
       return;
     }
+    
     setImageError(false);
   };
 
   const currentImageUrl = allImageUrls[currentImageIndex];
+
+  if (isLoading) {
+    return (
+      <div className="w-full h-48 bg-gray-100 flex flex-col items-center justify-center border-0">
+        <div className="animate-pulse">
+          <PhotoIcon className="h-12 w-12 text-gray-300" />
+        </div>
+      </div>
+    );
+  }
 
   if (imageError || !currentImageUrl) {
     return (
