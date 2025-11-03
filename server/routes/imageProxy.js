@@ -66,17 +66,29 @@ router.get('/sima-land/image-proxy', async (req, res) => {
     console.log(`[IMAGE PROXY] 🔄 Request to proxy image: ${imageUrl}`);
 
     // Загружаем изображение с заголовками для обхода защиты Sima Land
+    // Важно: используем полный набор заголовков браузера для имитации реального запроса
     const protocol = imageUrl.startsWith('https') ? https : http;
+    
+    const urlObj = new URL(imageUrl);
+    const origin = `${urlObj.protocol}//${urlObj.hostname}`;
     
     const options = {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
         'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Accept-Encoding': 'gzip, deflate, br',
         'Referer': 'https://www.sima-land.ru/',
-        'Accept-Encoding': 'gzip, deflate, br'
+        'Origin': 'https://www.sima-land.ru',
+        'Sec-Fetch-Dest': 'image',
+        'Sec-Fetch-Mode': 'no-cors',
+        'Sec-Fetch-Site': 'cross-site',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
       }
     };
+    
+    console.log(`[IMAGE PROXY] 🔍 Request headers:`, JSON.stringify(options.headers, null, 2));
     
     protocol.get(imageUrl, options, (imageResponse) => {
       console.error(`[IMAGE PROXY] 📥 Response from Sima Land: status ${imageResponse.statusCode}`);
