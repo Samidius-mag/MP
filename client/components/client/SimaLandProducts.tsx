@@ -77,6 +77,11 @@ function ProductImage({ product }: { product: SimaLandProduct }) {
     });
   };
 
+  // Проверяем, является ли URL прокси (тогда ошибки будут JSON, а не изображения)
+  const isProxiedUrl = (url: string) => {
+    return url.includes('/api/sima-land/image-proxy');
+  };
+
   const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
     setIsLoading(false);

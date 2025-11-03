@@ -1757,13 +1757,35 @@ router.get('/sima-land/products/:id/details', requireClient, async (req, res) =>
       // Парсим товар и извлекаем изображения
       const parsedProduct = simaLandService.parseProduct(productDetails);
       
+      // Проксируем изображения через сервер
+      let imageUrl = parsedProduct.image_url;
+      let imageUrls = parsedProduct.image_urls || [];
+      
+      if (imageUrl && typeof imageUrl === 'string') {
+        if (imageUrl.includes('goods-photos.static1-sima-land.com') || 
+            imageUrl.includes('sima-land') ||
+            imageUrl.includes('simaland')) {
+          imageUrl = `/api/sima-land/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+        }
+      }
+      
+      if (Array.isArray(imageUrls) && imageUrls.length > 0) {
+        imageUrls = imageUrls.map(url => {
+          if (typeof url === 'string' && (url.includes('goods-photos.static1-sima-land.com') || 
+              url.includes('sima-land') || url.includes('simaland'))) {
+            return `/api/sima-land/image-proxy?url=${encodeURIComponent(url)}`;
+          }
+          return url;
+        });
+      }
+      
       // Возвращаем обновленные данные товара с актуальными изображениями
       res.json({
         success: true,
         product: {
           id: parsedProduct.id,
-          image_url: parsedProduct.image_url,
-          image_urls: parsedProduct.image_urls || [],
+          image_url: imageUrl,
+          image_urls: imageUrls,
           description: parsedProduct.description,
           characteristics: parsedProduct.characteristics
         }

@@ -62,43 +62,13 @@ router.get('/sima-land/image-proxy', async (req, res) => {
         console.error(`[IMAGE PROXY] ❌ Error: status ${imageResponse.statusCode} for ${imageUrl}`);
         console.error(`[IMAGE PROXY]   Response headers:`, JSON.stringify(imageResponse.headers));
         
-        // Для 404 возвращаем SVG placeholder с информацией об ошибке
-        // Это более понятно чем 1x1 PNG и фронтенд легко определит что это placeholder
-        if (imageResponse.statusCode === 404) {
-          console.error(`[IMAGE PROXY] 🔄 Returning SVG placeholder for 404`);
-          
-          // SVG placeholder с серым фоном - фронтенд легко определит это как ошибку
-          const placeholderSvg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
-  <rect width="400" height="300" fill="#f3f4f6"/>
-  <text x="50%" y="50%" font-family="Arial, sans-serif" font-size="16" fill="#9ca3af" text-anchor="middle" dy=".3em">
-    Изображение недоступно
-  </text>
-</svg>`;
-          
-          res.setHeader('Content-Type', 'image/svg+xml');
-          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-          res.setHeader('Access-Control-Allow-Origin', '*');
-          res.setHeader('X-Image-Error', '404'); // Специальный заголовок для фронтенда
-          res.status(404);
-          return res.send(placeholderSvg);
-        }
-        
-        // Для других ошибок также возвращаем SVG placeholder
-        const placeholderSvg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
-  <rect width="400" height="300" fill="#f3f4f6"/>
-  <text x="50%" y="50%" font-family="Arial, sans-serif" font-size="16" fill="#9ca3af" text-anchor="middle" dy=".3em">
-    Ошибка загрузки изображения
-  </text>
-</svg>`;
-        
-        res.setHeader('Content-Type', 'image/svg+xml');
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.setHeader('Access-Control-Allow-Origin', '*');
+        // Просто возвращаем ошибку - клиент сам обработает
         res.setHeader('X-Image-Error', String(imageResponse.statusCode));
-        res.status(imageResponse.statusCode);
-        return res.send(placeholderSvg);
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        return res.status(imageResponse.statusCode).json({ 
+          error: 'Изображение не найдено',
+          statusCode: imageResponse.statusCode 
+        });
       }
 
       // Устанавливаем заголовки
@@ -119,40 +89,24 @@ router.get('/sima-land/image-proxy', async (req, res) => {
     }).on('error', (error) => {
       console.error(`[IMAGE PROXY] Error proxying image ${imageUrl}:`, error.message);
       
-      // Возвращаем SVG placeholder вместо JSON ошибки
-      const placeholderSvg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
-  <rect width="400" height="300" fill="#f3f4f6"/>
-  <text x="50%" y="50%" font-family="Arial, sans-serif" font-size="16" fill="#9ca3af" text-anchor="middle" dy=".3em">
-    Ошибка загрузки изображения
-  </text>
-</svg>`;
-      
-      res.setHeader('Content-Type', 'image/svg+xml');
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      // Возвращаем JSON ошибку вместо SVG
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('X-Image-Error', '500');
-      res.status(500);
-      return res.send(placeholderSvg);
+      res.status(500).json({ 
+        error: 'Ошибка загрузки изображения',
+        message: error.message 
+      });
     });
   } catch (error) {
     console.error('[IMAGE PROXY] Error:', error);
     
-    // Возвращаем SVG placeholder вместо JSON ошибки
-    const placeholderSvg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
-  <rect width="400" height="300" fill="#f3f4f6"/>
-  <text x="50%" y="50%" font-family="Arial, sans-serif" font-size="16" fill="#9ca3af" text-anchor="middle" dy=".3em">
-    Ошибка загрузки изображения
-  </text>
-</svg>`;
-    
-    res.setHeader('Content-Type', 'image/svg+xml');
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    // Возвращаем JSON ошибку
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('X-Image-Error', '500');
-    res.status(500);
-    return res.send(placeholderSvg);
+    res.status(500).json({ 
+      error: 'Ошибка обработки запроса',
+      message: error.message 
+    });
   }
 });
 
