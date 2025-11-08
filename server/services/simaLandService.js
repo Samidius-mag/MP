@@ -127,7 +127,7 @@ class SimaLandService {
       availableQuantity = parseInt(product.balance) || 0;
     }
 
-    // Изображения товара - извлекаем ВСЕ изображения в полном разрешении
+    // Изображения товара - извлекаем ВСЕ изображения в полном разрешенииw
     // API может возвращать изображения в разных форматах:
     // - массив images/photos/gallery
     // - url_part + version (нужно собрать URL)

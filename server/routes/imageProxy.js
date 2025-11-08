@@ -102,7 +102,7 @@ router.get('/sima-land/image-proxy', async (req, res) => {
           console.error(`[IMAGE PROXY] ❌ Error: status ${imageResponse.statusCode} for ${urlToTry}`);
           console.error(`[IMAGE PROXY]   Request URL was: ${urlToTry}`);
           
-          // Если это 404 и URL не содержит ?v=, попробуем добавить параметр
+          // Если это 404 и URL не содержит ?v=, попробуем добавить параметрe
           if (imageResponse.statusCode === 404 && !isRetry && urlToTry.includes('goods-photos.static1-sima-land.com') && urlToTry.endsWith('.jpg') && !urlToTry.includes('?v=')) {
             console.error(`[IMAGE PROXY]   ⚠️  404 - Image not found without ?v= parameter. Trying with ?v=...`);
             

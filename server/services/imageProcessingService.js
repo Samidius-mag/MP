@@ -99,7 +99,7 @@ class ImageProcessingService {
         console.error('[IMAGE PROCESSING] Logger error:', err.message);
       });
       
-      // Создаем специальную ошибку для 404, чтобы вызывающий код мог её обработать
+      // Создаем специальную ошибку для 404, чтобы вызывающий код мог её обработатьw
       const customError = new Error(errorMessage);
       customError.is404 = is404;
       customError.originalError = error;
