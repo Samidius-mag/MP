@@ -136,28 +136,51 @@ class SimaLandService {
       if (!img) return null;
       
       let url = null;
+      let timestamp = null; // Для query параметра ?v=
+      
       if (typeof img === 'string') {
         url = img;
       } else if (typeof img === 'object' && img !== null) {
         // Специальная обработка для формата url_part + version
-        // Формат: { url_part: "...", version: 123 } -> url_part + version + ".jpg"
+        // Формат: { url_part: "...", version: 123 } -> url_part + version + ".jpg?v=timestamp"
         if (img.url_part && img.version) {
           const urlPart = img.url_part.toString().replace(/\/$/, ''); // Убираем trailing slash
           const version = img.version.toString();
           // Формируем полный URL: url_part/version.jpg
           url = `${urlPart}/${version}.jpg`;
+          
+          // Пытаемся найти timestamp для query параметра
+          // API может возвращать timestamp в разных полях:
+          // - updated_at, updated_at_ts, timestamp, ts, v, version_ts
+          timestamp = img.timestamp || 
+                     img.updated_at_ts || 
+                     img.ts || 
+                     img.v ||
+                     img.version_ts ||
+                     (img.updated_at ? Math.floor(new Date(img.updated_at).getTime() / 1000) : null) ||
+                     version; // Fallback: используем version как timestamp
         } else if (img.url_part) {
           // Если есть только url_part, пробуем добавить .jpg
           url = img.url_part.toString().replace(/\/$/, '') + '.jpg';
+          timestamp = img.timestamp || img.updated_at_ts || img.ts || img.v;
         } else {
           // Обычные поля
           url = img.url || img.src || img.link || img.original || img.full || img.image || null;
+          timestamp = img.timestamp || img.updated_at_ts || img.ts || img.v;
         }
       }
       
       // Преобразуем URL в полное разрешение (если это не специальный формат)
       if (url && !url.includes('url_part')) {
         url = this.getFullResolutionImageUrl(url);
+      }
+      
+      // Добавляем query параметр ?v= если его еще нет и есть timestamp
+      // Формат должен быть: https://goods-photos.static1-sima-land.com/items/3916390/11/700.jpg?v=1680674667
+      if (url && url.includes('goods-photos.static1-sima-land.com') && url.endsWith('.jpg') && !url.includes('?v=')) {
+        // Если timestamp есть, используем его, иначе используем текущий timestamp
+        const vParam = timestamp || Math.floor(Date.now() / 1000);
+        url = `${url}?v=${vParam}`;
       }
       
       return url;
