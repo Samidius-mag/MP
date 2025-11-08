@@ -92,7 +92,7 @@ router.get('/sima-land/image-proxy', async (req, res) => {
     
     // Функция для выполнения запроса
     const makeRequest = (urlToTry, isRetry = false) => {
-      protocol.get(urlToTry, options, (imageResponse) => {
+      const req = protocol.get(urlToTry, options, (imageResponse) => {
         console.error(`[IMAGE PROXY] 📥 Response from Sima Land: status ${imageResponse.statusCode}${isRetry ? ' (retry with ?v=)' : ''}`);
         console.error(`[IMAGE PROXY]   Content-Type: ${imageResponse.headers['content-type']}`);
         console.error(`[IMAGE PROXY]   Content-Length: ${imageResponse.headers['content-length']}`);
@@ -102,7 +102,7 @@ router.get('/sima-land/image-proxy', async (req, res) => {
           console.error(`[IMAGE PROXY] ❌ Error: status ${imageResponse.statusCode} for ${urlToTry}`);
           console.error(`[IMAGE PROXY]   Request URL was: ${urlToTry}`);
           
-          // Если это 404 и URL не содержит ?v=, попробуем добавить параметрe
+          // Если это 404 и URL не содержит ?v=, попробуем добавить параметр
           if (imageResponse.statusCode === 404 && !isRetry && urlToTry.includes('goods-photos.static1-sima-land.com') && urlToTry.endsWith('.jpg') && !urlToTry.includes('?v=')) {
             console.error(`[IMAGE PROXY]   ⚠️  404 - Image not found without ?v= parameter. Trying with ?v=...`);
             
@@ -159,7 +159,27 @@ router.get('/sima-land/image-proxy', async (req, res) => {
           return;
         }
         
-        // Для других ошибок также возвращаем placeholder
+        // Успешный ответ (200) - проксируем изображение
+        const contentType = imageResponse.headers['content-type'] || 'image/jpeg';
+        const contentLength = imageResponse.headers['content-length'];
+        
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Cache-Control', 'public, max-age=86400'); // Кеш на 24 часа
+        res.setHeader('Access-Control-Allow-Origin', '*'); // Разрешаем CORS
+        if (contentLength) {
+          res.setHeader('Content-Length', contentLength);
+        }
+        
+        console.log(`[IMAGE PROXY] ✅ Proxying image successfully: ${urlToTry.substring(0, 80)}... (Content-Type: ${contentType}, Size: ${contentLength || 'unknown'})`);
+        
+        // Проксируем изображение
+        imageResponse.pipe(res);
+      });
+      
+      req.on('error', (error) => {
+        console.error(`[IMAGE PROXY] Error proxying image ${urlToTry}:`, error.message);
+        
+        // Возвращаем placeholder изображение вместо JSON, чтобы браузер мог его отобразить
         const placeholderSvg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="1" height="1" xmlns="http://www.w3.org/2000/svg">
   <rect width="1" height="1" fill="#f3f4f6"/>
@@ -169,46 +189,11 @@ router.get('/sima-land/image-proxy', async (req, res) => {
         res.setHeader('Content-Length', Buffer.byteLength(placeholderSvg));
         res.setHeader('Cache-Control', 'public, max-age=3600');
         res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('X-Image-Error', String(imageResponse.statusCode));
+        res.setHeader('X-Image-Error', '500');
         res.setHeader('X-Image-Original-Url', imageUrl);
         res.setHeader('X-Image-Tried-Url', urlToTry);
         res.status(200).send(placeholderSvg);
-        return;
-      }
-
-      // Успешный ответ (200) - проксируем изображение
-      const contentType = imageResponse.headers['content-type'] || 'image/jpeg';
-      const contentLength = imageResponse.headers['content-length'];
-      
-      res.setHeader('Content-Type', contentType);
-      res.setHeader('Cache-Control', 'public, max-age=86400'); // Кеш на 24 часа
-      res.setHeader('Access-Control-Allow-Origin', '*'); // Разрешаем CORS
-      if (contentLength) {
-        res.setHeader('Content-Length', contentLength);
-      }
-      
-      console.log(`[IMAGE PROXY] ✅ Proxying image successfully: ${urlToTry.substring(0, 80)}... (Content-Type: ${contentType}, Size: ${contentLength || 'unknown'})`);
-      
-      // Проксируем изображение
-      imageResponse.pipe(res);
-    }).on('error', (error) => {
-      console.error(`[IMAGE PROXY] Error proxying image ${urlToTry}:`, error.message);
-      
-      // Возвращаем placeholder изображение вместо JSON, чтобы браузер мог его отобразить
-      const placeholderSvg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg width="1" height="1" xmlns="http://www.w3.org/2000/svg">
-  <rect width="1" height="1" fill="#f3f4f6"/>
-</svg>`;
-      
-      res.setHeader('Content-Type', 'image/svg+xml');
-      res.setHeader('Content-Length', Buffer.byteLength(placeholderSvg));
-      res.setHeader('Cache-Control', 'public, max-age=3600');
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('X-Image-Error', '500');
-      res.setHeader('X-Image-Original-Url', imageUrl);
-      res.setHeader('X-Image-Tried-Url', urlToTry);
-      res.status(200).send(placeholderSvg);
-    });
+      });
     };
     
     // Вызываем функцию для первого запроса
