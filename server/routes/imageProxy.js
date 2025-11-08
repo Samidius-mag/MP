@@ -5,10 +5,181 @@ const http = require('http');
 const router = express.Router();
 
 // Простое in-memory кеширование для изображений
-// Ключ: URL изображения, Значение: { buffer, contentType, timestamp }
+// Ключ: URL изображения, Значение: { buffer, contentType, timestamp, isError }
 const imageCache = new Map();
 const MAX_CACHE_AGE = 24 * 60 * 60 * 1000; // 24 часа в миллисекундах
 const MAX_CACHE_SIZE = 100; // Максимальное количество изображений в кеше
+
+// Глобальная очередь и управление rate limiting
+let requestQueue = [];
+let isProcessingQueue = false;
+let lastRequestTime = 0;
+let rateLimitResetTime = 0; // Время когда сбросится rate limit
+let activeRequests = 0; // Количество активных запросов
+const MIN_REQUEST_INTERVAL = 70; // Минимальная задержка между запросами (мс) - ~14 запросов/сек для лимита в 15
+const MAX_CONCURRENT_REQUESTS = 5; // Максимальное количество одновременных запросов
+const RATE_LIMIT_WINDOW = 1000; // Окно для rate limit (1 секунда)
+
+// Функция для обработки очереди запросов
+async function processRequestQueue() {
+  if (isProcessingQueue) {
+    return;
+  }
+  
+  isProcessingQueue = true;
+  
+  while (requestQueue.length > 0 && activeRequests < MAX_CONCURRENT_REQUESTS) {
+    const now = Date.now();
+    
+    // Проверяем rate limit
+    if (now < rateLimitResetTime) {
+      const waitTime = rateLimitResetTime - now;
+      console.log(`[IMAGE PROXY] ⏳ Rate limit active, waiting ${waitTime}ms`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      continue;
+    }
+    
+    // Проверяем минимальный интервал между запросами
+    const timeSinceLastRequest = now - lastRequestTime;
+    if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+      const waitTime = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+    
+    const { urlToTry, options, resolve, reject, res: responseObj, cacheKey: reqCacheKey, imageUrl: reqImageUrl } = requestQueue.shift();
+    lastRequestTime = Date.now();
+    activeRequests++;
+    
+    const protocol = urlToTry.startsWith('https') ? https : http;
+    const req = protocol.get(urlToTry, options, async (imageResponse) => {
+      activeRequests--;
+      
+      // Обрабатываем ответ
+      await handleQueueResponse(imageResponse, urlToTry, responseObj, reqCacheKey, reqImageUrl);
+      resolve();
+      
+      // Продолжаем обработку очереди
+      setTimeout(() => processRequestQueue(), 0);
+    });
+    
+    req.on('error', (error) => {
+      activeRequests--;
+      console.error(`[IMAGE PROXY] Error proxying image ${urlToTry}:`, error.message);
+      
+      // Возвращаем placeholder
+      const placeholderSvg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1" height="1" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1" height="1" fill="#f3f4f6"/>
+</svg>`;
+      const placeholderBuffer = Buffer.from(placeholderSvg);
+      
+      responseObj.setHeader('Content-Type', 'image/svg+xml');
+      responseObj.setHeader('Content-Length', placeholderBuffer.length);
+      responseObj.setHeader('Cache-Control', 'public, max-age=3600');
+      responseObj.setHeader('Access-Control-Allow-Origin', '*');
+      responseObj.setHeader('X-Image-Error', '500');
+      responseObj.status(200).send(placeholderBuffer);
+      
+      reject(error);
+      setTimeout(() => processRequestQueue(), 0);
+    });
+  }
+  
+  isProcessingQueue = false;
+}
+
+// Функция для обработки ответа из очереди
+async function handleQueueResponse(imageResponse, urlToTry, res, cacheKey, imageUrl) {
+  console.error(`[IMAGE PROXY] 📥 Response from Sima Land: status ${imageResponse.statusCode}`);
+  
+  if (imageResponse.statusCode !== 200) {
+    console.error(`[IMAGE PROXY] ❌ Error: status ${imageResponse.statusCode} for ${urlToTry}`);
+    
+    // Обработка 429
+    if (imageResponse.statusCode === 429) {
+      const rateLimitReset = imageResponse.headers['x-rate-limit-reset'] || '1';
+      const resetSeconds = parseInt(rateLimitReset) || 1;
+      const resetTime = Date.now() + (resetSeconds * 1000);
+      
+      if (resetTime > rateLimitResetTime) {
+        rateLimitResetTime = resetTime;
+      }
+      
+      const placeholderSvg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1" height="1" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1" height="1" fill="#f3f4f6"/>
+</svg>`;
+      const placeholderBuffer = Buffer.from(placeholderSvg);
+      
+      imageCache.set(cacheKey, {
+        buffer: placeholderBuffer,
+        contentType: 'image/svg+xml',
+        timestamp: Date.now(),
+        isError: true,
+        errorCode: 429,
+        resetTime: resetTime
+      });
+      
+      res.setHeader('Content-Type', 'image/svg+xml');
+      res.setHeader('Content-Length', placeholderBuffer.length);
+      res.setHeader('Cache-Control', `public, max-age=${resetSeconds}`);
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('X-Image-Error', '429');
+      res.setHeader('Retry-After', String(resetSeconds));
+      res.status(200).send(placeholderBuffer);
+      return;
+    }
+    
+    // Другие ошибки
+    const placeholderSvg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1" height="1" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1" height="1" fill="#f3f4f6"/>
+</svg>`;
+    const placeholderBuffer = Buffer.from(placeholderSvg);
+    
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Content-Length', placeholderBuffer.length);
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('X-Image-Error', String(imageResponse.statusCode));
+    res.status(200).send(placeholderBuffer);
+    return;
+  }
+  
+  // Успешный ответ
+  const contentType = imageResponse.headers['content-type'] || 'image/jpeg';
+  const chunks = [];
+  
+  imageResponse.on('data', (chunk) => {
+    chunks.push(chunk);
+  });
+  
+  imageResponse.on('end', () => {
+    const imageBuffer = Buffer.concat(chunks);
+    
+    // Сохраняем в кеш
+    imageCache.set(cacheKey, {
+      buffer: imageBuffer,
+      contentType: contentType,
+      timestamp: Date.now(),
+      isError: false
+    });
+    
+    // Ограничиваем размер кеша
+    if (imageCache.size > MAX_CACHE_SIZE) {
+      const firstKey = imageCache.keys().next().value;
+      imageCache.delete(firstKey);
+    }
+    
+    console.log(`[IMAGE PROXY] ✅ Proxying image successfully: ${urlToTry.substring(0, 80)}... (Size: ${imageBuffer.length} bytes)`);
+    
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Length', imageBuffer.length);
+    res.send(imageBuffer);
+  });
+}
 
 console.log('[IMAGE PROXY] 🔧 Registering route: GET /sima-land/image-proxy');
 
@@ -99,171 +270,84 @@ router.get('/sima-land/image-proxy', async (req, res) => {
     // Проверяем кеш перед запросом
     const cacheKey = imageUrl;
     const cached = imageCache.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp) < MAX_CACHE_AGE) {
-      console.log(`[IMAGE PROXY] ✅ Serving from cache: ${imageUrl.substring(0, 80)}...`);
-      res.setHeader('Content-Type', cached.contentType);
-      res.setHeader('Content-Length', cached.buffer.length);
-      res.setHeader('Cache-Control', 'public, max-age=86400'); // Кеш на 24 часа
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('X-Image-Cached', 'true');
-      return res.send(cached.buffer);
+    if (cached) {
+      const cacheAge = Date.now() - cached.timestamp;
+      
+      // Если это кешированная ошибка 429, проверяем время reset
+      if (cached.isError && cached.errorCode === 429) {
+        const resetTime = cached.resetTime || (Date.now() + 60000); // По умолчанию 1 минута
+        if (Date.now() < resetTime) {
+          console.log(`[IMAGE PROXY] ⚠️ Serving 429 placeholder from cache: ${imageUrl.substring(0, 80)}...`);
+          // Обновляем глобальное время reset rate limit
+          if (resetTime > rateLimitResetTime) {
+            rateLimitResetTime = resetTime;
+          }
+          res.setHeader('Content-Type', 'image/svg+xml');
+          res.setHeader('Content-Length', cached.buffer.length);
+          res.setHeader('Cache-Control', `public, max-age=${Math.ceil((resetTime - Date.now()) / 1000)}`);
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('X-Image-Cached', 'true');
+          res.setHeader('X-Image-Error', '429');
+          res.setHeader('Retry-After', String(Math.ceil((resetTime - Date.now()) / 1000)));
+          return res.send(cached.buffer);
+        } else {
+          // Время reset истекло, удаляем из кеша и пробуем снова
+          imageCache.delete(cacheKey);
+        }
+      } else if (!cached.isError && cacheAge < MAX_CACHE_AGE) {
+        // Успешно закешированное изображение
+        console.log(`[IMAGE PROXY] ✅ Serving from cache: ${imageUrl.substring(0, 80)}...`);
+        res.setHeader('Content-Type', cached.contentType);
+        res.setHeader('Content-Length', cached.buffer.length);
+        res.setHeader('Cache-Control', 'public, max-age=86400'); // Кеш на 24 часа
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('X-Image-Cached', 'true');
+        return res.send(cached.buffer);
+      } else if (cacheAge >= MAX_CACHE_AGE) {
+        // Кеш устарел, удаляем
+        imageCache.delete(cacheKey);
+      }
     }
     
-    // Функция для выполнения запроса
-    const makeRequest = (urlToTry, isRetry = false) => {
-      const req = protocol.get(urlToTry, options, (imageResponse) => {
-        console.error(`[IMAGE PROXY] 📥 Response from Sima Land: status ${imageResponse.statusCode}${isRetry ? ' (retry with ?v=)' : ''}`);
-        console.error(`[IMAGE PROXY]   Content-Type: ${imageResponse.headers['content-type']}`);
-        console.error(`[IMAGE PROXY]   Content-Length: ${imageResponse.headers['content-length']}`);
-        
-        // Проверяем статус ответа
-        if (imageResponse.statusCode !== 200) {
-          console.error(`[IMAGE PROXY] ❌ Error: status ${imageResponse.statusCode} for ${urlToTry}`);
-          console.error(`[IMAGE PROXY]   Request URL was: ${urlToTry}`);
-          
-          // Если это 404 и URL не содержит ?v=, попробуем добавить параметр
-          if (imageResponse.statusCode === 404 && !isRetry && urlToTry.includes('goods-photos.static1-sima-land.com') && urlToTry.endsWith('.jpg') && !urlToTry.includes('?v=')) {
-            console.error(`[IMAGE PROXY]   ⚠️  404 - Image not found without ?v= parameter. Trying with ?v=...`);
-            
-            // Извлекаем timestamp из URL (последнее число перед .jpg в пути)
-            // Формат: /items/3916390/11/700.jpg -> используем 700 как timestamp
-            // Но также проверяем, не является ли это уже timestamp (больше 1000000000 = после 2001 года)
-            const urlMatch = urlToTry.match(/\/(\d+)\.jpg$/);
-            let timestamp = null;
-            
-            if (urlMatch) {
-              const versionNum = parseInt(urlMatch[1]);
-              // Если число выглядит как Unix timestamp (>= 1000000000, т.е. после 2001-09-09)
-              if (versionNum >= 1000000000 && versionNum <= 9999999999) {
-                timestamp = versionNum;
-              } else {
-                // Если это не timestamp, используем текущий timestamp
-                timestamp = Math.floor(Date.now() / 1000);
-              }
-            } else {
-              // Если не нашли число, используем текущий timestamp
-              timestamp = Math.floor(Date.now() / 1000);
-            }
-            
-            const retryUrl = `${urlToTry}?v=${timestamp}`;
-            
-            console.error(`[IMAGE PROXY]   🔄 Retrying with URL: ${retryUrl}`);
-            // Рекурсивно вызываем с новым URL
-            return makeRequest(retryUrl, true);
-          }
-          
-          console.error(`[IMAGE PROXY]   Response headers:`, JSON.stringify(imageResponse.headers, null, 2));
-          
-          // Специальная обработка для 429 (Too Many Requests)
-          if (imageResponse.statusCode === 429) {
-            const rateLimitReset = imageResponse.headers['x-rate-limit-reset'] || '60';
-            const resetSeconds = parseInt(rateLimitReset) || 60;
-            
-            console.error(`[IMAGE PROXY]   ⚠️  429 - Rate limit exceeded. Reset in ${resetSeconds} seconds`);
-            console.error(`[IMAGE PROXY]   💡 Tip: Too many requests. Please wait ${resetSeconds} seconds before retrying`);
-            
-            // Возвращаем placeholder с более длинным временем кеша
-            const placeholderSvg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg width="1" height="1" xmlns="http://www.w3.org/2000/svg">
-  <rect width="1" height="1" fill="#f3f4f6"/>
-</svg>`;
-            
-            res.setHeader('Content-Type', 'image/svg+xml');
-            res.setHeader('Content-Length', Buffer.byteLength(placeholderSvg));
-            res.setHeader('Cache-Control', `public, max-age=${resetSeconds}`); // Кеш на время reset
-            res.setHeader('Access-Control-Allow-Origin', '*');
-            res.setHeader('X-Image-Error', '429');
-            res.setHeader('X-Image-Original-Url', imageUrl);
-            res.setHeader('X-Image-Tried-Url', urlToTry);
-            res.setHeader('Retry-After', String(resetSeconds));
-            res.status(200).send(placeholderSvg);
-            return;
-          }
-          
-          if (imageResponse.statusCode === 404) {
-            console.error(`[IMAGE PROXY]   ⚠️  404 - Image not found. Check if URL is correct:`);
-            console.error(`[IMAGE PROXY]      ${urlToTry}`);
-            console.error(`[IMAGE PROXY]   💡 Tip: Verify the image URL exists on Sima Land servers`);
-          }
-          
-          // Возвращаем placeholder изображение вместо JSON, чтобы браузер мог его отобразить
-          // Это SVG placeholder размером 1x1 пиксель с серым фоном
-          const placeholderSvg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg width="1" height="1" xmlns="http://www.w3.org/2000/svg">
-  <rect width="1" height="1" fill="#f3f4f6"/>
-</svg>`;
-          
-          res.setHeader('Content-Type', 'image/svg+xml');
-          res.setHeader('Content-Length', Buffer.byteLength(placeholderSvg));
-          res.setHeader('Cache-Control', 'public, max-age=3600'); // Кеш на 1 час
-          res.setHeader('Access-Control-Allow-Origin', '*');
-          res.setHeader('X-Image-Error', String(imageResponse.statusCode));
-          res.setHeader('X-Image-Original-Url', imageUrl);
-          res.setHeader('X-Image-Tried-Url', urlToTry);
-          res.status(200).send(placeholderSvg); // Возвращаем 200, чтобы браузер не считал это ошибкой
-          return;
+    // Подготавливаем URL - добавляем ?v= если нужно
+    let urlToTry = imageUrl;
+    if (!urlToTry.includes('?v=') && urlToTry.includes('goods-photos.static1-sima-land.com') && urlToTry.endsWith('.jpg')) {
+      // Извлекаем timestamp из URL (последнее число перед .jpg в пути)
+      const urlMatch = urlToTry.match(/\/(\d+)\.jpg$/);
+      if (urlMatch) {
+        const versionNum = parseInt(urlMatch[1]);
+        // Если число выглядит как Unix timestamp (>= 1000000000)
+        if (versionNum >= 1000000000 && versionNum <= 9999999999) {
+          urlToTry = `${urlToTry}?v=${versionNum}`;
+        } else {
+          // Используем текущий timestamp
+          urlToTry = `${urlToTry}?v=${Math.floor(Date.now() / 1000)}`;
         }
-        
-        // Успешный ответ (200) - проксируем изображение
-        const contentType = imageResponse.headers['content-type'] || 'image/jpeg';
-        const contentLength = imageResponse.headers['content-length'];
-        
-        // Собираем данные изображения для кеширования
-        const chunks = [];
-        imageResponse.on('data', (chunk) => {
-          chunks.push(chunk);
-        });
-        
-        imageResponse.on('end', () => {
-          const imageBuffer = Buffer.concat(chunks);
-          
-          // Сохраняем в кеш
-          imageCache.set(cacheKey, {
-            buffer: imageBuffer,
-            contentType: contentType,
-            timestamp: Date.now()
-          });
-          
-          // Ограничиваем размер кеша
-          if (imageCache.size > MAX_CACHE_SIZE) {
-            // Удаляем самое старое изображение (первое в Map)
-            const firstKey = imageCache.keys().next().value;
-            imageCache.delete(firstKey);
-          }
-          
-          console.log(`[IMAGE PROXY] ✅ Proxying image successfully: ${urlToTry.substring(0, 80)}... (Content-Type: ${contentType}, Size: ${imageBuffer.length} bytes, Cached)`);
-          
-          // Отправляем изображение
-          res.setHeader('Content-Type', contentType);
-          res.setHeader('Cache-Control', 'public, max-age=86400'); // Кеш на 24 часа
-          res.setHeader('Access-Control-Allow-Origin', '*'); // Разрешаем CORS
-          res.setHeader('Content-Length', imageBuffer.length);
-          res.send(imageBuffer);
-        });
-      });
-      
-      req.on('error', (error) => {
-        console.error(`[IMAGE PROXY] Error proxying image ${urlToTry}:`, error.message);
-        
-        // Возвращаем placeholder изображение вместо JSON, чтобы браузер мог его отобразить
-        const placeholderSvg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg width="1" height="1" xmlns="http://www.w3.org/2000/svg">
-  <rect width="1" height="1" fill="#f3f4f6"/>
-</svg>`;
-        
-        res.setHeader('Content-Type', 'image/svg+xml');
-        res.setHeader('Content-Length', Buffer.byteLength(placeholderSvg));
-        res.setHeader('Cache-Control', 'public, max-age=3600');
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('X-Image-Error', '500');
-        res.setHeader('X-Image-Original-Url', imageUrl);
-        res.setHeader('X-Image-Tried-Url', urlToTry);
-        res.status(200).send(placeholderSvg);
-      });
-    };
+      } else {
+        urlToTry = `${urlToTry}?v=${Math.floor(Date.now() / 1000)}`;
+      }
+    }
     
-    // Вызываем функцию для первого запроса
-    makeRequest(imageUrl);
+    // Добавляем запрос в очередь
+    const requestPromise = new Promise((resolve, reject) => {
+      requestQueue.push({
+        urlToTry: urlToTry,
+        options: options,
+        resolve: resolve,
+        reject: reject,
+        res: res,
+        cacheKey: cacheKey,
+        imageUrl: imageUrl
+      });
+    });
+    
+    // Запускаем обработку очереди (не блокируем, если уже обрабатывается)
+    processRequestQueue().catch(err => {
+      console.error('[IMAGE PROXY] Error processing queue:', err);
+    });
+    
+    // Ждем выполнения запроса
+    await requestPromise;
   } catch (error) {
     console.error('[IMAGE PROXY] Error:', error);
     
