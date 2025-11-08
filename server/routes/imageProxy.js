@@ -199,23 +199,6 @@ router.get('/sima-land/image-proxy', async (req, res) => {
     // Вызываем функцию для первого запроса
     makeRequest(imageUrl);
   } catch (error) {
-      console.error(`[IMAGE PROXY] Error proxying image ${imageUrl}:`, error.message);
-      
-      // Возвращаем placeholder изображение вместо JSON, чтобы браузер мог его отобразить
-      const placeholderSvg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg width="1" height="1" xmlns="http://www.w3.org/2000/svg">
-  <rect width="1" height="1" fill="#f3f4f6"/>
-</svg>`;
-      
-      res.setHeader('Content-Type', 'image/svg+xml');
-      res.setHeader('Content-Length', Buffer.byteLength(placeholderSvg));
-      res.setHeader('Cache-Control', 'public, max-age=3600');
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('X-Image-Error', '500');
-      res.setHeader('X-Image-Original-Url', imageUrl);
-      res.status(200).send(placeholderSvg);
-    });
-  } catch (error) {
     console.error('[IMAGE PROXY] Error:', error);
     
     // Возвращаем placeholder изображение вместо JSON
