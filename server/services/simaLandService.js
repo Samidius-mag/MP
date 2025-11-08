@@ -1133,17 +1133,42 @@ class SimaLandService {
                   }
                 } catch (imageError) {
                   imageStats.failed++;
-                  console.error(`[SIMA LAND] ❌ Ошибка обработки изображения ${i + 1} для товара ${parsedProduct.article}:`, imageError.message);
-                  // Используем оригинальное изображение, если обработка не удалась
-                  processedUrls.push(imgUrl);
-                  imagesCount++;
-                  if (i === 0) {
-                    finalImageUrl = imgUrl;
+                  
+                  // Проверяем, является ли ошибка 404 (изображение не найдено)
+                  const is404 = imageError.is404 === true || 
+                               (imageError.message && imageError.message.includes('404')) ||
+                               (imageError.originalError && imageError.originalError.response && imageError.originalError.response.status === 404);
+                  
+                  if (is404) {
+                    console.warn(`[SIMA LAND] ⚠️ Изображение ${i + 1} для товара ${parsedProduct.article} не найдено (404): ${imgUrl}`);
+                    console.warn(`[SIMA LAND] Пропускаем это изображение и продолжаем со следующим`);
+                    // Не добавляем несуществующее изображение в список
+                    // Просто пропускаем его
+                  } else {
+                    console.error(`[SIMA LAND] ❌ Ошибка обработки изображения ${i + 1} для товара ${parsedProduct.article}:`, imageError.message);
+                    // Для других ошибок используем оригинальное изображение
+                    processedUrls.push(imgUrl);
+                    imagesCount++;
+                    if (i === 0) {
+                      finalImageUrl = imgUrl;
+                    }
                   }
                 }
               }
               
-              finalImageUrls = processedUrls;
+              // Если после обработки не осталось изображений (все были 404), 
+              // оставляем пустой массив и null для основного изображения
+              if (processedUrls.length === 0) {
+                console.warn(`[SIMA LAND] ⚠️ Все изображения для товара ${parsedProduct.article} недоступны (404)`);
+                finalImageUrl = null;
+                finalImageUrls = [];
+              } else {
+                finalImageUrls = processedUrls;
+                // Убеждаемся, что основное изображение установлено, если его еще нет
+                if (!finalImageUrl && processedUrls.length > 0) {
+                  finalImageUrl = processedUrls[0];
+                }
+              }
             } else if (finalImageUrls && finalImageUrls.length > 0) {
               // Если обработка отключена, просто считаем изображения
               imageStats.skipped += finalImageUrls.length;

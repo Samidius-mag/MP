@@ -1675,10 +1675,15 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
         
         // Проксируем URL изображения через сервер для обхода CORS
         // Sima Land CDN может блокировать прямые запросы из браузера
+        // НО: не проксируем локальные URL (обработанные изображения в /uploads/products/)
         if (product.image_url && typeof product.image_url === 'string') {
-          if (product.image_url.includes('goods-photos.static1-sima-land.com') || 
+          // Проверяем, что это не локальный URL (обработанные изображения)
+          const isLocalUrl = product.image_url.startsWith('/uploads/') || 
+                            product.image_url.startsWith('./uploads/');
+          
+          if (!isLocalUrl && (product.image_url.includes('goods-photos.static1-sima-land.com') || 
               product.image_url.includes('sima-land') ||
-              product.image_url.includes('simaland')) {
+              product.image_url.includes('simaland'))) {
             const originalUrl = product.image_url;
             product.image_url = `/api/sima-land/image-proxy?url=${encodeURIComponent(originalUrl)}`;
           }
@@ -1687,9 +1692,15 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
         // Также проксируем image_urls
         if (product.image_urls && Array.isArray(product.image_urls) && product.image_urls.length > 0) {
           product.image_urls = product.image_urls.map(url => {
-            if (typeof url === 'string' && (url.includes('goods-photos.static1-sima-land.com') || 
-                url.includes('sima-land') || url.includes('simaland'))) {
-              return `/api/sima-land/image-proxy?url=${encodeURIComponent(url)}`;
+            if (typeof url === 'string') {
+              // Проверяем, что это не локальный URL (обработанные изображения)
+              const isLocalUrl = url.startsWith('/uploads/') || 
+                                url.startsWith('./uploads/');
+              
+              if (!isLocalUrl && (url.includes('goods-photos.static1-sima-land.com') || 
+                  url.includes('sima-land') || url.includes('simaland'))) {
+                return `/api/sima-land/image-proxy?url=${encodeURIComponent(url)}`;
+              }
             }
             return url;
           });

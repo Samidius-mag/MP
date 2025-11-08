@@ -45,7 +45,14 @@ class ImageProcessingService {
         responseType: 'arraybuffer',
         timeout: 30000,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+          'Referer': 'https://www.sima-land.ru/',
+          'Origin': 'https://www.sima-land.ru'
+        },
+        validateStatus: (status) => {
+          // Разрешаем только статусы 200, иначе axios выбросит ошибку
+          return status === 200;
         }
       });
 
@@ -69,7 +76,14 @@ class ImageProcessingService {
       return Buffer.from(response.data);
     } catch (error) {
       const downloadTime = Date.now() - startTime;
-      console.error(`[IMAGE PROCESSING] Ошибка загрузки изображения ${imageUrl}:`, error.message);
+      
+      // Проверяем, является ли ошибка 404 (изображение не найдено)
+      const is404 = error.response && error.response.status === 404;
+      const errorMessage = is404 
+        ? `Image not found (404): ${imageUrl}` 
+        : `Failed to download image from ${imageUrl}: ${error.message}`;
+      
+      console.error(`[IMAGE PROCESSING] ${is404 ? '⚠️' : '❌'} ${errorMessage}`);
       
       await logger.error(`Ошибка загрузки изображения`, {
         service: 'image-processing',
@@ -77,13 +91,19 @@ class ImageProcessingService {
           imageUrl,
           stage: 'download_error',
           error: error.message,
+          statusCode: error.response ? error.response.status : null,
+          is404: is404,
           downloadTime: `${downloadTime}ms`
         }
       }).catch(err => {
         console.error('[IMAGE PROCESSING] Logger error:', err.message);
       });
       
-      throw new Error(`Failed to download image from ${imageUrl}: ${error.message}`);
+      // Создаем специальную ошибку для 404, чтобы вызывающий код мог её обработать
+      const customError = new Error(errorMessage);
+      customError.is404 = is404;
+      customError.originalError = error;
+      throw customError;
     }
   }
 

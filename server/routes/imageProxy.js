@@ -107,16 +107,38 @@ router.get('/sima-land/image-proxy', async (req, res) => {
           console.error(`[IMAGE PROXY]   ⚠️  404 - Image not found. Check if URL is correct:`);
           console.error(`[IMAGE PROXY]      ${imageUrl}`);
           console.error(`[IMAGE PROXY]   💡 Tip: Verify the image URL exists on Sima Land servers`);
+          
+          // Возвращаем placeholder изображение вместо JSON, чтобы браузер мог его отобразить
+          // Это SVG placeholder размером 1x1 пиксель с серым фоном
+          const placeholderSvg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1" height="1" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1" height="1" fill="#f3f4f6"/>
+</svg>`;
+          
+          res.setHeader('Content-Type', 'image/svg+xml');
+          res.setHeader('Content-Length', Buffer.byteLength(placeholderSvg));
+          res.setHeader('Cache-Control', 'public, max-age=3600'); // Кеш на 1 час
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('X-Image-Error', '404');
+          res.setHeader('X-Image-Original-Url', imageUrl);
+          res.status(200).send(placeholderSvg); // Возвращаем 200, чтобы браузер не считал это ошибкой
+          return;
         }
         
-        // Просто возвращаем ошибку - клиент сам обработает
-        res.setHeader('X-Image-Error', String(imageResponse.statusCode));
+        // Для других ошибок также возвращаем placeholder
+        const placeholderSvg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1" height="1" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1" height="1" fill="#f3f4f6"/>
+</svg>`;
+        
+        res.setHeader('Content-Type', 'image/svg+xml');
+        res.setHeader('Content-Length', Buffer.byteLength(placeholderSvg));
+        res.setHeader('Cache-Control', 'public, max-age=3600');
         res.setHeader('Access-Control-Allow-Origin', '*');
-        return res.status(imageResponse.statusCode).json({ 
-          error: 'Изображение не найдено',
-          statusCode: imageResponse.statusCode,
-          url: imageUrl // Добавляем URL в ответ для отладки (можно убрать в продакшене)
-        });
+        res.setHeader('X-Image-Error', String(imageResponse.statusCode));
+        res.setHeader('X-Image-Original-Url', imageUrl);
+        res.status(200).send(placeholderSvg);
+        return;
       }
 
       // Устанавливаем заголовки
@@ -137,24 +159,35 @@ router.get('/sima-land/image-proxy', async (req, res) => {
     }).on('error', (error) => {
       console.error(`[IMAGE PROXY] Error proxying image ${imageUrl}:`, error.message);
       
-      // Возвращаем JSON ошибку вместо SVG
+      // Возвращаем placeholder изображение вместо JSON, чтобы браузер мог его отобразить
+      const placeholderSvg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1" height="1" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1" height="1" fill="#f3f4f6"/>
+</svg>`;
+      
+      res.setHeader('Content-Type', 'image/svg+xml');
+      res.setHeader('Content-Length', Buffer.byteLength(placeholderSvg));
+      res.setHeader('Cache-Control', 'public, max-age=3600');
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('X-Image-Error', '500');
-      res.status(500).json({ 
-        error: 'Ошибка загрузки изображения',
-        message: error.message 
-      });
+      res.setHeader('X-Image-Original-Url', imageUrl);
+      res.status(200).send(placeholderSvg);
     });
   } catch (error) {
     console.error('[IMAGE PROXY] Error:', error);
     
-    // Возвращаем JSON ошибку
+    // Возвращаем placeholder изображение вместо JSON
+    const placeholderSvg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1" height="1" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1" height="1" fill="#f3f4f6"/>
+</svg>`;
+    
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Content-Length', Buffer.byteLength(placeholderSvg));
+    res.setHeader('Cache-Control', 'public, max-age=3600');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('X-Image-Error', '500');
-    res.status(500).json({ 
-      error: 'Ошибка обработки запроса',
-      message: error.message 
-    });
+    res.status(200).send(placeholderSvg);
   }
 });
 

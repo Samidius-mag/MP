@@ -86,9 +86,11 @@ function ProductImage({ product }: { product: SimaLandProduct }) {
     const img = e.currentTarget;
     setIsLoading(false);
     
-    // Если изображение слишком маленькое (менее 10x10), считаем его ошибкой
+    // Если изображение слишком маленькое (менее 10x10), это может быть placeholder от сервера
+    // (например, при 404 ошибке мы возвращаем SVG 1x1)
     if (img.naturalWidth < 10 && img.naturalHeight < 10) {
-      console.log(`[CLIENT] ⚠️ Image is too small (${img.naturalWidth}x${img.naturalHeight}), treating as error`);
+      console.log(`[CLIENT] ⚠️ Image is too small (${img.naturalWidth}x${img.naturalHeight}), likely a placeholder - trying next image`);
+      // Сразу пробуем следующее изображение вместо показа этого placeholder
       handleImageError();
       return;
     }
