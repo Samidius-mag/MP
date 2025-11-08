@@ -1674,7 +1674,7 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
         }
         
         // Проксируем URL изображения через сервер для обхода CORS
-        // Sima Land CDN может блокировать прямые запросы из браузераw
+        // Sima Land CDN может блокировать прямые запросы из браузера
         // НО: не проксируем локальные URL (обработанные изображения в /uploads/products/)
         if (product.image_url && typeof product.image_url === 'string') {
           // Проверяем, что это не локальный URL (обработанные изображения)
@@ -1698,8 +1698,8 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
                                 url.startsWith('./uploads/');
               
               if (!isLocalUrl && (url.includes('goods-photos.static1-sima-land.com') || 
-                  url.includes('sima-land') || url.includes('simaland'))) {
-                return `/api/sima-land/image-proxy?url=${encodeURIComponent(url)}`;
+                url.includes('sima-land') || url.includes('simaland'))) {
+              return `/api/sima-land/image-proxy?url=${encodeURIComponent(url)}`;
               }
             }
             return url;

@@ -4,6 +4,12 @@ const http = require('http');
 
 const router = express.Router();
 
+// Простое in-memory кеширование для изображений
+// Ключ: URL изображения, Значение: { buffer, contentType, timestamp }
+const imageCache = new Map();
+const MAX_CACHE_AGE = 24 * 60 * 60 * 1000; // 24 часа в миллисекундах
+const MAX_CACHE_SIZE = 100; // Максимальное количество изображений в кеше
+
 console.log('[IMAGE PROXY] 🔧 Registering route: GET /sima-land/image-proxy');
 
 // Тестовый маршрут для проверки
@@ -90,6 +96,19 @@ router.get('/sima-land/image-proxy', async (req, res) => {
     
     console.log(`[IMAGE PROXY] 🔍 Request headers:`, JSON.stringify(options.headers, null, 2));
     
+    // Проверяем кеш перед запросом
+    const cacheKey = imageUrl;
+    const cached = imageCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp) < MAX_CACHE_AGE) {
+      console.log(`[IMAGE PROXY] ✅ Serving from cache: ${imageUrl.substring(0, 80)}...`);
+      res.setHeader('Content-Type', cached.contentType);
+      res.setHeader('Content-Length', cached.buffer.length);
+      res.setHeader('Cache-Control', 'public, max-age=86400'); // Кеш на 24 часа
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('X-Image-Cached', 'true');
+      return res.send(cached.buffer);
+    }
+    
     // Функция для выполнения запроса
     const makeRequest = (urlToTry, isRetry = false) => {
       const req = protocol.get(urlToTry, options, (imageResponse) => {
@@ -135,6 +154,32 @@ router.get('/sima-land/image-proxy', async (req, res) => {
           
           console.error(`[IMAGE PROXY]   Response headers:`, JSON.stringify(imageResponse.headers, null, 2));
           
+          // Специальная обработка для 429 (Too Many Requests)
+          if (imageResponse.statusCode === 429) {
+            const rateLimitReset = imageResponse.headers['x-rate-limit-reset'] || '60';
+            const resetSeconds = parseInt(rateLimitReset) || 60;
+            
+            console.error(`[IMAGE PROXY]   ⚠️  429 - Rate limit exceeded. Reset in ${resetSeconds} seconds`);
+            console.error(`[IMAGE PROXY]   💡 Tip: Too many requests. Please wait ${resetSeconds} seconds before retrying`);
+            
+            // Возвращаем placeholder с более длинным временем кеша
+            const placeholderSvg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1" height="1" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1" height="1" fill="#f3f4f6"/>
+</svg>`;
+            
+            res.setHeader('Content-Type', 'image/svg+xml');
+            res.setHeader('Content-Length', Buffer.byteLength(placeholderSvg));
+            res.setHeader('Cache-Control', `public, max-age=${resetSeconds}`); // Кеш на время reset
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('X-Image-Error', '429');
+            res.setHeader('X-Image-Original-Url', imageUrl);
+            res.setHeader('X-Image-Tried-Url', urlToTry);
+            res.setHeader('Retry-After', String(resetSeconds));
+            res.status(200).send(placeholderSvg);
+            return;
+          }
+          
           if (imageResponse.statusCode === 404) {
             console.error(`[IMAGE PROXY]   ⚠️  404 - Image not found. Check if URL is correct:`);
             console.error(`[IMAGE PROXY]      ${urlToTry}`);
@@ -163,17 +208,38 @@ router.get('/sima-land/image-proxy', async (req, res) => {
         const contentType = imageResponse.headers['content-type'] || 'image/jpeg';
         const contentLength = imageResponse.headers['content-length'];
         
-        res.setHeader('Content-Type', contentType);
-        res.setHeader('Cache-Control', 'public, max-age=86400'); // Кеш на 24 часа
-        res.setHeader('Access-Control-Allow-Origin', '*'); // Разрешаем CORS
-        if (contentLength) {
-          res.setHeader('Content-Length', contentLength);
-        }
+        // Собираем данные изображения для кеширования
+        const chunks = [];
+        imageResponse.on('data', (chunk) => {
+          chunks.push(chunk);
+        });
         
-        console.log(`[IMAGE PROXY] ✅ Proxying image successfully: ${urlToTry.substring(0, 80)}... (Content-Type: ${contentType}, Size: ${contentLength || 'unknown'})`);
-        
-        // Проксируем изображение
-        imageResponse.pipe(res);
+        imageResponse.on('end', () => {
+          const imageBuffer = Buffer.concat(chunks);
+          
+          // Сохраняем в кеш
+          imageCache.set(cacheKey, {
+            buffer: imageBuffer,
+            contentType: contentType,
+            timestamp: Date.now()
+          });
+          
+          // Ограничиваем размер кеша
+          if (imageCache.size > MAX_CACHE_SIZE) {
+            // Удаляем самое старое изображение (первое в Map)
+            const firstKey = imageCache.keys().next().value;
+            imageCache.delete(firstKey);
+          }
+          
+          console.log(`[IMAGE PROXY] ✅ Proxying image successfully: ${urlToTry.substring(0, 80)}... (Content-Type: ${contentType}, Size: ${imageBuffer.length} bytes, Cached)`);
+          
+          // Отправляем изображение
+          res.setHeader('Content-Type', contentType);
+          res.setHeader('Cache-Control', 'public, max-age=86400'); // Кеш на 24 часа
+          res.setHeader('Access-Control-Allow-Origin', '*'); // Разрешаем CORS
+          res.setHeader('Content-Length', imageBuffer.length);
+          res.send(imageBuffer);
+        });
       });
       
       req.on('error', (error) => {
