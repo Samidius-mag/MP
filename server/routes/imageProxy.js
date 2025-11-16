@@ -46,7 +46,7 @@ async function processRequestQueue() {
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
     
-    const { urlToTry, options, resolve, reject, res: responseObj, cacheKey: reqCacheKey, imageUrl: reqImageUrl } = requestQueue.shift();
+    const { urlToTry, options, resolve, reject, res: responseObj, cacheKey: reqCacheKey, imageUrl: reqImageUrl, alternativeUrls: reqAlternativeUrls = [] } = requestQueue.shift();
     lastRequestTime = Date.now();
     activeRequests++;
     
@@ -55,8 +55,128 @@ async function processRequestQueue() {
       activeRequests--;
       
       // Обрабатываем ответ
-      await handleQueueResponse(imageResponse, urlToTry, responseObj, reqCacheKey, reqImageUrl);
-      resolve();
+      const result = await handleQueueResponse(imageResponse, urlToTry, responseObj, reqCacheKey, reqImageUrl, reqAlternativeUrls);
+      
+      // Если получили 404 и есть альтернативные URL, пробуем их
+      if (result && result.tryAlternatives && result.alternativeUrls && result.alternativeUrls.length > 0) {
+        console.log(`[IMAGE PROXY] 🔄 Trying ${result.alternativeUrls.length} alternative URLs...`);
+        let found = false;
+        
+        for (const altUrl of result.alternativeUrls) {
+          if (found) break;
+          
+          // Проверяем кеш для альтернативного URL
+          const altCacheKey = altUrl;
+          const altCached = imageCache.get(altCacheKey);
+          if (altCached && !altCached.isError) {
+            const cacheAge = Date.now() - altCached.timestamp;
+            if (cacheAge < MAX_CACHE_AGE) {
+              console.log(`[IMAGE PROXY] ✅ Found alternative URL in cache: ${altUrl.substring(0, 80)}...`);
+              responseObj.setHeader('Content-Type', altCached.contentType);
+              responseObj.setHeader('Content-Length', altCached.buffer.length);
+              responseObj.setHeader('Cache-Control', 'public, max-age=86400');
+              responseObj.setHeader('Access-Control-Allow-Origin', '*');
+              responseObj.setHeader('X-Image-Cached', 'true');
+              responseObj.setHeader('X-Image-Alternative', 'true');
+              responseObj.send(altCached.buffer);
+              found = true;
+              resolve();
+              setTimeout(() => processRequestQueue(), 0);
+              return;
+            }
+          }
+          
+          // Пробуем загрузить альтернативный URL
+          try {
+            // Ждем минимальный интервал перед следующим запросом
+            await new Promise(resolve => setTimeout(resolve, MIN_REQUEST_INTERVAL));
+            
+            await new Promise((resolveAlt, rejectAlt) => {
+              const altProtocol = altUrl.startsWith('https') ? https : http;
+              const altReq = altProtocol.get(altUrl, options, (altResponse) => {
+                if (altResponse.statusCode === 200) {
+                  console.log(`[IMAGE PROXY] ✅ Alternative URL worked: ${altUrl.substring(0, 80)}...`);
+                  const contentType = altResponse.headers['content-type'] || 'image/jpeg';
+                  const chunks = [];
+                  
+                  altResponse.on('data', (chunk) => chunks.push(chunk));
+                  altResponse.on('end', () => {
+                    const imageBuffer = Buffer.concat(chunks);
+                    
+                    // Сохраняем в кеш
+                    imageCache.set(reqCacheKey, {
+                      buffer: imageBuffer,
+                      contentType: contentType,
+                      timestamp: Date.now(),
+                      isError: false
+                    });
+                    imageCache.set(altCacheKey, {
+                      buffer: imageBuffer,
+                      contentType: contentType,
+                      timestamp: Date.now(),
+                      isError: false
+                    });
+                    
+                    responseObj.setHeader('Content-Type', contentType);
+                    responseObj.setHeader('Cache-Control', 'public, max-age=86400');
+                    responseObj.setHeader('Access-Control-Allow-Origin', '*');
+                    responseObj.setHeader('X-Image-Alternative', 'true');
+                    responseObj.setHeader('Content-Length', imageBuffer.length);
+                    responseObj.send(imageBuffer);
+                    found = true;
+                    resolveAlt();
+                  });
+                } else {
+                  rejectAlt(new Error(`Status ${altResponse.statusCode}`));
+                }
+              });
+              
+              altReq.on('error', (error) => {
+                rejectAlt(error);
+              });
+            });
+            
+            if (found) {
+              resolve();
+              setTimeout(() => processRequestQueue(), 0);
+              return;
+            }
+          } catch (altError) {
+            console.log(`[IMAGE PROXY] ❌ Alternative URL failed: ${altUrl.substring(0, 80)}... (${altError.message})`);
+            // Продолжаем пробовать следующие альтернативные URL
+          }
+        }
+        
+        // Если ни один альтернативный URL не сработал, возвращаем placeholder
+        if (!found) {
+          console.log(`[IMAGE PROXY] ❌ All alternative URLs failed, returning placeholder`);
+          const placeholderSvg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1" height="1" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1" height="1" fill="#f3f4f6"/>
+</svg>`;
+          const placeholderBuffer = Buffer.from(placeholderSvg);
+          
+          imageCache.set(reqCacheKey, {
+            buffer: placeholderBuffer,
+            contentType: 'image/svg+xml',
+            timestamp: Date.now(),
+            isError: true,
+            errorCode: 404
+          });
+          
+          responseObj.setHeader('Content-Type', 'image/svg+xml');
+          responseObj.setHeader('Content-Length', placeholderBuffer.length);
+          responseObj.setHeader('Cache-Control', 'public, max-age=3600');
+          responseObj.setHeader('Access-Control-Allow-Origin', '*');
+          responseObj.setHeader('X-Image-Error', '404');
+          responseObj.status(200).send(placeholderBuffer);
+          resolve();
+          setTimeout(() => processRequestQueue(), 0);
+          return;
+        }
+      } else {
+        resolve();
+      }
       
       // Продолжаем обработку очереди
       setTimeout(() => processRequestQueue(), 0);
@@ -88,8 +208,65 @@ async function processRequestQueue() {
   isProcessingQueue = false;
 }
 
+// Функция для генерации альтернативных URL при 404
+function generateAlternativeUrls(originalUrl) {
+  const alternatives = [];
+  
+  if (!originalUrl.includes('goods-photos.static1-sima-land.com')) {
+    return alternatives;
+  }
+  
+  try {
+    // Убираем параметры запроса для парсинга
+    const urlWithoutQuery = originalUrl.split('?')[0];
+    const urlObj = new URL(urlWithoutQuery);
+    const pathParts = urlObj.pathname.split('/').filter(p => p);
+    
+    // Формат: /items/{itemId}/{version}/{timestamp}.jpg
+    // Пример: /items/6854387/7/1714629330.jpg
+    if (pathParts.length >= 4 && pathParts[0] === 'items') {
+      const itemId = pathParts[1];
+      const version = pathParts[2];
+      const timestamp = pathParts[3].replace('.jpg', '');
+      
+      // Вариант 1: Без параметра ?v= (если он был в оригинале)
+      if (originalUrl.includes('?v=')) {
+        alternatives.push(urlWithoutQuery);
+      }
+      
+      // Вариант 2: Попробовать версию 0 (часто используется для основного изображения)
+      if (version !== '0') {
+        const altUrl = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/0/${timestamp}.jpg`;
+        alternatives.push(altUrl);
+      }
+      
+      // Вариант 3: Попробовать другие версии (1-10, но не текущую)
+      for (let v = 1; v <= 10; v++) {
+        if (v.toString() !== version) {
+          const altUrl = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/${v}/${timestamp}.jpg`;
+          alternatives.push(altUrl);
+        }
+      }
+    } else {
+      // Если формат не соответствует ожидаемому, просто пробуем без параметра ?v=
+      if (originalUrl.includes('?v=')) {
+        alternatives.push(urlWithoutQuery);
+      }
+    }
+  } catch (e) {
+    console.error(`[IMAGE PROXY] Error generating alternative URLs:`, e.message);
+    // Если не удалось распарсить URL, просто пробуем без параметра ?v=
+    if (originalUrl.includes('?v=')) {
+      const urlWithoutQuery = originalUrl.split('?')[0];
+      alternatives.push(urlWithoutQuery);
+    }
+  }
+  
+  return alternatives;
+}
+
 // Функция для обработки ответа из очереди
-async function handleQueueResponse(imageResponse, urlToTry, res, cacheKey, imageUrl) {
+async function handleQueueResponse(imageResponse, urlToTry, res, cacheKey, imageUrl, alternativeUrls = []) {
   console.error(`[IMAGE PROXY] 📥 Response from Sima Land: status ${imageResponse.statusCode}`);
   
   if (imageResponse.statusCode !== 200) {
@@ -130,12 +307,27 @@ async function handleQueueResponse(imageResponse, urlToTry, res, cacheKey, image
       return;
     }
     
+    // Обработка 404 - пробуем альтернативные URL
+    if (imageResponse.statusCode === 404 && alternativeUrls.length > 0) {
+      console.log(`[IMAGE PROXY] 🔄 Trying alternative URLs for 404...`);
+      // Возвращаем специальный флаг, чтобы попробовать альтернативные URL
+      return { tryAlternatives: true, alternativeUrls };
+    }
+    
     // Другие ошибки
     const placeholderSvg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="1" height="1" xmlns="http://www.w3.org/2000/svg">
   <rect width="1" height="1" fill="#f3f4f6"/>
 </svg>`;
     const placeholderBuffer = Buffer.from(placeholderSvg);
+    
+    imageCache.set(cacheKey, {
+      buffer: placeholderBuffer,
+      contentType: 'image/svg+xml',
+      timestamp: Date.now(),
+      isError: true,
+      errorCode: imageResponse.statusCode
+    });
     
     res.setHeader('Content-Type', 'image/svg+xml');
     res.setHeader('Content-Length', placeholderBuffer.length);
@@ -328,6 +520,9 @@ router.get('/sima-land/image-proxy', async (req, res) => {
       }
     }
     
+    // Генерируем альтернативные URL на случай 404
+    const alternativeUrls = generateAlternativeUrls(imageUrl);
+    
     // Добавляем запрос в очередь
     const requestPromise = new Promise((resolve, reject) => {
       requestQueue.push({
@@ -337,7 +532,8 @@ router.get('/sima-land/image-proxy', async (req, res) => {
         reject: reject,
         res: res,
         cacheKey: cacheKey,
-        imageUrl: imageUrl
+        imageUrl: imageUrl,
+        alternativeUrls: alternativeUrls
       });
     });
     
