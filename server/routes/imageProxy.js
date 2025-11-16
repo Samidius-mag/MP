@@ -393,8 +393,30 @@ console.log('[IMAGE PROXY] 🔧 Registering route: GET /sima-land/image-proxy');
 
 // Тестовый маршрут для проверки
 router.get('/test-image-proxy', (req, res) => {
-  console.log('[IMAGE PROXY]  Test route called!');
-  res.json({ message: 'Image proxy router is working!' });
+  console.log('[IMAGE PROXY] ✅ Test route called!');
+  res.json({ message: 'Image proxy router is working!', timestamp: new Date().toISOString() });
+});
+
+// Тестовый маршрут для проверки конкретного изображения
+router.get('/test-image', async (req, res) => {
+  console.log('[IMAGE PROXY] 🧪 Test image route called');
+  const testUrl = 'https://goods-photos.static1-sima-land.com/items/3916390/11/700.jpg?v=1680674667';
+  try {
+    const https = require('https');
+    https.get(testUrl, (imageResponse) => {
+      console.log(`[IMAGE PROXY] 🧪 Test image response: ${imageResponse.statusCode}`);
+      if (imageResponse.statusCode === 200) {
+        imageResponse.pipe(res);
+      } else {
+        res.status(imageResponse.statusCode).json({ error: 'Failed to fetch test image', status: imageResponse.statusCode });
+      }
+    }).on('error', (err) => {
+      console.error('[IMAGE PROXY] 🧪 Test image error:', err);
+      res.status(500).json({ error: err.message });
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Публичный прокси для изображений Sima Land (обход CORS)
@@ -410,6 +432,11 @@ router.get('/sima-land/image-proxy', async (req, res) => {
   
   try {
     let imageUrl = req.query.url;
+    
+    // Игнорируем параметр _t (cache busting от клиента)
+    if (req.query._t) {
+      console.log(`[IMAGE PROXY] 🕐 Cache busting parameter _t=${req.query._t} ignored`);
+    }
     
     console.log(`[IMAGE PROXY] 📥 Received request with url param (raw):`, imageUrl);
     console.log(`[IMAGE PROXY] 📥 Query object:`, JSON.stringify(req.query));

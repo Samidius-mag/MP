@@ -124,14 +124,20 @@ function ProductImage({ product }: { product: SimaLandProduct }) {
     );
   }
 
+  // Добавляем параметр для обхода кеша браузера
+  const imageUrlWithCacheBust = currentImageUrl && currentImageUrl.includes('/api/sima-land/image-proxy')
+    ? `${currentImageUrl}${currentImageUrl.includes('?') ? '&' : '?'}_t=${Date.now()}`
+    : currentImageUrl;
+
   return (
     <img 
-      src={currentImageUrl} 
+      src={imageUrlWithCacheBust} 
       alt={product.name} 
       className="w-full h-48 object-cover bg-gray-100"
       loading="lazy"
       onError={handleImageError}
       onLoad={handleImageLoad}
+      crossOrigin="anonymous"
     />
   );
 }
