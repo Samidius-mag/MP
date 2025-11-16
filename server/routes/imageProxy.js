@@ -222,39 +222,62 @@ function generateAlternativeUrls(originalUrl) {
     const urlObj = new URL(urlWithoutQuery);
     const pathParts = urlObj.pathname.split('/').filter(p => p);
     
-    // Формат: /items/{itemId}/{version}/{timestamp}.jpg
-    // Пример: /items/6854387/7/1714629330.jpg
+    // Формат: /items/{itemId}/{version}/{imageId}.jpg?v={timestamp}
+    // Пример рабочей ссылки: /items/3916390/11/700.jpg?v=1680674667
+    // Пример из логов: /items/6854387/7/1714629330.jpg?v=1714629330
+    // Проблема: в некоторых URL в пути используется timestamp вместо imageId
     if (pathParts.length >= 4 && pathParts[0] === 'items') {
       const itemId = pathParts[1];
       const version = pathParts[2];
-      const timestamp = pathParts[3].replace('.jpg', '');
+      const imageId = pathParts[3].replace('.jpg', '');
       
       // Вариант 1: Без параметра ?v= (если он был в оригинале)
       if (originalUrl.includes('?v=')) {
         alternatives.push(urlWithoutQuery);
       }
       
-      // Вариант 2: Попробовать другие версии (1-20, но не текущую)
+      // Вариант 2: Попробовать другие версии, сохраняя imageId
       // Сначала пробуем популярные версии: 1, 2, 3, 5, 7, 10, 11, 15, 20
       const popularVersions = [1, 2, 3, 5, 7, 10, 11, 15, 20];
       for (const v of popularVersions) {
         if (v.toString() !== version) {
-          const altUrl = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/${v}/${timestamp}.jpg`;
+          const altUrl = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/${v}/${imageId}.jpg`;
           alternatives.push(altUrl);
         }
       }
       
       // Вариант 3: Попробовать версию 0 (часто используется для основного изображения)
       if (version !== '0') {
-        const altUrl = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/0/${timestamp}.jpg`;
+        const altUrl = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/0/${imageId}.jpg`;
         alternatives.push(altUrl);
       }
       
       // Вариант 4: Попробовать все остальные версии до 20
       for (let v = 1; v <= 20; v++) {
         if (v.toString() !== version && !popularVersions.includes(v)) {
-          const altUrl = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/${v}/${timestamp}.jpg`;
+          const altUrl = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/${v}/${imageId}.jpg`;
           alternatives.push(altUrl);
+        }
+      }
+      
+      // Вариант 5: Если imageId выглядит как timestamp (большое число > 1000000000), 
+      // это означает, что в БД сохранен неправильный формат URL
+      // В этом случае пробуем разные варианты imageId с популярными версиями
+      const imageIdNum = parseInt(imageId);
+      if (!isNaN(imageIdNum) && imageIdNum > 1000000000) {
+        // Это похоже на timestamp, попробуем другие варианты imageId
+        // Попробуем использовать меньшие числа, которые могут быть реальными imageId
+        // Начинаем с самых популярных вариантов
+        const possibleImageIds = [700, 500, 1000, 200, 100, 50, 10, 5, 3, 2, 1];
+        const testVersions = [11, 10, 7, 5, 3, 2, 1]; // Популярные версии
+        for (const imgId of possibleImageIds) {
+          for (const v of testVersions) {
+            const altUrl = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/${v}/${imgId}.jpg`;
+            // Добавляем только если еще не добавлен
+            if (!alternatives.includes(altUrl)) {
+              alternatives.push(altUrl);
+            }
+          }
         }
       }
     } else {
