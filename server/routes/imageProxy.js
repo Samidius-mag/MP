@@ -61,9 +61,13 @@ async function processRequestQueue() {
       if (result && result.tryAlternatives && result.alternativeUrls && result.alternativeUrls.length > 0) {
         console.log(`[IMAGE PROXY] 🔄 Trying ${result.alternativeUrls.length} alternative URLs...`);
         let found = false;
+        const MAX_ALTERNATIVE_ATTEMPTS = 10; // Ограничиваем количество попыток
+        const ALTERNATIVE_TIMEOUT = 3000; // Таймаут 3 секунды на альтернативный URL
         
-        for (const altUrl of result.alternativeUrls) {
+        for (let i = 0; i < Math.min(result.alternativeUrls.length, MAX_ALTERNATIVE_ATTEMPTS); i++) {
           if (found) break;
+          
+          const altUrl = result.alternativeUrls[i];
           
           // Проверяем кеш для альтернативного URL
           const altCacheKey = altUrl;
@@ -91,50 +95,61 @@ async function processRequestQueue() {
             // Ждем минимальный интервал перед следующим запросом
             await new Promise(resolve => setTimeout(resolve, MIN_REQUEST_INTERVAL));
             
-            await new Promise((resolveAlt, rejectAlt) => {
-              const altProtocol = altUrl.startsWith('https') ? https : http;
-              const altReq = altProtocol.get(altUrl, options, (altResponse) => {
-                if (altResponse.statusCode === 200) {
-                  console.log(`[IMAGE PROXY] ✅ Alternative URL worked: ${altUrl.substring(0, 80)}...`);
-                  const contentType = altResponse.headers['content-type'] || 'image/jpeg';
-                  const chunks = [];
-                  
-                  altResponse.on('data', (chunk) => chunks.push(chunk));
-                  altResponse.on('end', () => {
-                    const imageBuffer = Buffer.concat(chunks);
+            await Promise.race([
+              new Promise((resolveAlt, rejectAlt) => {
+                const altProtocol = altUrl.startsWith('https') ? https : http;
+                const altReq = altProtocol.get(altUrl, options, (altResponse) => {
+                  if (altResponse.statusCode === 200) {
+                    console.log(`[IMAGE PROXY] ✅ Alternative URL worked: ${altUrl.substring(0, 80)}...`);
+                    const contentType = altResponse.headers['content-type'] || 'image/jpeg';
+                    const chunks = [];
                     
-                    // Сохраняем в кеш
-                    imageCache.set(reqCacheKey, {
-                      buffer: imageBuffer,
-                      contentType: contentType,
-                      timestamp: Date.now(),
-                      isError: false
+                    altResponse.on('data', (chunk) => chunks.push(chunk));
+                    altResponse.on('end', () => {
+                      const imageBuffer = Buffer.concat(chunks);
+                      
+                      // Сохраняем в кеш
+                      imageCache.set(reqCacheKey, {
+                        buffer: imageBuffer,
+                        contentType: contentType,
+                        timestamp: Date.now(),
+                        isError: false
+                      });
+                      imageCache.set(altCacheKey, {
+                        buffer: imageBuffer,
+                        contentType: contentType,
+                        timestamp: Date.now(),
+                        isError: false
+                      });
+                      
+                      responseObj.setHeader('Content-Type', contentType);
+                      responseObj.setHeader('Cache-Control', 'public, max-age=86400');
+                      responseObj.setHeader('Access-Control-Allow-Origin', '*');
+                      responseObj.setHeader('X-Image-Alternative', 'true');
+                      responseObj.setHeader('Content-Length', imageBuffer.length);
+                      responseObj.send(imageBuffer);
+                      found = true;
+                      resolveAlt();
                     });
-                    imageCache.set(altCacheKey, {
-                      buffer: imageBuffer,
-                      contentType: contentType,
-                      timestamp: Date.now(),
-                      isError: false
-                    });
-                    
-                    responseObj.setHeader('Content-Type', contentType);
-                    responseObj.setHeader('Cache-Control', 'public, max-age=86400');
-                    responseObj.setHeader('Access-Control-Allow-Origin', '*');
-                    responseObj.setHeader('X-Image-Alternative', 'true');
-                    responseObj.setHeader('Content-Length', imageBuffer.length);
-                    responseObj.send(imageBuffer);
-                    found = true;
-                    resolveAlt();
-                  });
-                } else {
-                  rejectAlt(new Error(`Status ${altResponse.statusCode}`));
-                }
-              });
-              
-              altReq.on('error', (error) => {
-                rejectAlt(error);
-              });
-            });
+                  } else {
+                    // Читаем тело ответа для освобождения соединения
+                    altResponse.resume();
+                    rejectAlt(new Error(`Status ${altResponse.statusCode}`));
+                  }
+                });
+                
+                altReq.on('error', (error) => {
+                  rejectAlt(error);
+                });
+                
+                // Таймаут для запроса
+                altReq.setTimeout(ALTERNATIVE_TIMEOUT, () => {
+                  altReq.destroy();
+                  rejectAlt(new Error('Timeout'));
+                });
+              }),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), ALTERNATIVE_TIMEOUT))
+            ]);
             
             if (found) {
               resolve();
@@ -142,7 +157,10 @@ async function processRequestQueue() {
               return;
             }
           } catch (altError) {
-            console.log(`[IMAGE PROXY] ❌ Alternative URL failed: ${altUrl.substring(0, 80)}... (${altError.message})`);
+            // Тихо логируем только первые несколько ошибок, чтобы не засорять логи
+            if (i < 3) {
+              console.log(`[IMAGE PROXY] ❌ Alternative URL ${i + 1}/${Math.min(result.alternativeUrls.length, MAX_ALTERNATIVE_ATTEMPTS)} failed: ${altUrl.substring(0, 60)}...`);
+            }
             // Продолжаем пробовать следующие альтернативные URL
           }
         }
@@ -209,8 +227,10 @@ async function processRequestQueue() {
 }
 
 // Функция для генерации альтернативных URL при 404
+// ОГРАНИЧЕНО до 15 самых вероятных вариантов для предотвращения перегрузки
 function generateAlternativeUrls(originalUrl) {
   const alternatives = [];
+  const MAX_ALTERNATIVES = 15; // Максимальное количество альтернативных URL
   
   if (!originalUrl.includes('goods-photos.static1-sima-land.com')) {
     return alternatives;
@@ -230,53 +250,42 @@ function generateAlternativeUrls(originalUrl) {
       const itemId = pathParts[1];
       const version = pathParts[2];
       const imageId = pathParts[3].replace('.jpg', '');
-      
-      // Вариант 1: Без параметра ?v= (если он был в оригинале)
-      if (originalUrl.includes('?v=')) {
-        alternatives.push(urlWithoutQuery);
-      }
-      
-      // Вариант 2: Попробовать другие версии, сохраняя imageId
-      // Сначала пробуем популярные версии: 1, 2, 3, 5, 7, 10, 11, 15, 20
-      const popularVersions = [1, 2, 3, 5, 7, 10, 11, 15, 20];
-      for (const v of popularVersions) {
-        if (v.toString() !== version) {
-          const altUrl = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/${v}/${imageId}.jpg`;
-          alternatives.push(altUrl);
-        }
-      }
-      
-      // Вариант 3: Попробовать версию 0 (часто используется для основного изображения)
-      if (version !== '0') {
-        const altUrl = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/0/${imageId}.jpg`;
-        alternatives.push(altUrl);
-      }
-      
-      // Вариант 4: Попробовать все остальные версии до 20
-      for (let v = 1; v <= 20; v++) {
-        if (v.toString() !== version && !popularVersions.includes(v)) {
-          const altUrl = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/${v}/${imageId}.jpg`;
-          alternatives.push(altUrl);
-        }
-      }
-      
-      // Вариант 5: Если imageId выглядит как timestamp (большое число > 1000000000), 
-      // это означает, что в БД сохранен неправильный формат URL
-      // В этом случае пробуем разные варианты imageId с популярными версиями
       const imageIdNum = parseInt(imageId);
-      if (!isNaN(imageIdNum) && imageIdNum > 1000000000) {
-        // Это похоже на timestamp, попробуем другие варианты imageId
-        // Попробуем использовать меньшие числа, которые могут быть реальными imageId
-        // Начинаем с самых популярных вариантов
-        const possibleImageIds = [700, 500, 1000, 200, 100, 50, 10, 5, 3, 2, 1];
-        const testVersions = [11, 10, 7, 5, 3, 2, 1]; // Популярные версии
-        for (const imgId of possibleImageIds) {
-          for (const v of testVersions) {
+      const isTimestamp = !isNaN(imageIdNum) && imageIdNum > 1000000000;
+      
+      // ПРИОРИТЕТ 1: Если imageId выглядит как timestamp, пробуем популярные imageId с популярными версиями
+      // Это самый частый случай - неправильный формат в БД
+      if (isTimestamp) {
+        // Самые популярные комбинации: версия 7, 5, 11, 10 с imageId 700, 500, 1000
+        const priorityImageIds = [700, 500, 1000, 200, 100];
+        const priorityVersions = [7, 5, 11, 10, 3, 2, 1];
+        
+        for (const imgId of priorityImageIds) {
+          if (alternatives.length >= MAX_ALTERNATIVES) break;
+          for (const v of priorityVersions) {
+            if (alternatives.length >= MAX_ALTERNATIVES) break;
             const altUrl = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/${v}/${imgId}.jpg`;
-            // Добавляем только если еще не добавлен
             if (!alternatives.includes(altUrl)) {
               alternatives.push(altUrl);
             }
+          }
+        }
+      } else {
+        // ПРИОРИТЕТ 2: Если imageId нормальный, пробуем другие версии с тем же imageId
+        // Сначала самые популярные версии
+        const priorityVersions = [7, 5, 11, 10, 3, 2, 1, 0, 15, 20];
+        for (const v of priorityVersions) {
+          if (alternatives.length >= MAX_ALTERNATIVES) break;
+          if (v.toString() !== version) {
+            const altUrl = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/${v}/${imageId}.jpg`;
+            alternatives.push(altUrl);
+          }
+        }
+        
+        // ПРИОРИТЕТ 3: Без параметра ?v= (если он был в оригинале)
+        if (originalUrl.includes('?v=') && alternatives.length < MAX_ALTERNATIVES) {
+          if (!alternatives.includes(urlWithoutQuery)) {
+            alternatives.push(urlWithoutQuery);
           }
         }
       }
@@ -295,7 +304,8 @@ function generateAlternativeUrls(originalUrl) {
     }
   }
   
-  return alternatives;
+  // Ограничиваем до MAX_ALTERNATIVES
+  return alternatives.slice(0, MAX_ALTERNATIVES);
 }
 
 // Функция для обработки ответа из очереди
