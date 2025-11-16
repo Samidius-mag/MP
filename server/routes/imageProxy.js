@@ -309,32 +309,38 @@ async function handleQueueResponse(imageResponse, urlToTry, res, cacheKey, image
     
     // Обработка 404 - пробуем альтернативные URL
     if (imageResponse.statusCode === 404 && alternativeUrls.length > 0) {
-      console.log(`[IMAGE PROXY] 🔄 Trying alternative URLs for 404...`);
+      console.log(`[IMAGE PROXY] 🔄 404 error, will try ${alternativeUrls.length} alternative URLs...`);
+      // Читаем и игнорируем тело ответа, чтобы освободить соединение
+      imageResponse.resume(); // Это автоматически читает и игнорирует данные
       // Возвращаем специальный флаг, чтобы попробовать альтернативные URL
       return { tryAlternatives: true, alternativeUrls };
     }
     
-    // Другие ошибки
-    const placeholderSvg = `<?xml version="1.0" encoding="UTF-8"?>
+    // Другие ошибки - читаем тело ответа
+    const errorChunks = [];
+    imageResponse.on('data', (chunk) => errorChunks.push(chunk));
+    imageResponse.on('end', () => {
+      const placeholderSvg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg width="1" height="1" xmlns="http://www.w3.org/2000/svg">
   <rect width="1" height="1" fill="#f3f4f6"/>
 </svg>`;
-    const placeholderBuffer = Buffer.from(placeholderSvg);
-    
-    imageCache.set(cacheKey, {
-      buffer: placeholderBuffer,
-      contentType: 'image/svg+xml',
-      timestamp: Date.now(),
-      isError: true,
-      errorCode: imageResponse.statusCode
+      const placeholderBuffer = Buffer.from(placeholderSvg);
+      
+      imageCache.set(cacheKey, {
+        buffer: placeholderBuffer,
+        contentType: 'image/svg+xml',
+        timestamp: Date.now(),
+        isError: true,
+        errorCode: imageResponse.statusCode
+      });
+      
+      res.setHeader('Content-Type', 'image/svg+xml');
+      res.setHeader('Content-Length', placeholderBuffer.length);
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('X-Image-Error', String(imageResponse.statusCode));
+      res.status(200).send(placeholderBuffer);
     });
-    
-    res.setHeader('Content-Type', 'image/svg+xml');
-    res.setHeader('Content-Length', placeholderBuffer.length);
-    res.setHeader('Cache-Control', 'public, max-age=3600');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('X-Image-Error', String(imageResponse.statusCode));
-    res.status(200).send(placeholderBuffer);
     return;
   }
   
@@ -385,11 +391,11 @@ router.get('/test-image-proxy', (req, res) => {
 // Этот маршрут доступен без аутентификации
 router.get('/sima-land/image-proxy', async (req, res) => {
   // КРИТИЧЕСКИ ВАЖНО: Логируем ВСЕГДА, даже если потом будет ошибка
-  console.error(`[IMAGE PROXY] ========== ROUTE HANDLER CALLED ==========`);
-  console.error(`[IMAGE PROXY] Query:`, req.query);
-  console.error(`[IMAGE PROXY] Full URL:`, req.url);
-  console.error(`[IMAGE PROXY] Method:`, req.method);
-  console.error(`[IMAGE PROXY] Path:`, req.path);
+  console.log(`[IMAGE PROXY] ========== ROUTE HANDLER CALLED ==========`);
+  console.log(`[IMAGE PROXY] Query:`, req.query);
+  console.log(`[IMAGE PROXY] Full URL:`, req.url);
+  console.log(`[IMAGE PROXY] Method:`, req.method);
+  console.log(`[IMAGE PROXY] Path:`, req.path);
   
   try {
     let imageUrl = req.query.url;
@@ -522,6 +528,9 @@ router.get('/sima-land/image-proxy', async (req, res) => {
     
     // Генерируем альтернативные URL на случай 404
     const alternativeUrls = generateAlternativeUrls(imageUrl);
+    if (alternativeUrls.length > 0) {
+      console.log(`[IMAGE PROXY] 🔍 Generated ${alternativeUrls.length} alternative URLs for fallback`);
+    }
     
     // Добавляем запрос в очередь
     const requestPromise = new Promise((resolve, reject) => {
