@@ -257,11 +257,13 @@ function generateAlternativeUrls(originalUrl) {
       if (isTimestamp) {
         // ТОЛЬКО самые популярные комбинации (на основе статистики из логов)
         // Версия 7 с imageId 700 - самая частая рабочая комбинация
-        alternatives.push(`${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/7/700.jpg`);
-        alternatives.push(`${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/5/700.jpg`);
-        alternatives.push(`${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/11/700.jpg`);
-        alternatives.push(`${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/2/700.jpg`);
-        alternatives.push(`${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/1/700.jpg`);
+        const alt1 = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/7/700.jpg`;
+        const alt2 = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/5/700.jpg`;
+        const alt3 = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/11/700.jpg`;
+        const alt4 = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/2/700.jpg`;
+        const alt5 = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/1/700.jpg`;
+        alternatives.push(alt1, alt2, alt3, alt4, alt5);
+        console.log(`[IMAGE PROXY] 🔍 Generated alternatives for timestamp case: itemId=${itemId}, original imageId=${imageId}`);
       } else {
         // ПРИОРИТЕТ 2: Если imageId нормальный, пробуем только самые популярные версии
         const priorityVersions = [7, 5, 11, 2, 1];
@@ -509,8 +511,16 @@ router.get('/sima-land/image-proxy', async (req, res) => {
     
     console.log(`[IMAGE PROXY] 🔍 Request headers:`, JSON.stringify(options.headers, null, 2));
     
+    // Создаем cacheKey БЕЗ параметра _t (который игнорируется)
+    // Это важно для правильной работы кеша при переходах между страницами
+    let cacheKey = imageUrl;
+    if (cacheKey.includes('&_t=') || cacheKey.includes('?_t=')) {
+      // Удаляем параметр _t из cacheKey
+      cacheKey = cacheKey.replace(/[?&]_t=\d+/g, '').replace(/\?$/, '');
+      console.log(`[IMAGE PROXY] 🔑 Cache key normalized (removed _t): ${cacheKey.substring(0, 80)}...`);
+    }
+    
     // Проверяем кеш перед запросом
-    const cacheKey = imageUrl;
     const cached = imageCache.get(cacheKey);
     if (cached) {
       const cacheAge = Date.now() - cached.timestamp;

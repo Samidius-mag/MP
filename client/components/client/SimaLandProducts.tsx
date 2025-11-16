@@ -124,14 +124,13 @@ function ProductImage({ product }: { product: SimaLandProduct }) {
     );
   }
 
-  // Добавляем параметр для обхода кеша браузера
-  const imageUrlWithCacheBust = currentImageUrl && currentImageUrl.includes('/api/sima-land/image-proxy')
-    ? `${currentImageUrl}${currentImageUrl.includes('?') ? '&' : '?'}_t=${Date.now()}`
-    : currentImageUrl;
+  // НЕ добавляем cache busting - сервер сам управляет кешем
+  // Это позволяет браузеру использовать кеш при переходах между страницами
+  // Сервер игнорирует параметр _t, если он есть, и использует нормализованный cacheKey
 
   return (
     <img 
-      src={imageUrlWithCacheBust} 
+      src={currentImageUrl} 
       alt={product.name} 
       className="w-full h-48 object-cover bg-gray-100"
       loading="lazy"
