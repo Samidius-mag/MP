@@ -61,8 +61,8 @@ async function processRequestQueue() {
       if (result && result.tryAlternatives && result.alternativeUrls && result.alternativeUrls.length > 0) {
         console.log(`[IMAGE PROXY] 🔄 Trying ${result.alternativeUrls.length} alternative URLs...`);
         let found = false;
-        const MAX_ALTERNATIVE_ATTEMPTS = 10; // Ограничиваем количество попыток
-        const ALTERNATIVE_TIMEOUT = 3000; // Таймаут 3 секунды на альтернативный URL
+        const MAX_ALTERNATIVE_ATTEMPTS = 5; // Ограничиваем количество попыток (соответствует MAX_ALTERNATIVES)
+        const ALTERNATIVE_TIMEOUT = 2000; // Таймаут 2 секунды на альтернативный URL (уменьшено)
         
         for (let i = 0; i < Math.min(result.alternativeUrls.length, MAX_ALTERNATIVE_ATTEMPTS); i++) {
           if (found) break;
@@ -227,10 +227,10 @@ async function processRequestQueue() {
 }
 
 // Функция для генерации альтернативных URL при 404
-// ОГРАНИЧЕНО до 15 самых вероятных вариантов для предотвращения перегрузки
+// РАДИКАЛЬНО ОГРАНИЧЕНО до 5 самых вероятных вариантов для предотвращения перегрузки и 429 ошибок
 function generateAlternativeUrls(originalUrl) {
   const alternatives = [];
-  const MAX_ALTERNATIVES = 15; // Максимальное количество альтернативных URL
+  const MAX_ALTERNATIVES = 5; // Максимальное количество альтернативных URL (радикально уменьшено)
   
   if (!originalUrl.includes('goods-photos.static1-sima-land.com')) {
     return alternatives;
@@ -244,7 +244,6 @@ function generateAlternativeUrls(originalUrl) {
     
     // Формат: /items/{itemId}/{version}/{imageId}.jpg?v={timestamp}
     // Пример рабочей ссылки: /items/3916390/11/700.jpg?v=1680674667
-    // Пример из логов: /items/6854387/7/1714629330.jpg?v=1714629330
     // Проблема: в некоторых URL в пути используется timestamp вместо imageId
     if (pathParts.length >= 4 && pathParts[0] === 'items') {
       const itemId = pathParts[1];
@@ -253,55 +252,29 @@ function generateAlternativeUrls(originalUrl) {
       const imageIdNum = parseInt(imageId);
       const isTimestamp = !isNaN(imageIdNum) && imageIdNum > 1000000000;
       
-      // ПРИОРИТЕТ 1: Если imageId выглядит как timestamp, пробуем популярные imageId с популярными версиями
+      // ПРИОРИТЕТ 1: Если imageId выглядит как timestamp, пробуем ТОЛЬКО самые популярные комбинации
       // Это самый частый случай - неправильный формат в БД
       if (isTimestamp) {
-        // Самые популярные комбинации: версия 7, 5, 11, 10 с imageId 700, 500, 1000
-        const priorityImageIds = [700, 500, 1000, 200, 100];
-        const priorityVersions = [7, 5, 11, 10, 3, 2, 1];
-        
-        for (const imgId of priorityImageIds) {
-          if (alternatives.length >= MAX_ALTERNATIVES) break;
-          for (const v of priorityVersions) {
-            if (alternatives.length >= MAX_ALTERNATIVES) break;
-            const altUrl = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/${v}/${imgId}.jpg`;
-            if (!alternatives.includes(altUrl)) {
-              alternatives.push(altUrl);
-            }
-          }
-        }
+        // ТОЛЬКО самые популярные комбинации (на основе статистики из логов)
+        // Версия 7 с imageId 700 - самая частая рабочая комбинация
+        alternatives.push(`${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/7/700.jpg`);
+        alternatives.push(`${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/5/700.jpg`);
+        alternatives.push(`${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/11/700.jpg`);
+        alternatives.push(`${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/2/700.jpg`);
+        alternatives.push(`${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/1/700.jpg`);
       } else {
-        // ПРИОРИТЕТ 2: Если imageId нормальный, пробуем другие версии с тем же imageId
-        // Сначала самые популярные версии
-        const priorityVersions = [7, 5, 11, 10, 3, 2, 1, 0, 15, 20];
+        // ПРИОРИТЕТ 2: Если imageId нормальный, пробуем только самые популярные версии
+        const priorityVersions = [7, 5, 11, 2, 1];
         for (const v of priorityVersions) {
           if (alternatives.length >= MAX_ALTERNATIVES) break;
           if (v.toString() !== version) {
-            const altUrl = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/${v}/${imageId}.jpg`;
-            alternatives.push(altUrl);
+            alternatives.push(`${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/${v}/${imageId}.jpg`);
           }
         }
-        
-        // ПРИОРИТЕТ 3: Без параметра ?v= (если он был в оригинале)
-        if (originalUrl.includes('?v=') && alternatives.length < MAX_ALTERNATIVES) {
-          if (!alternatives.includes(urlWithoutQuery)) {
-            alternatives.push(urlWithoutQuery);
-          }
-        }
-      }
-    } else {
-      // Если формат не соответствует ожидаемому, просто пробуем без параметра ?v=
-      if (originalUrl.includes('?v=')) {
-        alternatives.push(urlWithoutQuery);
       }
     }
   } catch (e) {
     console.error(`[IMAGE PROXY] Error generating alternative URLs:`, e.message);
-    // Если не удалось распарсить URL, просто пробуем без параметра ?v=
-    if (originalUrl.includes('?v=')) {
-      const urlWithoutQuery = originalUrl.split('?')[0];
-      alternatives.push(urlWithoutQuery);
-    }
   }
   
   // Ограничиваем до MAX_ALTERNATIVES
