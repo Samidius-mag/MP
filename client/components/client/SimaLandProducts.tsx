@@ -42,6 +42,7 @@ function ProductImage({ product }: { product: SimaLandProduct }) {
     const urls: string[] = [];
     if (product.image_url) {
       urls.push(product.image_url);
+      console.log(`[CLIENT] 📸 Product ${product.id}: main image_url = ${product.image_url.substring(0, 80)}...`);
     }
     if (product.image_urls && Array.isArray(product.image_urls)) {
       // Добавляем альтернативные URL, избегая дубликатов
@@ -50,7 +51,9 @@ function ProductImage({ product }: { product: SimaLandProduct }) {
           urls.push(url);
         }
       });
+      console.log(`[CLIENT] 📸 Product ${product.id}: ${product.image_urls.length} alternative image_urls`);
     }
+    console.log(`[CLIENT] 📸 Product ${product.id}: Total ${urls.length} image URLs available`);
     setAllImageUrls(urls);
     setCurrentImageIndex(0);
     setImageError(false);
@@ -86,7 +89,9 @@ function ProductImage({ product }: { product: SimaLandProduct }) {
     const img = e.currentTarget;
     setIsLoading(false);
     
-    // Если изображение слишком маленькое (менее 10x10), это может быть placeholder от сервераw
+    console.log(`[CLIENT] ✅ Image loaded: ${currentImageUrl?.substring(0, 80)}... (${img.naturalWidth}x${img.naturalHeight})`);
+    
+    // Если изображение слишком маленькое (менее 10x10), это может быть placeholder от сервера
     // (например, при 404 ошибке мы возвращаем SVG 1x1)
     if (img.naturalWidth < 10 && img.naturalHeight < 10) {
       console.log(`[CLIENT] ⚠️ Image is too small (${img.naturalWidth}x${img.naturalHeight}), likely a placeholder - trying next image`);

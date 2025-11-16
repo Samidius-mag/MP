@@ -234,15 +234,25 @@ function generateAlternativeUrls(originalUrl) {
         alternatives.push(urlWithoutQuery);
       }
       
-      // Вариант 2: Попробовать версию 0 (часто используется для основного изображения)
+      // Вариант 2: Попробовать другие версии (1-20, но не текущую)
+      // Сначала пробуем популярные версии: 1, 2, 3, 5, 7, 10, 11, 15, 20
+      const popularVersions = [1, 2, 3, 5, 7, 10, 11, 15, 20];
+      for (const v of popularVersions) {
+        if (v.toString() !== version) {
+          const altUrl = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/${v}/${timestamp}.jpg`;
+          alternatives.push(altUrl);
+        }
+      }
+      
+      // Вариант 3: Попробовать версию 0 (часто используется для основного изображения)
       if (version !== '0') {
         const altUrl = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/0/${timestamp}.jpg`;
         alternatives.push(altUrl);
       }
       
-      // Вариант 3: Попробовать другие версии (1-10, но не текущую)
-      for (let v = 1; v <= 10; v++) {
-        if (v.toString() !== version) {
+      // Вариант 4: Попробовать все остальные версии до 20
+      for (let v = 1; v <= 20; v++) {
+        if (v.toString() !== version && !popularVersions.includes(v)) {
           const altUrl = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/${v}/${timestamp}.jpg`;
           alternatives.push(altUrl);
         }
@@ -396,6 +406,7 @@ router.get('/sima-land/image-proxy', async (req, res) => {
   console.log(`[IMAGE PROXY] Full URL:`, req.url);
   console.log(`[IMAGE PROXY] Method:`, req.method);
   console.log(`[IMAGE PROXY] Path:`, req.path);
+  console.log(`[IMAGE PROXY] Headers:`, JSON.stringify(req.headers, null, 2));
   
   try {
     let imageUrl = req.query.url;
