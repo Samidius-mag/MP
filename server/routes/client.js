@@ -2852,7 +2852,11 @@ router.get('/ozon/categories', requireClient, async (req, res) => {
           // Добавляем категорию/тип в список, если у него есть ID
           // Добавляем все элементы, не только листовые, чтобы пользователь мог выбрать любую категорию
           if (id && name) {
-            flat.push({ id, name });
+            flat.push({ 
+              id, 
+              name,
+              isTypeId: !!typeId // Сохраняем информацию о том, является ли это типом товара
+            });
           }
         }
       };
@@ -2882,11 +2886,14 @@ router.post('/ozon/category/:categoryId/attributes', requireClient, async (req, 
       if (!credentials.apiKey || !credentials.clientId) {
         return res.status(400).json({ error: 'API ключ или Client ID OZON не настроены' });
       }
-      console.log(`[OZON] Fetch attributes: categoryId=${req.params.categoryId}`);
+      const categoryId = req.params.categoryId;
+      const isTypeId = req.query.isTypeId === 'true' || req.body?.isTypeId === true;
+      console.log(`[OZON] Fetch attributes: categoryId=${categoryId}, isTypeId=${isTypeId}`);
       const data = await ozon.getCategoryAttributes(
         credentials.apiKey,
         credentials.clientId,
-        req.params.categoryId
+        categoryId,
+        isTypeId
       );
       console.log('[OZON] Raw attributes data keys:', Object.keys(data || {}));
       console.log('[OZON] Raw attributes data sample:', JSON.stringify(data).substring(0, 500));
@@ -2909,7 +2916,7 @@ router.post('/ozon/category/:categoryId/attributes', requireClient, async (req, 
 router.post('/store-products/:productId/upload/ozon', requireClient, async (req, res) => {
   try {
     const { productId } = req.params;
-    const { categoryId, attributes } = req.body;
+    const { categoryId, attributes, isTypeId } = req.body;
 
     const client = await pool.connect();
     try {
@@ -2931,6 +2938,7 @@ router.post('/store-products/:productId/upload/ozon', requireClient, async (req,
 
       const result = await ozonService.uploadProductToMarket(clientId, productId, {
         categoryId: categoryId || null,
+        isTypeId: isTypeId || false,
         attributes: Array.isArray(attributes) ? attributes : undefined
       });
 

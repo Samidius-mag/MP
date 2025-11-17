@@ -63,16 +63,27 @@ class OzonService {
    * Получить атрибуты категории OZON
    * Документация: https://docs.ozon.ru/api/seller/#operation/ProductAPI_GetProductAttributes
    * Используем актуальный метод /v1/description-category/attribute
+   * 
+   * @param {string} categoryId - Может быть как description_category_id, так и type_id
+   * @param {boolean} isTypeId - Если true, то categoryId является type_id, иначе description_category_id
    */
-  async getCategoryAttributes(apiKey, clientId, categoryId) {
+  async getCategoryAttributes(apiKey, clientId, categoryId, isTypeId = false) {
     try {
+      const requestBody = {
+        language: 'RU'
+      };
+
+      // Если это type_id, передаем только type_id
+      if (isTypeId) {
+        requestBody.type_id = Number(categoryId);
+      } else {
+        // Если это description_category_id, передаем только description_category_id
+        requestBody.description_category_id = Number(categoryId);
+      }
+
       const response = await axios.post(
         `${this.baseUrl}/v1/description-category/attribute`,
-        {
-          description_category_id: Number(categoryId),
-          type_id: 0, // 0 для получения всех типов, или конкретный type_id
-          language: 'RU'
-        },
+        requestBody,
         {
           headers: {
             'Client-Id': clientId,
@@ -291,13 +302,15 @@ class OzonService {
       // Получаем атрибуты категории и маппим характеристики
       let attributes = [];
       const categoryId = options.categoryId;
+      const isTypeId = options.isTypeId || false;
       
       if (categoryId && characteristics && Object.keys(characteristics).length > 0) {
         try {
           const ozonAttributes = await this.getCategoryAttributes(
             credentials.apiKey,
             credentials.clientId,
-            categoryId
+            categoryId,
+            isTypeId
           );
           attributes = this.mapCharacteristicsToOzon(characteristics, ozonAttributes);
         } catch (attrError) {
@@ -314,7 +327,6 @@ class OzonService {
       const productData = {
         offer_id: product.article, // Уникальный идентификатор товара
         name: product.name,
-        category_id: Number(categoryId),
         price: String(sellingPrice.toFixed(2)), // Цена в рублях (строка)
         vat: '0', // НДС (0, 0.1, 0.2)
         description: product.description || product.name,
@@ -327,9 +339,16 @@ class OzonService {
         width: product.width_cm ? Math.round(product.width_cm * 10) : undefined // Ширина в мм
       };
 
+      // Если это type_id, используем type_id, иначе category_id
+      if (isTypeId) {
+        productData.type_id = Number(categoryId);
+      } else {
+        productData.category_id = Number(categoryId);
+      }
+
       // Проверяем обязательные поля
-      if (!productData.category_id) {
-        throw new Error('OZON category ID is required');
+      if (!categoryId) {
+        throw new Error('OZON category ID or type ID is required');
       }
 
       // Импортируем товар

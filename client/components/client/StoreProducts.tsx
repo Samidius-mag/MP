@@ -63,6 +63,7 @@ export default function StoreProducts() {
   const [ozonLoading, setOzonLoading] = useState(false);
   const [ozonCategories, setOzonCategories] = useState<any[]>([]);
   const [ozonSelectedCategoryId, setOzonSelectedCategoryId] = useState<string>('');
+  const [ozonSelectedCategoryIsType, setOzonSelectedCategoryIsType] = useState<boolean>(false);
   const [ozonAttributes, setOzonAttributes] = useState<any[]>([]);
   const [ozonAttributeValues, setOzonAttributeValues] = useState<Record<string, any>>({});
   const [ozonCategorySearch, setOzonCategorySearch] = useState('');
@@ -323,13 +324,15 @@ export default function StoreProducts() {
     }
   };
 
-  const loadOzonAttributes = async (categoryId: string) => {
+  const loadOzonAttributes = async (categoryId: string, isTypeId: boolean = false) => {
     setOzonAttributes([]);
     setOzonAttributeValues({});
     if (!categoryId) return;
     setOzonLoading(true);
     try {
-      const { data } = await api.post(`/client/ozon/category/${categoryId}/attributes`);
+      const { data } = await api.post(`/client/ozon/category/${categoryId}/attributes`, {
+        isTypeId: isTypeId
+      });
       const attrs = data?.attributes || data?.result || [];
       setOzonAttributes(Array.isArray(attrs) ? attrs : []);
     } catch (e: any) {
@@ -357,6 +360,7 @@ export default function StoreProducts() {
 
       await api.post(`/client/store-products/${ozonTargetProductId}/upload/ozon`, {
         categoryId: Number(ozonSelectedCategoryId),
+        isTypeId: ozonSelectedCategoryIsType,
         attributes: attributes.length > 0 ? attributes : undefined
       });
       toast.success('Товар загружен на OZON');
@@ -957,8 +961,11 @@ export default function StoreProducts() {
                   <select
                     value={ozonSelectedCategoryId}
                     onChange={(e) => {
+                      const selectedCategory = ozonCategories.find((c: any) => c.id === Number(e.target.value));
+                      const isTypeId = selectedCategory?.isTypeId || false;
                       setOzonSelectedCategoryId(e.target.value);
-                      loadOzonAttributes(e.target.value);
+                      setOzonSelectedCategoryIsType(isTypeId);
+                      loadOzonAttributes(e.target.value, isTypeId);
                     }}
                     className="input"
                     size={8}
