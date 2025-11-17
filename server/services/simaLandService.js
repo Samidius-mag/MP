@@ -305,13 +305,25 @@ class SimaLandService {
       }).filter(url => url !== null);
       
       // ВАЖНО: Убеждаемся, что первое изображение (главное) установлено правильно
+      // Заменяем все 140.jpg на 700.jpg в массиве изображений
+      imageUrls = imageUrls.map(url => {
+        if (typeof url === 'string' && url.includes('/140.jpg')) {
+          const replaced = url.replace(/\/140\.jpg/, '/700.jpg');
+          console.log(`[SIMA LAND] 🔄 Replaced 140.jpg with 700.jpg: ${url} -> ${replaced}`);
+          return replaced;
+        }
+        return url;
+      });
+      
       // Если первое изображение не из img, но img существует, заменяем первое изображение на img
       if (imageUrls.length > 0 && product.img && typeof product.img === 'string' && product.img.includes('goods-photos.static1-sima-land.com')) {
+        // Заменяем 140.jpg на 700.jpg в img
+        let imgUrl = product.img.replace(/\/140\.jpg/, '/700.jpg');
         // Проверяем, не совпадает ли первое изображение с img
-        if (imageUrls[0] !== product.img) {
+        if (imageUrls[0] !== imgUrl) {
           console.log(`[SIMA LAND] 🔄 Replacing first image with img field for better reliability`);
           // Заменяем первое изображение на img (оно точно работает)
-          imageUrls[0] = product.img;
+          imageUrls[0] = imgUrl;
         }
       }
       
@@ -469,13 +481,25 @@ class SimaLandService {
     // Убираем дубликаты
     imageUrls = [...new Set(imageUrls)];
     
+    // ВАЖНО: Заменяем все 140.jpg на 700.jpg в массиве изображений
+    imageUrls = imageUrls.map(url => {
+      if (typeof url === 'string' && url.includes('/140.jpg')) {
+        const replaced = url.replace(/\/140\.jpg/, '/700.jpg');
+        console.log(`[SIMA LAND] 🔄 Replaced 140.jpg with 700.jpg in imageUrls: ${url.substring(0, 80)}... -> ${replaced.substring(0, 80)}...`);
+        return replaced;
+      }
+      return url;
+    });
+    
     // ВАЖНО: Если imageUrls пустой, но есть поле img, используем его как главное изображение
     // Это нужно для товаров из списка, где photos может отсутствовать
     if (imageUrls.length === 0 && product.img && typeof product.img === 'string') {
       console.log(`[SIMA LAND] 🔍 No images in array, but img field exists: ${product.img}`);
       if (product.img.includes('goods-photos.static1-sima-land.com')) {
-        imageUrls.push(product.img);
-        console.log(`[SIMA LAND] ✅ Added img field to imageUrls: ${product.img}`);
+        // Заменяем 140.jpg на 700.jpg перед добавлением
+        const imgUrl = product.img.replace(/\/140\.jpg/, '/700.jpg');
+        imageUrls.push(imgUrl);
+        console.log(`[SIMA LAND] ✅ Added img field to imageUrls (replaced 140 with 700): ${imgUrl}`);
       }
     }
     
@@ -516,36 +540,14 @@ class SimaLandService {
     }
     
     // Основное изображение (первое) - для обратной совместимости
-    // ВАЖНО: Главное изображение должно быть с индексом 0
-    // Извлекаем индекс из URL (например, /items/6924082/0/... -> индекс 0)
-    const extractIndex = (url) => {
-      if (typeof url !== 'string') return null;
-      const match = url.match(/\/items\/\d+\/(\d+)\//);
-      return match ? parseInt(match[1]) : null;
-    };
-    
-    // Ищем изображение с индексом 0 в массиве, если не найдено - используем индекс 1
+    // ВАЖНО: Главное изображение всегда берется из первого элемента массива imageUrls
+    // Это гарантирует, что главное изображение карточки будет показываться
     let imageUrl = null;
     if (imageUrls.length > 0) {
-      // Сначала ищем изображение с индексом 0
-      const index0Image = imageUrls.find(url => extractIndex(url) === 0);
-      if (index0Image) {
-        // Заменяем 140.jpg на 700.jpg в URL
-        imageUrl = index0Image.replace(/\/140\.jpg/, '/700.jpg');
-        console.log(`[SIMA LAND] ✅ Using image with index 0 as main image (replaced 140 with 700): ${imageUrl}`);
-      } else {
-        // Если изображения с индексом 0 нет, ищем изображение с индексом 1
-        const index1Image = imageUrls.find(url => extractIndex(url) === 1);
-        if (index1Image) {
-          // Заменяем 140.jpg на 700.jpg в URL
-          imageUrl = index1Image.replace(/\/140\.jpg/, '/700.jpg');
-          console.log(`[SIMA LAND] ✅ Using image with index 1 as main image (replaced 140 with 700): ${imageUrl}`);
-        } else {
-          // Если ни индекс 0, ни индекс 1 не найдены, используем первое изображение
-          imageUrl = imageUrls[0].replace(/\/140\.jpg/, '/700.jpg');
-          console.log(`[SIMA LAND] ⚠️ No image with index 0 or 1 found, using first image (replaced 140 with 700): ${imageUrl}`);
-        }
-      }
+      // ВАЖНО: Всегда используем первое изображение из массива как главное
+      // Заменяем 140.jpg на 700.jpg в URL
+      imageUrl = imageUrls[0].replace(/\/140\.jpg/, '/700.jpg');
+      console.log(`[SIMA LAND] ✅ Using first image from array as main image (replaced 140 with 700): ${imageUrl}`);
     }
     
     // Если imageUrls пустой, но есть img, используем img как главное изображение
@@ -1430,10 +1432,16 @@ class SimaLandService {
             }
 
             // ВАЖНО: Убеждаемся, что главное изображение установлено
-            // Если finalImageUrl пустое, но есть изображения в массиве, используем первое
-            if (!finalImageUrl && finalImageUrls && finalImageUrls.length > 0) {
-              finalImageUrl = finalImageUrls[0];
-              console.log(`[SIMA LAND] 🔄 Using first image from array as main image: ${finalImageUrl}`);
+            // Всегда используем первое изображение из массива как главное
+            // Это гарантирует, что главное изображение карточки будет показываться
+            if (finalImageUrls && finalImageUrls.length > 0) {
+              // Заменяем 140.jpg на 700.jpg перед установкой главного изображения
+              finalImageUrl = finalImageUrls[0].replace(/\/140\.jpg/, '/700.jpg');
+              console.log(`[SIMA LAND] 🔄 Using first image from array as main image (replaced 140 with 700): ${finalImageUrl}`);
+            } else if (!finalImageUrl && parsedProduct.image_url) {
+              // Если массив пустой, но есть image_url, используем его
+              finalImageUrl = parsedProduct.image_url.replace(/\/140\.jpg/, '/700.jpg');
+              console.log(`[SIMA LAND] 🔄 Using image_url as main image (replaced 140 with 700): ${finalImageUrl}`);
             }
             
             // Логируем перед сохранением
