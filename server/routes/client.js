@@ -1666,7 +1666,7 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
           product.image_urls = [];
         }
         
-        // Убеждаемся, что image_url - это строка, а не null или undefined
+        // Убеждаемся, что dimage_url - это строка, а не null или undefined
         if (!product.image_url || product.image_url === 'null' || product.image_url === 'undefined') {
           product.image_url = null;
         } else if (typeof product.image_url !== 'string') {
