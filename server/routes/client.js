@@ -1618,18 +1618,33 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
               // Убираем возможные двойные экранирования кавычек
               // PostgreSQL может возвращать JSON строку как: "[""url1"", ""url2""]"
               let cleaned = imageUrls.trim();
-              // Если строка начинается и заканчивается кавычками, убираем их
+              
+              // Если строка начинается и заканчивается кавычками, убираем их (это экранированная JSON-строка)
               if (cleaned.startsWith('"') && cleaned.endsWith('"')) {
                 cleaned = cleaned.slice(1, -1);
+                // После удаления внешних кавычек, заменяем двойные кавычки на одинарные
+                // Формат: ["url1", "url2"] -> ['url1', 'url2']
+                cleaned = cleaned.replace(/""/g, '"');
+              } else {
+                // Если нет внешних кавычек, но есть двойные кавычки внутри, заменяем их
+                cleaned = cleaned.replace(/""/g, '"');
               }
-              // Заменяем двойные кавычки на одинарные для парсинга
-              // Но сначала пробуем просто распарсить
+              
+              // Пробуем распарсить JSON
               try {
                 imageUrls = JSON.parse(cleaned);
               } catch (parseError) {
-                // Если не получилось, пробуем заменить двойные экранированные кавычки
-                cleaned = cleaned.replace(/""/g, '"');
-                imageUrls = JSON.parse(cleaned);
+                // Если не получилось, пробуем еще раз с более агрессивной очисткой
+                try {
+                  // Убираем все лишние кавычки и пробуем снова
+                  cleaned = cleaned.replace(/^"+|"+$/g, ''); // Убираем кавычки в начале/конце
+                  cleaned = cleaned.replace(/""/g, '"'); // Заменяем двойные кавычки
+                  imageUrls = JSON.parse(cleaned);
+                } catch (secondParseError) {
+                  console.warn(`[API] Failed to parse image_urls JSON after cleaning:`, secondParseError.message);
+                  console.warn(`[API] Cleaned string:`, cleaned.substring(0, 200));
+                  throw parseError; // Бросаем оригинальную ошибку
+                }
               }
             }
             

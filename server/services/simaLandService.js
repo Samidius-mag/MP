@@ -142,56 +142,49 @@ class SimaLandService {
         url = img;
       } else if (typeof img === 'object' && img !== null) {
         // Специальная обработка для формата url_part + version
-        // Формат Sima Land: /items/{itemId}/{version}/{imageId}.jpg
-        // url_part может быть: "https://goods-photos.static1-sima-land.com/items/3916390/11"
-        // version может быть: 11 (версия изображения)
-        // imageId может быть: 700, 500, 1000 и т.д. (ID конкретного изображения)
+        // Формат Sima Land: /items/{itemId}/{index}/{timestamp}.jpg?v={timestamp}
+        // url_part может быть: "https://goods-photos.static1-sima-land.com/items/2804723/0"
+        //   где 2804723 - ID товара, 0 - индекс изображения (0, 1, 2, 3, 4, 5...)
+        // version может быть: timestamp (например, 1700666015)
         if (img.url_part && img.version) {
           const urlPart = img.url_part.toString().replace(/\/$/, ''); // Убираем trailing slash
           const version = img.version.toString();
           const versionNum = parseInt(version);
           
-          // ВАЖНО: Проверяем, есть ли imageId в объекте
-          // imageId может быть в разных полях: imageId, image_id, id, photo_id, photoId
-          let imageId = img.imageId || img.image_id || img.id || img.photo_id || img.photoId;
-          
-          // ВАЖНО: Если imageId нет, но version выглядит как timestamp (больше 1000000000),
-          // значит version на самом деле является imageId (timestamp используется как imageId)
-          // В этом случае используем version как imageId
-          if (!imageId && !isNaN(versionNum) && versionNum > 1000000000) {
-            // version - это timestamp, используем его как imageId
-            imageId = version;
-            console.log(`[SIMA LAND] 🔍 Using version (${version}) as imageId for image ${index}`);
-          }
-          
           // Проверяем, не является ли url_part уже полным URL (содержит .jpg)
           if (urlPart.includes('.jpg')) {
             // url_part уже содержит полный URL
             url = urlPart;
-          } else if (imageId) {
-            // Формируем полный URL: url_part/imageId.jpg
-            // url_part уже содержит путь до папки с версией: /items/{itemId}/{version}
-            url = `${urlPart}/${imageId}.jpg`;
+            // Извлекаем timestamp из URL, если он есть в query параметре
+            try {
+              const urlObj = new URL(urlPart);
+              timestamp = urlObj.searchParams.get('v') || version;
+            } catch (e) {
+              timestamp = version;
+            }
           } else {
-            // Если imageId все еще нет, не формируем URL
-            console.log(`[SIMA LAND] ⚠️ No imageId found for image ${index}, url_part=${urlPart}, version=${version}`);
-            return null;
+            // Формируем полный URL: url_part/version.jpg
+            // url_part уже содержит путь до папки с индексом: /items/{itemId}/{index}
+            // version - это timestamp, который используется как имя файла
+            // Правильный формат: /items/{itemId}/{index}/{timestamp}.jpg
+            url = `${urlPart}/${version}.jpg`;
+            timestamp = version;
           }
           
-          // Пытаемся найти timestamp для query параметра
-          // API может возвращать timestamp в разных полях:
-          // - updated_at, updated_at_ts, timestamp, ts, v, version_ts
-          timestamp = img.timestamp || 
-                     img.updated_at_ts || 
-                     img.ts || 
-                     img.v ||
-                     img.version_ts ||
-                     (img.updated_at ? Math.floor(new Date(img.updated_at).getTime() / 1000) : null) ||
-                     (imageId || version); // Fallback: используем imageId или version как timestamp
+          // Если timestamp не установлен, пытаемся найти его в других полях
+          if (!timestamp) {
+            timestamp = img.timestamp || 
+                       img.updated_at_ts || 
+                       img.ts || 
+                       img.v ||
+                       img.version_ts ||
+                       (img.updated_at ? Math.floor(new Date(img.updated_at).getTime() / 1000) : null) ||
+                       version; // Fallback: используем version как timestamp
+          }
         } else if (img.url_part) {
           // Если есть только url_part, пробуем добавить .jpg
           url = img.url_part.toString().replace(/\/$/, '') + '.jpg';
-          timestamp = img.timestamp || img.updated_at_ts || img.ts || img.v;
+          timestamp = img.timestamp || img.updated_at_ts || img.ts || img.v || img.version;
         } else {
           // Обычные поля
           url = img.url || img.src || img.link || img.original || img.full || img.image || null;
@@ -205,7 +198,7 @@ class SimaLandService {
       }
       
       // Добавляем query параметр ?v= если его еще нет и есть timestamp
-      // Формат должен быть: https://goods-photos.static1-sima-land.com/items/3916390/11/700.jpg?v=1680674667
+      // Формат должен быть: https://goods-photos.static1-sima-land.com/items/2804723/0/1700666015.jpg?v=1700666015
       if (url && url.includes('goods-photos.static1-sima-land.com') && url.endsWith('.jpg') && !url.includes('?v=')) {
         // Если timestamp есть, используем его, иначе используем текущий timestamp
         const vParam = timestamp || Math.floor(Date.now() / 1000);
@@ -235,7 +228,13 @@ class SimaLandService {
         if (product.images[0] && typeof product.images[0] === 'object') {
           console.log(`[SIMA LAND] 🔍 Image structure for product ${product.id || product.sid || 'unknown'}:`, JSON.stringify(product.images[0], null, 2));
         }
-        imageUrls = product.images.map((img, index) => extractImageUrl(img, index)).filter(url => url !== null);
+        imageUrls = product.images.map((img, index) => {
+          const url = extractImageUrl(img, index);
+          if (!url && img && typeof img === 'object') {
+            console.warn(`[SIMA LAND] ⚠️ Failed to extract URL for image ${index} of product ${product.id || product.sid || 'unknown'}:`, JSON.stringify(img));
+          }
+          return url;
+        }).filter(url => url !== null);
         // Удаляем дубликаты, но сохраняем порядок
         const uniqueUrls = [];
         const seenUrls = new Set();
