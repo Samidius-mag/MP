@@ -737,6 +737,16 @@ export default function SimaLandProducts() {
                           src={selectedProduct.image_urls[selectedImageIndex] || selectedProduct.image_url || ''}
                           alt={selectedProduct.name}
                           className="w-full h-full object-contain"
+                          onError={(e) => {
+                            console.log(`[CLIENT] ❌ Main image failed to load: ${(selectedProduct.image_urls[selectedImageIndex] || selectedProduct.image_url || '').substring(0, 80)}...`);
+                            // Пробуем следующее изображение
+                            if (selectedImageIndex < selectedProduct.image_urls.length - 1) {
+                              setSelectedImageIndex(selectedImageIndex + 1);
+                            }
+                          }}
+                          onLoad={() => {
+                            console.log(`[CLIENT] ✅ Main image loaded: ${(selectedProduct.image_urls[selectedImageIndex] || selectedProduct.image_url || '').substring(0, 80)}...`);
+                          }}
                         />
                       </div>
                       {/* Миниатюры */}
@@ -744,7 +754,7 @@ export default function SimaLandProducts() {
                         <div className="grid grid-cols-4 gap-2">
                           {selectedProduct.image_urls.map((url, index) => (
                             <button
-                              key={index}
+                              key={`${url}-${index}`}
                               onClick={() => setSelectedImageIndex(index)}
                               className={`relative aspect-square bg-gray-100 rounded-lg overflow-hidden border-2 transition-all ${
                                 selectedImageIndex === index
@@ -756,6 +766,19 @@ export default function SimaLandProducts() {
                                 src={url}
                                 alt={`${selectedProduct.name} - фото ${index + 1}`}
                                 className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  // При ошибке загрузки показываем placeholder
+                                  const target = e.currentTarget;
+                                  target.style.display = 'none';
+                                  const placeholder = document.createElement('div');
+                                  placeholder.className = 'w-full h-full flex items-center justify-center bg-gray-200';
+                                  placeholder.innerHTML = '<svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>';
+                                  target.parentElement?.appendChild(placeholder);
+                                  console.log(`[CLIENT] ❌ Thumbnail ${index + 1} failed to load: ${url.substring(0, 80)}...`);
+                                }}
+                                onLoad={() => {
+                                  console.log(`[CLIENT] ✅ Thumbnail ${index + 1} loaded: ${url.substring(0, 80)}...`);
+                                }}
                               />
                             </button>
                           ))}

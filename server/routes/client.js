@@ -1691,6 +1691,7 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
         
         // Также проксируем image_urls
         if (product.image_urls && Array.isArray(product.image_urls) && product.image_urls.length > 0) {
+          const originalCount = product.image_urls.length;
           product.image_urls = product.image_urls.map(url => {
             if (typeof url === 'string') {
               // Проверяем, что это не локальный URL (обработанные изображения)
@@ -1704,6 +1705,24 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
             }
             return url;
           });
+          // Удаляем дубликаты после проксирования
+          const uniqueUrls = [];
+          const seenUrls = new Set();
+          for (const url of product.image_urls) {
+            if (url && !seenUrls.has(url)) {
+              seenUrls.add(url);
+              uniqueUrls.push(url);
+            }
+          }
+          product.image_urls = uniqueUrls;
+          
+          // Логируем для отладки (первые несколько товаров)
+          if (productsResult.rows.indexOf(product) < 3) {
+            console.log(`[API] 📸 Product ${product.id}: ${originalCount} image URLs -> ${product.image_urls.length} unique proxied URLs`);
+            if (originalCount !== product.image_urls.length) {
+              console.log(`[API] ⚠️ Some URLs were duplicates or invalid`);
+            }
+          }
         }
 
         // Обрабатываем characteristics (JSONB может быть объектом или строкой)
