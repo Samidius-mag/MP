@@ -109,6 +109,10 @@ async function processRequestQueue() {
                       const imageBuffer = Buffer.concat(chunks);
                       
                       // Сохраняем в кеш
+                      // ВАЖНО: Сохраняем с ключом оригинального URL (reqCacheKey) и альтернативного URL (altCacheKey)
+                      // Это позволяет использовать кеш для обоих URL
+                      console.log(`[IMAGE PROXY] 💾 Saving to cache with key (original): ${reqCacheKey.substring(0, 100)}...`);
+                      console.log(`[IMAGE PROXY] 💾 Saving to cache with key (alternative): ${altCacheKey.substring(0, 100)}...`);
                       imageCache.set(reqCacheKey, {
                         buffer: imageBuffer,
                         contentType: contentType,
@@ -513,16 +517,34 @@ router.get('/sima-land/image-proxy', async (req, res) => {
     
     // Создаем cacheKey БЕЗ параметра _t (который игнорируется)
     // Это важно для правильной работы кеша при переходах между страницами
+    // ВАЖНО: cacheKey должен быть уникальным для каждого товара!
+    // Нормализуем URL: удаляем только параметр _t, но сохраняем остальные параметры (включая ?v=)
     let cacheKey = imageUrl;
+    
+    // ВАЖНО: НЕ удаляем параметр ?v=, так как он может быть разным для разных товаров!
+    // Удаляем только параметр _t (cache busting от клиента)
     if (cacheKey.includes('&_t=') || cacheKey.includes('?_t=')) {
-      // Удаляем параметр _t из cacheKey
-      cacheKey = cacheKey.replace(/[?&]_t=\d+/g, '').replace(/\?$/, '');
-      console.log(`[IMAGE PROXY] 🔑 Cache key normalized (removed _t): ${cacheKey.substring(0, 80)}...`);
+      // Удаляем параметр _t из cacheKey, но сохраняем остальные параметры (включая ?v=)
+      cacheKey = cacheKey.replace(/[?&]_t=\d+/g, '');
+      // Если после удаления _t остался только ?, убираем его
+      if (cacheKey.endsWith('?')) {
+        cacheKey = cacheKey.slice(0, -1);
+      }
+      // Если после удаления _t остался & в начале параметров, заменяем на ?
+      // Например: ?v=123&_t=456 -> ?v=123
+      if (cacheKey.includes('&') && !cacheKey.includes('?')) {
+        cacheKey = cacheKey.replace('&', '?');
+      }
+      console.log(`[IMAGE PROXY] 🔑 Cache key normalized (removed _t): ${cacheKey.substring(0, 100)}...`);
     }
+    
+    // Логируем cacheKey для отладки (полный URL для проверки уникальности)
+    console.log(`[IMAGE PROXY] 🔑 Cache key (full): ${cacheKey}`);
     
     // Проверяем кеш перед запросом
     const cached = imageCache.get(cacheKey);
     if (cached) {
+      console.log(`[IMAGE PROXY] ✅ Found in cache: ${cacheKey.substring(0, 100)}...`);
       const cacheAge = Date.now() - cached.timestamp;
       
       // Если это кешированная ошибка 429, проверяем время reset
