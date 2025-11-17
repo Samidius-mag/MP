@@ -318,6 +318,27 @@ class SimaLandService {
         }
       }
       imageUrls = uniqueUrls;
+      
+      // ВАЖНО: Убеждаемся, что первое изображение (главное) имеет индекс 0
+      // Извлекаем индекс из URL (например, /items/7971404/1/... -> индекс 1)
+      const extractIndex = (url) => {
+        if (typeof url !== 'string') return null;
+        const match = url.match(/\/items\/\d+\/(\d+)\//);
+        return match ? parseInt(match[1]) : null;
+      };
+      
+      // Ищем изображение с индексом 0
+      const index0Image = imageUrls.find(url => extractIndex(url) === 0);
+      if (index0Image && imageUrls[0] !== index0Image) {
+        // Перемещаем изображение с индексом 0 в начало массива
+        const index0Idx = imageUrls.indexOf(index0Image);
+        if (index0Idx > 0) {
+          console.log(`[SIMA LAND] 🔄 Product ${product.id || product.sid || 'unknown'}: Moving image with index 0 to first position`);
+          imageUrls.splice(index0Idx, 1);
+          imageUrls.unshift(index0Image);
+        }
+      }
+      
       console.log(`[SIMA LAND] 📸 Extracted ${imageUrls.length} unique image URLs from ${product.photos.length} photos`);
     }
     

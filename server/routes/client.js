@@ -1671,6 +1671,41 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
               if (!product.image_url || product.image_url.trim() === '' || product.image_url === 'null' || product.image_url === 'undefined') {
                 product.image_url = imageUrlsArray[0];
                 console.log(`[API] 🔄 Product ${product.id}: Set main image from image_urls[0]: ${product.image_url}`);
+              } else {
+                // ВАЖНО: Проверяем, что image_url соответствует изображению с индексом 0
+                // Если image_url не является первым изображением из массива, заменяем его
+                // Это нужно, чтобы главное изображение всегда было с индексом 0
+                const currentImageUrl = product.image_url;
+                const firstImageUrl = imageUrlsArray[0];
+                
+                // Извлекаем индекс из URL (например, /items/7971404/1/... -> индекс 1)
+                const extractIndex = (url) => {
+                  if (typeof url !== 'string') return null;
+                  const match = url.match(/\/items\/\d+\/(\d+)\//);
+                  return match ? parseInt(match[1]) : null;
+                };
+                
+                const currentIndex = extractIndex(currentImageUrl);
+                const firstIndex = extractIndex(firstImageUrl);
+                
+                // Если текущее изображение не индекс 0, а первое изображение - индекс 0, заменяем
+                if (currentIndex !== 0 && firstIndex === 0) {
+                  console.log(`[API] 🔄 Product ${product.id}: Replacing image_url (index ${currentIndex}) with first image (index 0): ${firstImageUrl}`);
+                  product.image_url = firstImageUrl;
+                } else if (currentIndex !== 0 && firstIndex !== 0) {
+                  // Если оба не индекс 0, ищем изображение с индексом 0 в массиве
+                  const index0Image = imageUrlsArray.find(url => extractIndex(url) === 0);
+                  if (index0Image) {
+                    console.log(`[API] 🔄 Product ${product.id}: Found image with index 0, replacing image_url: ${index0Image}`);
+                    product.image_url = index0Image;
+                    // Перемещаем изображение с индексом 0 в начало массива
+                    const index0Idx = imageUrlsArray.indexOf(index0Image);
+                    if (index0Idx > 0) {
+                      imageUrlsArray.splice(index0Idx, 1);
+                      imageUrlsArray.unshift(index0Image);
+                    }
+                  }
+                }
               }
               // Устанавливаем image_urls как массив для дальнейшей обработки
               product.image_urls = imageUrlsArray;
