@@ -1655,13 +1655,56 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
                 .map(url => {
                   if (typeof url === 'string') {
                     // Убираем возможные экранированные кавычки в начале/конце
-                    return url.trim().replace(/^"+|"+$/g, '');
+                    let cleaned = url.trim().replace(/^"+|"+$/g, '');
+                    
+                    // ВАЖНО: Исправляем URL, где timestamp используется как имя файла
+                    // Формат: /items/{itemId}/{index}/{timestamp}.jpg -> /items/{itemId}/{index}/700.jpg
+                    // Проверяем, является ли имя файла timestamp (больше 1000000000)
+                    const timestampMatch = cleaned.match(/\/items\/(\d+)\/(\d+)\/(\d+)\.jpg/);
+                    if (timestampMatch) {
+                      const itemId = timestampMatch[1]; // Извлекаем itemId из URL
+                      const index = timestampMatch[2];
+                      const filename = timestampMatch[3];
+                      const filenameNum = parseInt(filename);
+                      // Если имя файла - это timestamp (больше 1000000000), заменяем на 700
+                      if (filenameNum > 1000000000) {
+                        cleaned = cleaned.replace(/\/items\/\d+\/\d+\/\d+\.jpg/, `/items/${itemId}/${index}/700.jpg`);
+                        console.log(`[API] 🔄 Product ${product.id}: Fixed timestamp filename to 700.jpg: ${url.substring(0, 80)}... -> ${cleaned.substring(0, 80)}...`);
+                      }
+                    }
+                    
+                    // Также заменяем 140.jpg на 700.jpg
+                    if (cleaned.includes('/140.jpg')) {
+                      cleaned = cleaned.replace(/\/140\.jpg/, '/700.jpg');
+                      console.log(`[API] 🔄 Product ${product.id}: Replaced 140.jpg with 700.jpg: ${cleaned.substring(0, 80)}...`);
+                    }
+                    
+                    return cleaned;
                   }
                   return url;
                 })
                 .filter(url => url && typeof url === 'string' && url.length > 0);
             } else if (typeof imageUrls === 'string') {
-              imageUrlsArray = [imageUrls.trim().replace(/^"+|"+$/g, '')];
+              let cleaned = imageUrls.trim().replace(/^"+|"+$/g, '');
+              
+              // Исправляем URL, где timestamp используется как имя файла
+              const timestampMatch = cleaned.match(/\/items\/(\d+)\/(\d+)\/(\d+)\.jpg/);
+              if (timestampMatch) {
+                const itemId = timestampMatch[1]; // Извлекаем itemId из URL
+                const index = timestampMatch[2];
+                const filename = timestampMatch[3];
+                const filenameNum = parseInt(filename);
+                if (filenameNum > 1000000000) {
+                  cleaned = cleaned.replace(/\/items\/\d+\/\d+\/\d+\.jpg/, `/items/${itemId}/${index}/700.jpg`);
+                }
+              }
+              
+              // Заменяем 140.jpg на 700.jpg
+              if (cleaned.includes('/140.jpg')) {
+                cleaned = cleaned.replace(/\/140\.jpg/, '/700.jpg');
+              }
+              
+              imageUrlsArray = [cleaned];
             }
             
             // Если это массив и image_url пустое - берем первое изображение
@@ -1771,10 +1814,25 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
         // Sima Land CDN может блокировать прямые запросы из браузера
         // НО: не проксируем локальные URL (обработанные изображения в /uploads/products/)
         if (product.image_url && typeof product.image_url === 'string') {
+          // ВАЖНО: Исправляем URL, где timestamp используется как имя файла
+          // Формат: /items/{itemId}/{index}/{timestamp}.jpg -> /items/{itemId}/{index}/700.jpg
+          const timestampMatch = product.image_url.match(/\/items\/(\d+)\/(\d+)\/(\d+)\.jpg/);
+          if (timestampMatch) {
+            const itemId = timestampMatch[1]; // Извлекаем itemId из URL
+            const index = timestampMatch[2];
+            const filename = timestampMatch[3];
+            const filenameNum = parseInt(filename);
+            // Если имя файла - это timestamp (больше 1000000000), заменяем на 700
+            if (filenameNum > 1000000000) {
+              product.image_url = product.image_url.replace(/\/items\/\d+\/\d+\/\d+\.jpg/, `/items/${itemId}/${index}/700.jpg`);
+              console.log(`[API] 🔄 Product ${product.id}: Fixed timestamp filename to 700.jpg: ${product.image_url.substring(0, 80)}...`);
+            }
+          }
+          
           // ВАЖНО: Заменяем 140.jpg на 700.jpg перед проксированием
           if (product.image_url.includes('/140.jpg')) {
             product.image_url = product.image_url.replace(/\/140\.jpg/, '/700.jpg');
-            console.log(`[API] 🔄 Product ${product.id}: Replaced 140.jpg with 700.jpg before proxying: ${product.image_url}`);
+            console.log(`[API] 🔄 Product ${product.id}: Replaced 140.jpg with 700.jpg before proxying: ${product.image_url.substring(0, 80)}...`);
           }
           
           // Проверяем, что это не локальный URL (обработанные изображения)
@@ -1794,6 +1852,20 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
           const originalCount = product.image_urls.length;
           product.image_urls = product.image_urls.map(url => {
             if (typeof url === 'string') {
+              // ВАЖНО: Исправляем URL, где timestamp используется как имя файла
+              const timestampMatch = url.match(/\/items\/(\d+)\/(\d+)\/(\d+)\.jpg/);
+              if (timestampMatch) {
+                const itemId = timestampMatch[1]; // Извлекаем itemId из URL
+                const index = timestampMatch[2];
+                const filename = timestampMatch[3];
+                const filenameNum = parseInt(filename);
+                // Если имя файла - это timestamp (больше 1000000000), заменяем на 700
+                if (filenameNum > 1000000000) {
+                  url = url.replace(/\/items\/\d+\/\d+\/\d+\.jpg/, `/items/${itemId}/${index}/700.jpg`);
+                  console.log(`[API] 🔄 Product ${product.id}: Fixed timestamp filename to 700.jpg in image_urls: ${url.substring(0, 80)}...`);
+                }
+              }
+              
               // ВАЖНО: Заменяем 140.jpg на 700.jpg перед проксированием
               if (url.includes('/140.jpg')) {
                 url = url.replace(/\/140\.jpg/, '/700.jpg');
