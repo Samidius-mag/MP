@@ -734,18 +734,20 @@ export default function SimaLandProducts() {
                       {/* Основное изображение */}
                       <div className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden">
                         <img
-                          src={selectedProduct.image_urls[selectedImageIndex] || selectedProduct.image_url || ''}
+                          src={selectedProduct.image_urls?.[selectedImageIndex] || selectedProduct.image_url || ''}
                           alt={selectedProduct.name}
                           className="w-full h-full object-contain"
                           onError={(e) => {
-                            console.log(`[CLIENT] ❌ Main image failed to load: ${(selectedProduct.image_urls[selectedImageIndex] || selectedProduct.image_url || '').substring(0, 80)}...`);
+                            const imageUrl = selectedProduct.image_urls?.[selectedImageIndex] || selectedProduct.image_url || '';
+                            console.log(`[CLIENT] ❌ Main image failed to load: ${imageUrl.substring(0, 80)}...`);
                             // Пробуем следующее изображение
-                            if (selectedImageIndex < selectedProduct.image_urls.length - 1) {
+                            if (selectedProduct.image_urls && selectedImageIndex < selectedProduct.image_urls.length - 1) {
                               setSelectedImageIndex(selectedImageIndex + 1);
                             }
                           }}
                           onLoad={() => {
-                            console.log(`[CLIENT] ✅ Main image loaded: ${(selectedProduct.image_urls[selectedImageIndex] || selectedProduct.image_url || '').substring(0, 80)}...`);
+                            const imageUrl = selectedProduct.image_urls?.[selectedImageIndex] || selectedProduct.image_url || '';
+                            console.log(`[CLIENT] ✅ Main image loaded: ${imageUrl.substring(0, 80)}...`);
                           }}
                         />
                       </div>
