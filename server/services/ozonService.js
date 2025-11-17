@@ -35,11 +35,13 @@ class OzonService {
    * Получить дерево категорий OZON
    * Документация: https://docs.ozon.ru/api/seller/#operation/ProductAPI_GetCategoryTree
    */
-  async getCategoryTree(apiKey, clientId) {
+  async getCategoryTree(apiKey, clientId, language = 'RU') {
     try {
       const response = await axios.post(
-        `${this.baseUrl}/v2/category/tree`,
-        {},
+        `${this.baseUrl}/v1/description-category/tree`,
+        {
+          language: language
+        },
         {
           headers: {
             'Client-Id': clientId,

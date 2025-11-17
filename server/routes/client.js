@@ -2814,14 +2814,17 @@ router.get('/ozon/categories', requireClient, async (req, res) => {
       if (!credentials.apiKey || !credentials.clientId) {
         return res.status(400).json({ error: 'API ключ или Client ID OZON не настроены' });
       }
-      console.log(`[OZON] Fetch categories tree: clientId=${clientId}`);
-      const data = await ozon.getCategoryTree(credentials.apiKey, credentials.clientId);
+      const lang = req.query.language || 'RU';
+      console.log(`[OZON] Fetch categories tree: clientId=${clientId} lang=${lang}`);
+      const data = await ozon.getCategoryTree(credentials.apiKey, credentials.clientId, lang);
       console.log('[OZON] Raw categories tree keys:', Object.keys(data || {}));
+      console.log('[OZON] Raw categories tree data:', JSON.stringify(data).substring(0, 500));
       
-      // OZON возвращает дерево категорий в формате result.categories
-      let root = data?.result?.categories || data?.categories || data;
+      // OZON возвращает дерево категорий в формате result
+      // Структура может быть: { result: [{ category_id, title, children: [...] }] }
+      let root = data?.result || data?.categories || data;
       if (!Array.isArray(root)) {
-        const vals = Object.values(data?.result || {}).filter(v => Array.isArray(v));
+        const vals = Object.values(data || {}).filter(v => Array.isArray(v));
         if (vals.length > 0) root = vals[0];
       }
       
