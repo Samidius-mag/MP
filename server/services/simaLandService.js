@@ -164,14 +164,14 @@ class SimaLandService {
               timestamp = version;
             }
           } else {
-            // ВАЖНО: Имя файла может быть разным. Из логов видно, что в img поле используется 140.jpg
+            // ВАЖНО: Имя файла может быть разным. По результатам тестирования 700.jpg работает лучше, чем 140.jpg
             // Пробуем стандартные имена файлов, начиная с наиболее распространенных
-            // Стандартные имена файлов: 140, 700, 500, 1000, 800, и т.д.
+            // Стандартные имена файлов: 700, 140, 500, 1000, 800, и т.д.
             // Также пробуем использовать version как имя файла (может работать для некоторых товаров)
             
-            // Сначала пробуем стандартные имена файлов (140 - наиболее распространенный)
-            const commonFilenames = ['140', '700', '500', '1000', '800', '600'];
-            // Используем первый вариант (140 - наиболее распространенный по логам)
+            // Сначала пробуем стандартные имена файлов (700 - наиболее надежный по тестам)
+            const commonFilenames = ['700', '140', '500', '1000', '800', '600'];
+            // Используем первый вариант (700 - наиболее надежный)
             url = `${urlPart}/${commonFilenames[0]}.jpg`;
             timestamp = version;
             
@@ -251,11 +251,17 @@ class SimaLandService {
       // и извлекаем имя файла оттуда для остальных изображений
       let mainImageFilename = null;
       if (product.img && typeof product.img === 'string' && product.img.includes('goods-photos.static1-sima-land.com')) {
-        // Извлекаем имя файла из img (например, 140.jpg из .../0/140.jpg)
+        // Извлекаем имя файла из img (например, 140.jpg или 700.jpg из .../0/140.jpg)
         const imgMatch = product.img.match(/\/(\d+)\.jpg/);
         if (imgMatch && imgMatch[1]) {
-          mainImageFilename = imgMatch[1];
-          console.log(`[SIMA LAND] 🔍 Extracted filename from img field: ${mainImageFilename}.jpg`);
+          const extractedFilename = imgMatch[1];
+          // ВАЖНО: Если извлеченное имя файла 140, заменяем на 700 (более надежный вариант)
+          mainImageFilename = extractedFilename === '140' ? '700' : extractedFilename;
+          console.log(`[SIMA LAND] 🔍 Extracted filename from img field: ${extractedFilename}.jpg -> using ${mainImageFilename}.jpg`);
+        } else {
+          // Если имя файла не найдено, используем 700 по умолчанию
+          mainImageFilename = '700';
+          console.log(`[SIMA LAND] 🔍 No filename found in img field, using default: ${mainImageFilename}.jpg`);
         }
       }
       
@@ -275,8 +281,8 @@ class SimaLandService {
           const version = photo.version.toString();
           
           // Пробуем использовать имя файла из img для всех изображений
-          // Если не получилось, пробуем стандартные значения
-          const filenamesToTry = mainImageFilename ? [mainImageFilename] : ['140', '700', '500', '1000', '800'];
+          // Если не получилось, пробуем стандартные значения (700 - наиболее надежный)
+          const filenamesToTry = mainImageFilename ? [mainImageFilename] : ['700', '140', '500', '1000', '800'];
           
           for (const filename of filenamesToTry) {
             const testUrl = `${urlPart}/${filename}.jpg?v=${version}`;
@@ -509,8 +515,30 @@ class SimaLandService {
     }
     
     // Основное изображение (первое) - для обратной совместимости
-    // ВАЖНО: Если imageUrls пустой, но есть img, используем img как главное изображение
-    let imageUrl = imageUrls.length > 0 ? imageUrls[0] : null;
+    // ВАЖНО: Главное изображение должно быть с индексом 0
+    // Извлекаем индекс из URL (например, /items/6924082/0/... -> индекс 0)
+    const extractIndex = (url) => {
+      if (typeof url !== 'string') return null;
+      const match = url.match(/\/items\/\d+\/(\d+)\//);
+      return match ? parseInt(match[1]) : null;
+    };
+    
+    // Ищем изображение с индексом 0 в массиве
+    let imageUrl = null;
+    if (imageUrls.length > 0) {
+      // Сначала ищем изображение с индексом 0
+      const index0Image = imageUrls.find(url => extractIndex(url) === 0);
+      if (index0Image) {
+        imageUrl = index0Image;
+        console.log(`[SIMA LAND] ✅ Using image with index 0 as main image: ${imageUrl}`);
+      } else {
+        // Если изображения с индексом 0 нет, используем первое изображение
+        imageUrl = imageUrls[0];
+        console.log(`[SIMA LAND] ⚠️ No image with index 0 found, using first image: ${imageUrl}`);
+      }
+    }
+    
+    // Если imageUrls пустой, но есть img, используем img как главное изображение
     if (!imageUrl && product.img && typeof product.img === 'string' && product.img.includes('goods-photos.static1-sima-land.com')) {
       imageUrl = product.img;
       console.log(`[SIMA LAND] ✅ Using img field as main image: ${imageUrl}`);
