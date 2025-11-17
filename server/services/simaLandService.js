@@ -132,7 +132,7 @@ class SimaLandService {
     // - массив images/photos/gallery
     // - url_part + version (нужно собрать URL)
     // - одно изображение img
-    const extractImageUrl = (img) => {
+    const extractImageUrl = (img, index = 0) => {
       if (!img) return null;
       
       let url = null;
@@ -142,12 +142,38 @@ class SimaLandService {
         url = img;
       } else if (typeof img === 'object' && img !== null) {
         // Специальная обработка для формата url_part + version
-        // Формат: { url_part: "...", version: 123 } -> url_part + version + ".jpg?v=timestamp"
+        // Формат Sima Land: /items/{itemId}/{version}/{imageId}.jpg
+        // url_part может быть: "https://goods-photos.static1-sima-land.com/items/3916390/11"
+        // version может быть: 11 (версия изображения)
+        // imageId может быть: 700, 500, 1000 и т.д. (ID конкретного изображения)
         if (img.url_part && img.version) {
           const urlPart = img.url_part.toString().replace(/\/$/, ''); // Убираем trailing slash
           const version = img.version.toString();
-          // Формируем полный URL: url_part/version.jpg
-          url = `${urlPart}/${version}.jpg`;
+          
+          // ВАЖНО: Проверяем, есть ли imageId в объекте
+          // imageId может быть в разных полях: imageId, image_id, id, photo_id, photoId
+          const imageId = img.imageId || img.image_id || img.id || img.photo_id || img.photoId;
+          
+          // Проверяем, не является ли url_part уже полным URL (содержит .jpg)
+          if (urlPart.includes('.jpg')) {
+            // url_part уже содержит полный URL
+            url = urlPart;
+          } else if (imageId) {
+            // Формируем полный URL: url_part/imageId.jpg
+            // url_part уже содержит путь до папки с версией: /items/{itemId}/{version}
+            url = `${urlPart}/${imageId}.jpg`;
+          } else {
+            // Fallback: пробуем использовать популярные imageId (700, 500, 1000)
+            // Но это может быть неправильно, если версия не соответствует imageId
+            // ВАЖНО: Если все изображения имеют одинаковый url_part и version,
+            // они получат одинаковый URL, что приведет к дубликатам
+            // В этом случае нужно использовать индекс изображения или другие данные
+            const commonImageIds = [700, 500, 1000, 300, 200];
+            // Используем индекс для выбора imageId (если передан)
+            const fallbackImageId = commonImageIds[index % commonImageIds.length] || 700;
+            url = `${urlPart}/${fallbackImageId}.jpg`;
+            console.log(`[SIMA LAND] ⚠️ No imageId found, using fallback ${fallbackImageId} for image ${index}`);
+          }
           
           // Пытаемся найти timestamp для query параметра
           // API может возвращать timestamp в разных полях:
@@ -158,7 +184,7 @@ class SimaLandService {
                      img.v ||
                      img.version_ts ||
                      (img.updated_at ? Math.floor(new Date(img.updated_at).getTime() / 1000) : null) ||
-                     version; // Fallback: используем version как timestamp
+                     (imageId || version); // Fallback: используем imageId или version как timestamp
         } else if (img.url_part) {
           // Если есть только url_part, пробуем добавить .jpg
           url = img.url_part.toString().replace(/\/$/, '') + '.jpg';
@@ -202,10 +228,28 @@ class SimaLandService {
       const hasUrlPart = product.images.some(img => img && typeof img === 'object' && img.url_part);
       if (hasUrlPart) {
         // Это новый формат с url_part - используем его
-        imageUrls = product.images.map(extractImageUrl).filter(url => url !== null);
+        // Логируем структуру первого изображения для отладки
+        if (product.images[0] && typeof product.images[0] === 'object') {
+          console.log(`[SIMA LAND] 🔍 Image structure for product ${product.id || product.sid || 'unknown'}:`, JSON.stringify(product.images[0], null, 2));
+        }
+        imageUrls = product.images.map((img, index) => extractImageUrl(img, index)).filter(url => url !== null);
+        // Удаляем дубликаты, но сохраняем порядок
+        const uniqueUrls = [];
+        const seenUrls = new Set();
+        for (const url of imageUrls) {
+          if (!seenUrls.has(url)) {
+            seenUrls.add(url);
+            uniqueUrls.push(url);
+          }
+        }
+        imageUrls = uniqueUrls;
+        console.log(`[SIMA LAND] 📸 Extracted ${imageUrls.length} unique image URLs from ${product.images.length} images`);
+        if (imageUrls.length > 0 && imageUrls.length < product.images.length) {
+          console.log(`[SIMA LAND] ⚠️ Some images were duplicates or invalid. First URL: ${imageUrls[0]}`);
+        }
       } else {
         // Старый формат - обычные URL
-        imageUrls = product.images.map(extractImageUrl).filter(url => url !== null);
+        imageUrls = product.images.map((img, index) => extractImageUrl(img, index)).filter(url => url !== null);
       }
     }
     // Приоритет 2: массив photos (основной способ получения всех фото)
