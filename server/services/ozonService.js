@@ -62,15 +62,16 @@ class OzonService {
   /**
    * Получить атрибуты категории OZON
    * Документация: https://docs.ozon.ru/api/seller/#operation/ProductAPI_GetProductAttributes
+   * Используем актуальный метод /v1/description-category/attribute
    */
   async getCategoryAttributes(apiKey, clientId, categoryId) {
     try {
       const response = await axios.post(
-        `${this.baseUrl}/v3/category/attribute`,
+        `${this.baseUrl}/v1/description-category/attribute`,
         {
-          attribute_type: 'ALL',
-          category_id: [Number(categoryId)],
-          language: 'DEFAULT'
+          description_category_id: Number(categoryId),
+          type_id: 0, // 0 для получения всех типов, или конкретный type_id
+          language: 'RU'
         },
         {
           headers: {

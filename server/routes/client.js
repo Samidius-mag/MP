@@ -2888,6 +2888,11 @@ router.post('/ozon/category/:categoryId/attributes', requireClient, async (req, 
         credentials.clientId,
         req.params.categoryId
       );
+      console.log('[OZON] Raw attributes data keys:', Object.keys(data || {}));
+      console.log('[OZON] Raw attributes data sample:', JSON.stringify(data).substring(0, 500));
+      
+      // OZON API возвращает атрибуты в формате result
+      // Структура может быть: { result: [{ id, name, is_required, ... }] }
       const attributes = data?.result || data?.attributes || [];
       console.log(`[OZON] Attributes received: count=${Array.isArray(attributes) ? attributes.length : 0}`);
       res.json({ attributes: attributes });
