@@ -227,9 +227,12 @@ class SimaLandService {
         // Логируем структуру всех изображений для отладки
         if (product.images.length > 0) {
           console.log(`[SIMA LAND] 🔍 Product ${product.id || product.sid || 'unknown'}: Found ${product.images.length} images in API response`);
-          product.images.slice(0, 3).forEach((img, idx) => {
+          // Логируем ВСЕ изображения для отладки
+          product.images.forEach((img, idx) => {
             if (img && typeof img === 'object') {
               console.log(`[SIMA LAND]   Image ${idx}:`, JSON.stringify(img, null, 2));
+            } else {
+              console.log(`[SIMA LAND]   Image ${idx}:`, img);
             }
           });
         }
@@ -239,6 +242,8 @@ class SimaLandService {
             console.log(`[SIMA LAND] ✅ Extracted URL for image ${index}: ${url}`);
           } else if (img && typeof img === 'object') {
             console.warn(`[SIMA LAND] ⚠️ Failed to extract URL for image ${index} of product ${product.id || product.sid || 'unknown'}:`, JSON.stringify(img));
+          } else {
+            console.warn(`[SIMA LAND] ⚠️ Image ${index} is not an object:`, typeof img, img);
           }
           return url;
         }).filter(url => url !== null);
@@ -752,7 +757,22 @@ class SimaLandService {
         timeout: 30000
       });
 
-      return response.data || null;
+      const productData = response.data || null;
+      
+      // Логируем структуру изображений из API для отладки
+      if (productData && productData.images) {
+        console.log(`[SIMA LAND] 📸 Product ${itemId} details - images field:`, JSON.stringify(productData.images, null, 2));
+      } else if (productData) {
+        console.log(`[SIMA LAND] ⚠️ Product ${itemId} details - no images field. Available fields:`, Object.keys(productData));
+        if (productData.img) {
+          console.log(`[SIMA LAND]   img field:`, productData.img);
+        }
+        if (productData.photos) {
+          console.log(`[SIMA LAND]   photos field:`, JSON.stringify(productData.photos, null, 2));
+        }
+      }
+      
+      return productData;
     } catch (error) {
       console.error(`[SIMA LAND] Failed to fetch product details for item ${itemId}:`, error.response?.data || error.message);
       // Не критичная ошибка, возвращаем null

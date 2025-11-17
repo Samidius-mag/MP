@@ -292,6 +292,9 @@ function generateAlternativeUrls(originalUrl) {
         }
         
         console.log(`[IMAGE PROXY] 🔍 Generated alternatives: itemId=${itemId}, currentIndex=${currentIndex}, timestamp=${timestamp}, alternatives=${alternatives.length}`);
+        if (alternatives.length > 0) {
+          console.log(`[IMAGE PROXY] 🔍 Alternative URLs:`, alternatives.slice(0, 3).map(url => url.substring(0, 100)));
+        }
       } else {
         // Если timestamp не распознан, пробуем стандартные индексы (0-5)
         const imageIndexes = [0, 1, 2, 3, 4, 5];
