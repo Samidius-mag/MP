@@ -139,6 +139,36 @@ export default function StoreProducts() {
     setCurrentPage(1); // Сбрасываем на первую страницу при изменении фильтров
   };
 
+  const deleteProduct = async (productId: number) => {
+    if (!confirm('Вы уверены, что хотите удалить этот товар из магазина?')) {
+      return;
+    }
+    
+    try {
+      await api.delete(`/client/store-products/${productId}`);
+      toast.success('Товар удален из магазина');
+      await fetchProducts();
+    } catch (err: any) {
+      console.error('Error deleting product:', err);
+      toast.error(err.response?.data?.error || 'Ошибка удаления товара');
+    }
+  };
+
+  const clearStore = async () => {
+    if (!confirm('Вы уверены, что хотите очистить весь магазин? Это действие нельзя отменить.')) {
+      return;
+    }
+    
+    try {
+      await api.delete('/client/store-products/clear');
+      toast.success('Магазин очищен');
+      await fetchProducts();
+    } catch (err: any) {
+      console.error('Error clearing store:', err);
+      toast.error(err.response?.data?.error || 'Ошибка очистки магазина');
+    }
+  };
+
   const loadCards = async () => {
     try {
       setLoadingCards(true);
@@ -316,14 +346,24 @@ export default function StoreProducts() {
             Просмотр и управление товарами из разных источников (Wildberries, Сима Ленд)
           </p>
         </div>
-        <button
-          onClick={loadCards}
-          disabled={loadingCards}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
-        >
-          <PlusIcon className="w-4 h-4 mr-2" />
-          {loadingCards ? 'Загрузка...' : 'Загрузить карточки'}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={loadCards}
+            disabled={loadingCards}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
+          >
+            <PlusIcon className="w-4 h-4 mr-2" />
+            {loadingCards ? 'Загрузка...' : 'Загрузить карточки'}
+          </button>
+          {allProducts.length > 0 && (
+            <button
+              onClick={clearStore}
+              className="inline-flex items-center px-4 py-2 border border-red-300 text-sm font-medium rounded-md shadow-sm text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+            >
+              Очистить магазин
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Фильтры и сортировка */}
@@ -442,6 +482,9 @@ export default function StoreProducts() {
                   </th>
                   <th className="px-2 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">
                     Обновлено
+                  </th>
+                  <th className="px-2 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider">
+                    Действия
                   </th>
                 </tr>
               </thead>
@@ -603,6 +646,14 @@ export default function StoreProducts() {
                     </td>
                     <td className="px-2 py-2 whitespace-nowrap text-[11px] text-gray-500">
                       {formatDate(product.last_updated)}
+                    </td>
+                    <td className="px-2 py-2 whitespace-nowrap">
+                      <button
+                        onClick={() => deleteProduct(product.id)}
+                        className="px-3 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                      >
+                        Удалить
+                      </button>
                     </td>
                   </tr>
                 )})}

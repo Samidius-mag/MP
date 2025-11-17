@@ -2262,7 +2262,7 @@ router.post('/sima-land/catalog/load', async (req, res) => {
 // Добавление товара СИМА ЛЕНД в каталог клиента и в товары магазина
 router.post('/sima-land/products/add', requireClient, async (req, res) => {
   try {
-    const { article, name, brand, category, purchase_price, available_quantity, image_url, description } = req.body;
+    const { article, name, brand, category, purchase_price, available_quantity, image_url, image_urls, description, characteristics } = req.body;
 
     if (!article || !name) {
       return res.status(400).json({ error: 'Артикул и название обязательны' });
@@ -2294,7 +2294,9 @@ router.post('/sima-land/products/add', requireClient, async (req, res) => {
         purchase_price,
         available_quantity,
         image_url,
-        description
+        image_urls: image_urls || [],
+        description,
+        characteristics: characteristics || null
       });
 
       // Добавляем товар в товары магазина (wb_products_cache)
@@ -2305,62 +2307,137 @@ router.post('/sima-land/products/add', requireClient, async (req, res) => {
         [clientId, article]
       );
 
-      // Извлекаем characteristics из запроса
-      const characteristics = req.body.characteristics || req.body.chars || null;
+      // Извлекаем image_urls и characteristics из запроса
+      const imageUrlsArray = Array.isArray(image_urls) ? image_urls : (image_urls ? [image_urls] : []);
+      const characteristicsObj = characteristics || null;
 
       if (existingStoreProduct.rows.length > 0) {
         // Обновляем существующий товар
-        await client.query(
-          `UPDATE wb_products_cache 
-           SET name = $3, brand = $4, category = $5, purchase_price = $6, 
-               available_quantity = $7, image_url = $8, description = $9,
-               characteristics = $10,
-               last_updated = NOW()
-           WHERE client_id = $1 AND article = $2 AND source = 'sima_land'`,
-          [
-            clientId,
-            article,
-            name,
-            brand,
-            category,
-            purchase_price || 0,
-            available_quantity || 0,
-            image_url,
-            description,
-            characteristics ? JSON.stringify(characteristics) : '{}'
-          ]
-        );
+        // Проверяем, есть ли поле image_urls в таблице
+        const hasImageUrls = await client.query(`
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_name = 'wb_products_cache' AND column_name = 'image_urls'
+        `);
+        
+        if (hasImageUrls.rows.length > 0) {
+          // Поле image_urls существует, обновляем с ним
+          await client.query(
+            `UPDATE wb_products_cache 
+             SET name = $3, brand = $4, category = $5, purchase_price = $6, 
+                 available_quantity = $7, image_url = $8, image_urls = $9, description = $10,
+                 characteristics = $11,
+                 last_updated = NOW()
+             WHERE client_id = $1 AND article = $2 AND source = 'sima_land'`,
+            [
+              clientId,
+              article,
+              name,
+              brand,
+              category,
+              purchase_price || 0,
+              available_quantity || 0,
+              image_url,
+              imageUrlsArray.length > 0 ? JSON.stringify(imageUrlsArray) : null,
+              description,
+              characteristicsObj ? JSON.stringify(characteristicsObj) : '{}'
+            ]
+          );
+        } else {
+          // Поле image_urls не существует, обновляем без него
+          await client.query(
+            `UPDATE wb_products_cache 
+             SET name = $3, brand = $4, category = $5, purchase_price = $6, 
+                 available_quantity = $7, image_url = $8, description = $9,
+                 characteristics = $10,
+                 last_updated = NOW()
+             WHERE client_id = $1 AND article = $2 AND source = 'sima_land'`,
+            [
+              clientId,
+              article,
+              name,
+              brand,
+              category,
+              purchase_price || 0,
+              available_quantity || 0,
+              image_url,
+              description,
+              characteristicsObj ? JSON.stringify(characteristicsObj) : '{}'
+            ]
+          );
+        }
       } else {
         // Создаем новый товар в магазине
-        // Используем ON CONFLICT по уникальному индексу (client_id, article, source)
-        await client.query(
-          `INSERT INTO wb_products_cache 
-           (client_id, article, name, brand, category, purchase_price, available_quantity, 
-            image_url, description, characteristics, source, is_active, marketplace_targets, markup_percent, nm_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'sima_land', true, '[]'::jsonb, 0.00, NULL)
-           ON CONFLICT (client_id, article, source) DO UPDATE SET
-             name = EXCLUDED.name,
-             brand = EXCLUDED.brand,
-             category = EXCLUDED.category,
-             purchase_price = EXCLUDED.purchase_price,
-             available_quantity = EXCLUDED.available_quantity,
-             image_url = EXCLUDED.image_url,
-             description = EXCLUDED.description,
-             characteristics = EXCLUDED.characteristics,
-             last_updated = NOW()`,
-          [
-            clientId,
-            article,
-            name,
-            brand,
-            category,
-            purchase_price || 0,
-            available_quantity || 0,
-            image_url,
-            description,
-            characteristics ? JSON.stringify(characteristics) : '{}'
-          ]
-        );
+        // Проверяем, есть ли поле image_urls в таблице
+        const hasImageUrls = await client.query(`
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_name = 'wb_products_cache' AND column_name = 'image_urls'
+        `);
+        
+        if (hasImageUrls.rows.length > 0) {
+          // Поле image_urls существует, вставляем с ним
+          await client.query(
+            `INSERT INTO wb_products_cache 
+             (client_id, article, name, brand, category, purchase_price, available_quantity, 
+              image_url, image_urls, description, characteristics, source, is_active, marketplace_targets, markup_percent, nm_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'sima_land', true, '[]'::jsonb, 0.00, NULL)
+             ON CONFLICT (client_id, article, source) DO UPDATE SET
+               name = EXCLUDED.name,
+               brand = EXCLUDED.brand,
+               category = EXCLUDED.category,
+               purchase_price = EXCLUDED.purchase_price,
+               available_quantity = EXCLUDED.available_quantity,
+               image_url = EXCLUDED.image_url,
+               image_urls = EXCLUDED.image_urls,
+               description = EXCLUDED.description,
+               characteristics = EXCLUDED.characteristics,
+               last_updated = NOW()`,
+            [
+              clientId,
+              article,
+              name,
+              brand,
+              category,
+              purchase_price || 0,
+              available_quantity || 0,
+              image_url,
+              imageUrlsArray.length > 0 ? JSON.stringify(imageUrlsArray) : null,
+              description,
+              characteristicsObj ? JSON.stringify(characteristicsObj) : '{}'
+            ]
+          );
+        } else {
+          // Поле image_urls не существует, вставляем без него
+          await client.query(
+            `INSERT INTO wb_products_cache 
+             (client_id, article, name, brand, category, purchase_price, available_quantity, 
+              image_url, description, characteristics, source, is_active, marketplace_targets, markup_percent, nm_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'sima_land', true, '[]'::jsonb, 0.00, NULL)
+             ON CONFLICT (client_id, article, source) DO UPDATE SET
+               name = EXCLUDED.name,
+               brand = EXCLUDED.brand,
+               category = EXCLUDED.category,
+               purchase_price = EXCLUDED.purchase_price,
+               available_quantity = EXCLUDED.available_quantity,
+               image_url = EXCLUDED.image_url,
+               description = EXCLUDED.description,
+               characteristics = EXCLUDED.characteristics,
+               last_updated = NOW()`,
+            [
+              clientId,
+              article,
+              name,
+              brand,
+              category,
+              purchase_price || 0,
+              available_quantity || 0,
+              image_url,
+              description,
+              characteristicsObj ? JSON.stringify(characteristicsObj) : '{}'
+            ]
+          );
+        }
       }
 
       res.json({
@@ -2557,6 +2634,88 @@ router.post('/store-products/:productId/upload/yandex-market', requireClient, as
   } catch (err) {
     console.error('Upload to Yandex Market error:', err);
     res.status(500).json({ error: 'Ошибка загрузки товара' });
+  }
+});
+
+// Удаление товара из магазина
+router.delete('/store-products/:productId', requireClient, async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const client = await pool.connect();
+    try {
+      // Получаем client_id
+      const clientResult = await client.query(
+        `SELECT id FROM clients WHERE user_id = $1`,
+        [req.user.id]
+      );
+
+      if (clientResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Клиент не найден' });
+      }
+
+      const clientId = clientResult.rows[0].id;
+
+      // Удаляем товар из wb_products_cache
+      const deleteResult = await client.query(
+        `DELETE FROM wb_products_cache 
+         WHERE id = $1 AND client_id = $2
+         RETURNING id`,
+        [productId, clientId]
+      );
+
+      if (deleteResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Товар не найден' });
+      }
+
+      res.json({
+        success: true,
+        message: 'Товар успешно удален из магазина'
+      });
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('Error deleting product:', err);
+    res.status(500).json({ error: 'Ошибка удаления товара' });
+  }
+});
+
+// Очистка всех товаров из магазина
+router.delete('/store-products/clear', requireClient, async (req, res) => {
+  try {
+    const client = await pool.connect();
+    try {
+      // Получаем client_id
+      const clientResult = await client.query(
+        `SELECT id FROM clients WHERE user_id = $1`,
+        [req.user.id]
+      );
+
+      if (clientResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Клиент не найден' });
+      }
+
+      const clientId = clientResult.rows[0].id;
+
+      // Удаляем все товары из wb_products_cache для данного клиента
+      const deleteResult = await client.query(
+        `DELETE FROM wb_products_cache 
+         WHERE client_id = $1
+         RETURNING id`,
+        [clientId]
+      );
+
+      res.json({
+        success: true,
+        message: `Удалено товаров: ${deleteResult.rows.length}`,
+        deletedCount: deleteResult.rows.length
+      });
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('Error clearing store:', err);
+    res.status(500).json({ error: 'Ошибка очистки магазина' });
   }
 });
 

@@ -384,15 +384,36 @@ export default function SimaLandProducts() {
 
   const addToStore = async (product: SimaLandProduct) => {
     try {
+      // Загружаем детальную информацию о товаре, если она еще не загружена
+      let fullProduct = product;
+      if (!product.image_urls || !product.characteristics || !product.description) {
+        try {
+          const detailsResponse = await api.get(`/client/sima-land/products/${product.id}/details`);
+          if (detailsResponse.data.success && detailsResponse.data.product) {
+            fullProduct = {
+              ...product,
+              image_url: detailsResponse.data.product.image_url || product.image_url,
+              image_urls: detailsResponse.data.product.image_urls || product.image_urls || [],
+              description: detailsResponse.data.product.description || product.description,
+              characteristics: detailsResponse.data.product.characteristics || product.characteristics
+            };
+          }
+        } catch (detailsError) {
+          console.warn('Failed to load product details, using available data:', detailsError);
+        }
+      }
+      
       const response = await api.post('/client/sima-land/products/add', {
-        article: product.article,
-        name: product.name,
-        brand: product.brand,
-        category: product.category,
-        purchase_price: product.purchase_price,
-        available_quantity: product.available_quantity || 0,
-        image_url: product.image_url,
-        description: product.description
+        article: fullProduct.article,
+        name: fullProduct.name,
+        brand: fullProduct.brand,
+        category: fullProduct.category,
+        purchase_price: fullProduct.purchase_price,
+        available_quantity: fullProduct.available_quantity || 0,
+        image_url: fullProduct.image_url,
+        image_urls: fullProduct.image_urls || [],
+        description: fullProduct.description,
+        characteristics: fullProduct.characteristics
       });
       
       toast.success('Товар добавлен в магазин');
