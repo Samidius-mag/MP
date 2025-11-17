@@ -38,22 +38,52 @@ function ProductImage({ product }: { product: SimaLandProduct }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Собираем все доступные URL изображений
+    // ВАЖНО: Собираем все доступные URL изображений
+    // Приоритет: сначала image_urls (массив всех изображений), потом image_url (главное)
     const urls: string[] = [];
-    if (product.image_url) {
-      urls.push(product.image_url);
-      console.log(`[CLIENT] 📸 Product ${product.id}: main image_url = ${product.image_url.substring(0, 80)}...`);
-    }
-    if (product.image_urls && Array.isArray(product.image_urls)) {
-      // Добавляем альтернативные URL, избегая дубликатов
+    
+    // Функция для замены 140.jpg на 700.jpg
+    const replace140With700 = (url: string): string => {
+      if (url.includes('/140.jpg')) {
+        const replaced = url.replace(/\/140\.jpg/, '/700.jpg');
+        console.log(`[CLIENT] 🔄 Replaced 140.jpg with 700.jpg: ${url.substring(0, 80)}... -> ${replaced.substring(0, 80)}...`);
+        return replaced;
+      }
+      return url;
+    };
+    
+    // ВАЖНО: Сначала добавляем image_urls (массив всех изображений)
+    // Первое изображение из массива должно быть главным
+    if (product.image_urls && Array.isArray(product.image_urls) && product.image_urls.length > 0) {
+      // Заменяем 140.jpg на 700.jpg в каждом URL
       product.image_urls.forEach(url => {
-        if (url && !urls.includes(url)) {
-          urls.push(url);
+        if (url) {
+          const cleanedUrl = replace140With700(url);
+          if (!urls.includes(cleanedUrl)) {
+            urls.push(cleanedUrl);
+          }
         }
       });
-      console.log(`[CLIENT] 📸 Product ${product.id}: ${product.image_urls.length} alternative image_urls`);
+      console.log(`[CLIENT] 📸 Product ${product.id}: ${product.image_urls.length} image_urls (first is main)`);
     }
-    console.log(`[CLIENT] 📸 Product ${product.id}: Total ${urls.length} image URLs available`);
+    
+    // Затем добавляем image_url, если его еще нет в массиве
+    if (product.image_url) {
+      const cleanedUrl = replace140With700(product.image_url);
+      // Добавляем только если его еще нет в массиве
+      if (!urls.includes(cleanedUrl)) {
+        // Если image_urls был пустой, добавляем image_url первым
+        // Если image_urls был не пустой, добавляем image_url в конец
+        if (urls.length === 0) {
+          urls.unshift(cleanedUrl);
+        } else {
+          urls.push(cleanedUrl);
+        }
+      }
+      console.log(`[CLIENT] 📸 Product ${product.id}: main image_url = ${cleanedUrl.substring(0, 80)}...`);
+    }
+    
+    console.log(`[CLIENT] 📸 Product ${product.id}: Total ${urls.length} image URLs available (first will be used as main)`);
     setAllImageUrls(urls);
     setCurrentImageIndex(0);
     setImageError(false);
