@@ -1669,8 +1669,27 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
               // ВАЖНО: Убеждаемся, что главное изображение установлено
               // Если image_url пустое или null, используем первое изображение из массива
               if (!product.image_url || product.image_url.trim() === '' || product.image_url === 'null' || product.image_url === 'undefined') {
-                product.image_url = imageUrlsArray[0];
-                console.log(`[API] 🔄 Product ${product.id}: Set main image from image_urls[0]: ${product.image_url}`);
+                // Ищем изображение с индексом 0 или 1
+                const extractIndex = (url) => {
+                  if (typeof url !== 'string') return null;
+                  const match = url.match(/\/items\/\d+\/(\d+)\//);
+                  return match ? parseInt(match[1]) : null;
+                };
+                
+                const index0Image = imageUrlsArray.find(url => extractIndex(url) === 0);
+                const index1Image = imageUrlsArray.find(url => extractIndex(url) === 1);
+                
+                let mainImage = imageUrlsArray[0];
+                if (index0Image) {
+                  mainImage = index0Image;
+                } else if (index1Image) {
+                  mainImage = index1Image;
+                }
+                
+                // Заменяем 140.jpg на 700.jpg
+                mainImage = mainImage.replace(/\/140\.jpg/, '/700.jpg');
+                product.image_url = mainImage;
+                console.log(`[API] 🔄 Product ${product.id}: Set main image from image_urls (replaced 140 with 700): ${product.image_url}`);
               } else {
                 // ВАЖНО: Проверяем, что image_url соответствует изображению с индексом 0
                 // Если image_url не является первым изображением из массива, заменяем его
@@ -1690,21 +1709,40 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
                 
                 // Если текущее изображение не индекс 0, а первое изображение - индекс 0, заменяем
                 if (currentIndex !== 0 && firstIndex === 0) {
-                  console.log(`[API] 🔄 Product ${product.id}: Replacing image_url (index ${currentIndex}) with first image (index 0): ${firstImageUrl}`);
-                  product.image_url = firstImageUrl;
+                  // Заменяем 140.jpg на 700.jpg
+                  const replacedUrl = firstImageUrl.replace(/\/140\.jpg/, '/700.jpg');
+                  console.log(`[API] 🔄 Product ${product.id}: Replacing image_url (index ${currentIndex}) with first image (index 0, replaced 140 with 700): ${replacedUrl}`);
+                  product.image_url = replacedUrl;
                 } else if (currentIndex !== 0 && firstIndex !== 0) {
                   // Если оба не индекс 0, ищем изображение с индексом 0 в массиве
                   const index0Image = imageUrlsArray.find(url => extractIndex(url) === 0);
                   if (index0Image) {
-                    console.log(`[API] 🔄 Product ${product.id}: Found image with index 0, replacing image_url: ${index0Image}`);
-                    product.image_url = index0Image;
+                    // Заменяем 140.jpg на 700.jpg
+                    const replacedUrl = index0Image.replace(/\/140\.jpg/, '/700.jpg');
+                    console.log(`[API] 🔄 Product ${product.id}: Found image with index 0, replacing image_url (replaced 140 with 700): ${replacedUrl}`);
+                    product.image_url = replacedUrl;
                     // Перемещаем изображение с индексом 0 в начало массива
                     const index0Idx = imageUrlsArray.indexOf(index0Image);
                     if (index0Idx > 0) {
                       imageUrlsArray.splice(index0Idx, 1);
                       imageUrlsArray.unshift(index0Image);
                     }
+                  } else {
+                    // Если индекс 0 не найден, ищем индекс 1
+                    const index1Image = imageUrlsArray.find(url => extractIndex(url) === 1);
+                    if (index1Image) {
+                      // Заменяем 140.jpg на 700.jpg
+                      const replacedUrl = index1Image.replace(/\/140\.jpg/, '/700.jpg');
+                      console.log(`[API] 🔄 Product ${product.id}: No index 0 found, using index 1 (replaced 140 with 700): ${replacedUrl}`);
+                      product.image_url = replacedUrl;
+                    }
                   }
+                }
+                
+                // ВАЖНО: Заменяем 140.jpg на 700.jpg в image_url, если он еще не был заменен
+                if (product.image_url && product.image_url.includes('/140.jpg')) {
+                  product.image_url = product.image_url.replace(/\/140\.jpg/, '/700.jpg');
+                  console.log(`[API] 🔄 Product ${product.id}: Replaced 140.jpg with 700.jpg in image_url: ${product.image_url}`);
                 }
               }
               // Устанавливаем image_urls как массив для дальнейшей обработки
@@ -1733,6 +1771,12 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
         // Sima Land CDN может блокировать прямые запросы из браузера
         // НО: не проксируем локальные URL (обработанные изображения в /uploads/products/)
         if (product.image_url && typeof product.image_url === 'string') {
+          // ВАЖНО: Заменяем 140.jpg на 700.jpg перед проксированием
+          if (product.image_url.includes('/140.jpg')) {
+            product.image_url = product.image_url.replace(/\/140\.jpg/, '/700.jpg');
+            console.log(`[API] 🔄 Product ${product.id}: Replaced 140.jpg with 700.jpg before proxying: ${product.image_url}`);
+          }
+          
           // Проверяем, что это не локальный URL (обработанные изображения)
           const isLocalUrl = product.image_url.startsWith('/uploads/') || 
                             product.image_url.startsWith('./uploads/');
@@ -1750,13 +1794,18 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
           const originalCount = product.image_urls.length;
           product.image_urls = product.image_urls.map(url => {
             if (typeof url === 'string') {
+              // ВАЖНО: Заменяем 140.jpg на 700.jpg перед проксированием
+              if (url.includes('/140.jpg')) {
+                url = url.replace(/\/140\.jpg/, '/700.jpg');
+              }
+              
               // Проверяем, что это не локальный URL (обработанные изображения)
               const isLocalUrl = url.startsWith('/uploads/') || 
                                 url.startsWith('./uploads/');
               
               if (!isLocalUrl && (url.includes('goods-photos.static1-sima-land.com') || 
-                url.includes('sima-land') || url.includes('simaland'))) {
-              return `/api/sima-land/image-proxy?url=${encodeURIComponent(url)}`;
+                  url.includes('sima-land') || url.includes('simaland'))) {
+                return `/api/sima-land/image-proxy?url=${encodeURIComponent(url)}`;
               }
             }
             return url;

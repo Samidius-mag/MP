@@ -194,8 +194,8 @@ class SimaLandService {
           // Но без version мы не знаем имя файла, поэтому пробуем стандартные значения
           const urlPart = img.url_part.toString().replace(/\/$/, '');
           // Пробуем стандартные имена файлов
-          const commonFilenames = ['140', '700', '500', '1000', '800'];
-          // Используем первый вариант (140 - наиболее распространенный)
+          const commonFilenames = ['700', '140', '500', '1000', '800'];
+          // Используем первый вариант (700 - наиболее надежный)
           url = `${urlPart}/${commonFilenames[0]}.jpg`;
           timestamp = img.timestamp || img.updated_at_ts || img.ts || img.v || img.version || Math.floor(Date.now() / 1000);
         } else {
@@ -267,10 +267,11 @@ class SimaLandService {
       
       imageUrls = product.photos.map((photo, index) => {
         // Если это первое изображение и есть поле img, используем его
-        // ВАЖНО: img содержит готовый правильный URL, который точно работает
+        // ВАЖНО: img содержит готовый правильный URL, но нужно заменить 140.jpg на 700.jpg
         if (index === 0 && product.img && typeof product.img === 'string' && product.img.includes('goods-photos.static1-sima-land.com')) {
-          const url = product.img;
-          console.log(`[SIMA LAND] ✅ Using img field for first image (main): ${url}`);
+          // Заменяем 140.jpg на 700.jpg в URL
+          let url = product.img.replace(/\/140\.jpg/, '/700.jpg');
+          console.log(`[SIMA LAND] ✅ Using img field for first image (main), replaced 140 with 700: ${url}`);
           return url;
         }
         
@@ -523,25 +524,35 @@ class SimaLandService {
       return match ? parseInt(match[1]) : null;
     };
     
-    // Ищем изображение с индексом 0 в массиве
+    // Ищем изображение с индексом 0 в массиве, если не найдено - используем индекс 1
     let imageUrl = null;
     if (imageUrls.length > 0) {
       // Сначала ищем изображение с индексом 0
       const index0Image = imageUrls.find(url => extractIndex(url) === 0);
       if (index0Image) {
-        imageUrl = index0Image;
-        console.log(`[SIMA LAND] ✅ Using image with index 0 as main image: ${imageUrl}`);
+        // Заменяем 140.jpg на 700.jpg в URL
+        imageUrl = index0Image.replace(/\/140\.jpg/, '/700.jpg');
+        console.log(`[SIMA LAND] ✅ Using image with index 0 as main image (replaced 140 with 700): ${imageUrl}`);
       } else {
-        // Если изображения с индексом 0 нет, используем первое изображение
-        imageUrl = imageUrls[0];
-        console.log(`[SIMA LAND] ⚠️ No image with index 0 found, using first image: ${imageUrl}`);
+        // Если изображения с индексом 0 нет, ищем изображение с индексом 1
+        const index1Image = imageUrls.find(url => extractIndex(url) === 1);
+        if (index1Image) {
+          // Заменяем 140.jpg на 700.jpg в URL
+          imageUrl = index1Image.replace(/\/140\.jpg/, '/700.jpg');
+          console.log(`[SIMA LAND] ✅ Using image with index 1 as main image (replaced 140 with 700): ${imageUrl}`);
+        } else {
+          // Если ни индекс 0, ни индекс 1 не найдены, используем первое изображение
+          imageUrl = imageUrls[0].replace(/\/140\.jpg/, '/700.jpg');
+          console.log(`[SIMA LAND] ⚠️ No image with index 0 or 1 found, using first image (replaced 140 with 700): ${imageUrl}`);
+        }
       }
     }
     
     // Если imageUrls пустой, но есть img, используем img как главное изображение
     if (!imageUrl && product.img && typeof product.img === 'string' && product.img.includes('goods-photos.static1-sima-land.com')) {
-      imageUrl = product.img;
-      console.log(`[SIMA LAND] ✅ Using img field as main image: ${imageUrl}`);
+      // Заменяем 140.jpg на 700.jpg в URL
+      imageUrl = product.img.replace(/\/140\.jpg/, '/700.jpg');
+      console.log(`[SIMA LAND] ✅ Using img field as main image (replaced 140 with 700): ${imageUrl}`);
     }
 
     // Описание товара
