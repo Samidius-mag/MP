@@ -184,20 +184,29 @@ class YandexMarketService {
         description = parts.join('. ') + '.';
       }
       
+      // Формируем объект offer с обязательными и опциональными полями
+      const offer = {
+        offerId: productData.offerId,
+        name: productData.name,
+        vendor: productData.vendor || '',
+        pictures: productData.pictures || [],
+        description: description
+      };
+
+      // Добавляем параметры, если они есть
+      if (Array.isArray(productData.parameterValues) && productData.parameterValues.length > 0) {
+        offer.parameterValues = productData.parameterValues;
+      }
+
+      // Добавляем габариты и вес, если они есть
+      if (productData.dimensions && Object.keys(productData.dimensions).length > 0) {
+        offer.dimensions = productData.dimensions;
+      }
+
       const requestBody = {
         offerMappings: [
           {
-            offer: {
-              offerId: productData.offerId,
-              name: productData.name,
-              vendor: productData.vendor || '',
-              pictures: productData.pictures || [],
-              description: description,
-              ...(Array.isArray(productData.parameterValues) && productData.parameterValues.length > 0
-                ? { parameterValues: productData.parameterValues }
-                : {})
-              // ВАЖНО: price НЕ передается здесь! Цена передается отдельно через updatePrices/updateCampaignPrices
-            },
+            offer: offer,
             mapping: {
               marketCategoryId: productData.marketCategoryId
             }
@@ -596,16 +605,48 @@ class YandexMarketService {
         }
       }
 
+      // Получаем все изображения товара
+      let pictures = [];
+      if (product.image_urls) {
+        try {
+          // image_urls может быть JSONB (объект) или строка
+          let imageUrlsArray = product.image_urls;
+          if (typeof imageUrlsArray === 'string') {
+            imageUrlsArray = JSON.parse(imageUrlsArray);
+          }
+          if (Array.isArray(imageUrlsArray) && imageUrlsArray.length > 0) {
+            pictures = imageUrlsArray.filter(url => url && typeof url === 'string');
+          }
+        } catch (e) {
+          console.warn('Failed to parse image_urls:', e.message);
+        }
+      }
+      // Если image_urls пустой, используем image_url как fallback
+      if (pictures.length === 0 && product.image_url) {
+        pictures = [product.image_url];
+      }
+
+      // Получаем габариты и вес товара
+      let dimensions = null;
+      if (product.length_cm || product.width_cm || product.height_cm || product.weight_kg) {
+        dimensions = {};
+        if (product.length_cm) dimensions.length = parseFloat(product.length_cm);
+        if (product.width_cm) dimensions.width = parseFloat(product.width_cm);
+        if (product.height_cm) dimensions.height = parseFloat(product.height_cm);
+        if (product.weight_kg) dimensions.weight = parseFloat(product.weight_kg);
+      }
+
       // Подготавливаем данные для загрузки
       const productData = {
         offerId: product.article, // Используем артикул как SKU
         name: product.name,
         marketCategoryId: options.marketCategoryId || product.yandex_market_category_id || null,
-        pictures: product.image_url ? [product.image_url] : [],
+        pictures: pictures,
         vendor: product.brand || '',
         description: product.description || null, // Передаем null, метод addProduct сгенерирует описание если нужно
         category: product.category || null,
-        parameterValues: parameterValues && parameterValues.length > 0 ? parameterValues : undefined
+        parameterValues: parameterValues && parameterValues.length > 0 ? parameterValues : undefined,
+        dimensions: dimensions
       };
 
       // Проверяем обязательные поля
@@ -703,21 +744,27 @@ class YandexMarketService {
         ]
       );
 
-      // Обновляем остатки (используем склад по умолчанию 2003902)
-      if (campaignId && product.available_quantity && product.available_quantity > 0) {
+      // Обновляем остатки (всегда передаем, даже если 0)
+      if (campaignId) {
         try {
           const warehouseId = await this.getClientWarehouseId(clientId);
+          const availableQuantity = product.available_quantity || 0;
+          
           await this.updateStocks(apiKey, campaignId, [
             {
               sku: product.article,
-              items: product.available_quantity,
+              items: availableQuantity,
               warehouseId: warehouseId ? Number(warehouseId) : undefined
             }
           ]);
+          console.log(`✅ Stocks updated for product ${product.article}: ${availableQuantity} items`);
         } catch (stockError) {
           console.error('Error updating stocks:', stockError);
+          console.error('Stock error details:', stockError.response?.data || stockError.message);
           // Не прерываем выполнение, если остатки не обновились
         }
+      } else {
+        console.warn(`⚠️  Campaign ID not found, stocks were not updated for product ${product.article}`);
       }
 
       return {
