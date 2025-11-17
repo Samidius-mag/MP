@@ -149,10 +149,20 @@ class SimaLandService {
         if (img.url_part && img.version) {
           const urlPart = img.url_part.toString().replace(/\/$/, ''); // Убираем trailing slash
           const version = img.version.toString();
+          const versionNum = parseInt(version);
           
           // ВАЖНО: Проверяем, есть ли imageId в объекте
           // imageId может быть в разных полях: imageId, image_id, id, photo_id, photoId
-          const imageId = img.imageId || img.image_id || img.id || img.photo_id || img.photoId;
+          let imageId = img.imageId || img.image_id || img.id || img.photo_id || img.photoId;
+          
+          // ВАЖНО: Если imageId нет, но version выглядит как timestamp (больше 1000000000),
+          // значит version на самом деле является imageId (timestamp используется как imageId)
+          // В этом случае используем version как imageId
+          if (!imageId && !isNaN(versionNum) && versionNum > 1000000000) {
+            // version - это timestamp, используем его как imageId
+            imageId = version;
+            console.log(`[SIMA LAND] 🔍 Using version (${version}) as imageId for image ${index}`);
+          }
           
           // Проверяем, не является ли url_part уже полным URL (содержит .jpg)
           if (urlPart.includes('.jpg')) {
@@ -163,12 +173,8 @@ class SimaLandService {
             // url_part уже содержит путь до папки с версией: /items/{itemId}/{version}
             url = `${urlPart}/${imageId}.jpg`;
           } else {
-            // Fallback: если imageId нет, НЕ используем популярные значения по индексу
-            // Это приводит к тому, что разные изображения получают одинаковые URL
-            // Вместо этого используем version как imageId (может быть неправильно, но лучше чем дубликаты)
-            // Или просто не формируем URL, если нет imageId
+            // Если imageId все еще нет, не формируем URL
             console.log(`[SIMA LAND] ⚠️ No imageId found for image ${index}, url_part=${urlPart}, version=${version}`);
-            // НЕ формируем URL без imageId - это приведет к ошибкам, но лучше чем дубликаты
             return null;
           }
           
@@ -280,7 +286,8 @@ class SimaLandService {
         } else {
           // Если размеры не указаны, берем все доступные
           product.photo_sizes.forEach(photoSize => {
-            if (photoSize) {
+            // Пропускаем числа (размеры в пикселях) - это не URL
+            if (photoSize && typeof photoSize !== 'number') {
               const url = extractImageUrl(photoSize);
               if (url && !imageUrls.includes(url)) imageUrls.push(url);
             }
