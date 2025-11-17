@@ -2855,7 +2855,8 @@ router.get('/ozon/categories', requireClient, async (req, res) => {
             flat.push({ 
               id, 
               name,
-              isTypeId: !!typeId // Сохраняем информацию о том, является ли это типом товара
+              isTypeId: !!typeId, // Сохраняем информацию о том, является ли это типом товара
+              parentCategoryId: categoryId || null // Сохраняем родительскую категорию для type_id
             });
           }
         }
@@ -2888,12 +2889,14 @@ router.post('/ozon/category/:categoryId/attributes', requireClient, async (req, 
       }
       const categoryId = req.params.categoryId;
       const isTypeId = req.query.isTypeId === 'true' || req.body?.isTypeId === true;
-      console.log(`[OZON] Fetch attributes: categoryId=${categoryId}, isTypeId=${isTypeId}`);
+      const parentCategoryId = req.query.parentCategoryId || req.body?.parentCategoryId || null;
+      console.log(`[OZON] Fetch attributes: categoryId=${categoryId}, isTypeId=${isTypeId}, parentCategoryId=${parentCategoryId}`);
       const data = await ozon.getCategoryAttributes(
         credentials.apiKey,
         credentials.clientId,
         categoryId,
-        isTypeId
+        isTypeId,
+        parentCategoryId
       );
       console.log('[OZON] Raw attributes data keys:', Object.keys(data || {}));
       console.log('[OZON] Raw attributes data sample:', JSON.stringify(data).substring(0, 500));
@@ -2939,6 +2942,7 @@ router.post('/store-products/:productId/upload/ozon', requireClient, async (req,
       const result = await ozonService.uploadProductToMarket(clientId, productId, {
         categoryId: categoryId || null,
         isTypeId: isTypeId || false,
+        parentCategoryId: req.body.parentCategoryId || null,
         attributes: Array.isArray(attributes) ? attributes : undefined
       });
 

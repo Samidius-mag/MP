@@ -66,16 +66,20 @@ class OzonService {
    * 
    * @param {string} categoryId - Может быть как description_category_id, так и type_id
    * @param {boolean} isTypeId - Если true, то categoryId является type_id, иначе description_category_id
+   * @param {number} parentCategoryId - Родительская категория (обязательна для type_id)
    */
-  async getCategoryAttributes(apiKey, clientId, categoryId, isTypeId = false) {
+  async getCategoryAttributes(apiKey, clientId, categoryId, isTypeId = false, parentCategoryId = null) {
     try {
       const requestBody = {
         language: 'RU'
       };
 
-      // Если это type_id, передаем только type_id
+      // Если это type_id, передаем type_id и родительскую категорию
       if (isTypeId) {
         requestBody.type_id = Number(categoryId);
+        if (parentCategoryId) {
+          requestBody.description_category_id = Number(parentCategoryId);
+        }
       } else {
         // Если это description_category_id, передаем только description_category_id
         requestBody.description_category_id = Number(categoryId);
@@ -276,7 +280,7 @@ class OzonService {
         throw new Error(`Invalid selling price: ${sellingPrice}. Purchase price: ${purchasePrice}, markup: ${markupPercent}%`);
       }
 
-      // Получаем изображения товара
+      // Получаем изображения товара и валидируем URL
       let images = [];
       if (product.image_urls) {
         try {
@@ -285,24 +289,43 @@ class OzonService {
             imageUrlsArray = JSON.parse(imageUrlsArray);
           }
           if (Array.isArray(imageUrlsArray) && imageUrlsArray.length > 0) {
-            images = imageUrlsArray.filter(url => url && typeof url === 'string');
+            images = imageUrlsArray
+              .filter(url => url && typeof url === 'string')
+              .map(url => {
+                // Валидация и очистка URL
+                try {
+                  const urlObj = new URL(url);
+                  return urlObj.href; // Возвращаем нормализованный URL
+                } catch (e) {
+                  // Если URL невалидный, пропускаем
+                  console.warn('Invalid image URL:', url);
+                  return null;
+                }
+              })
+              .filter(url => url !== null);
           }
         } catch (e) {
           console.warn('Failed to parse image_urls:', e.message);
         }
       }
       if (images.length === 0 && product.image_url) {
-        images = [product.image_url];
+        try {
+          const urlObj = new URL(product.image_url);
+          images = [urlObj.href];
+        } catch (e) {
+          console.warn('Invalid main image URL:', product.image_url);
+        }
       }
 
       if (images.length === 0) {
-        throw new Error('At least one product image is required for OZON');
+        throw new Error('At least one valid product image URL is required for OZON');
       }
 
       // Получаем атрибуты категории и маппим характеристики
       let attributes = [];
       const categoryId = options.categoryId;
       const isTypeId = options.isTypeId || false;
+      const parentCategoryId = options.parentCategoryId || null;
       
       if (categoryId && characteristics && Object.keys(characteristics).length > 0) {
         try {
@@ -310,7 +333,8 @@ class OzonService {
             credentials.apiKey,
             credentials.clientId,
             categoryId,
-            isTypeId
+            isTypeId,
+            parentCategoryId
           );
           attributes = this.mapCharacteristicsToOzon(characteristics, ozonAttributes);
         } catch (attrError) {
@@ -339,11 +363,14 @@ class OzonService {
         width: product.width_cm ? Math.round(product.width_cm * 10) : undefined // Ширина в мм
       };
 
-      // Если это type_id, используем type_id, иначе category_id
+      // Если это type_id, используем ОБА параметра: description_category_id и type_id
       if (isTypeId) {
         productData.type_id = Number(categoryId);
+        if (parentCategoryId) {
+          productData.description_category_id = Number(parentCategoryId);
+        }
       } else {
-        productData.category_id = Number(categoryId);
+        productData.description_category_id = Number(categoryId);
       }
 
       // Проверяем обязательные поля

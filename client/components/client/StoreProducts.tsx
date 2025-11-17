@@ -64,6 +64,7 @@ export default function StoreProducts() {
   const [ozonCategories, setOzonCategories] = useState<any[]>([]);
   const [ozonSelectedCategoryId, setOzonSelectedCategoryId] = useState<string>('');
   const [ozonSelectedCategoryIsType, setOzonSelectedCategoryIsType] = useState<boolean>(false);
+  const [ozonSelectedParentCategoryId, setOzonSelectedParentCategoryId] = useState<string | null>(null);
   const [ozonAttributes, setOzonAttributes] = useState<any[]>([]);
   const [ozonAttributeValues, setOzonAttributeValues] = useState<Record<string, any>>({});
   const [ozonCategorySearch, setOzonCategorySearch] = useState('');
@@ -324,14 +325,15 @@ export default function StoreProducts() {
     }
   };
 
-  const loadOzonAttributes = async (categoryId: string, isTypeId: boolean = false) => {
+  const loadOzonAttributes = async (categoryId: string, isTypeId: boolean = false, parentCategoryId: string | null = null) => {
     setOzonAttributes([]);
     setOzonAttributeValues({});
     if (!categoryId) return;
     setOzonLoading(true);
     try {
       const { data } = await api.post(`/client/ozon/category/${categoryId}/attributes`, {
-        isTypeId: isTypeId
+        isTypeId: isTypeId,
+        parentCategoryId: parentCategoryId
       });
       const attrs = data?.attributes || data?.result || [];
       setOzonAttributes(Array.isArray(attrs) ? attrs : []);
@@ -361,6 +363,7 @@ export default function StoreProducts() {
       await api.post(`/client/store-products/${ozonTargetProductId}/upload/ozon`, {
         categoryId: Number(ozonSelectedCategoryId),
         isTypeId: ozonSelectedCategoryIsType,
+        parentCategoryId: ozonSelectedParentCategoryId ? Number(ozonSelectedParentCategoryId) : null,
         attributes: attributes.length > 0 ? attributes : undefined
       });
       toast.success('Товар загружен на OZON');
@@ -963,9 +966,11 @@ export default function StoreProducts() {
                     onChange={(e) => {
                       const selectedCategory = ozonCategories.find((c: any) => c.id === Number(e.target.value));
                       const isTypeId = selectedCategory?.isTypeId || false;
+                      const parentCategoryId = selectedCategory?.parentCategoryId || null;
                       setOzonSelectedCategoryId(e.target.value);
                       setOzonSelectedCategoryIsType(isTypeId);
-                      loadOzonAttributes(e.target.value, isTypeId);
+                      setOzonSelectedParentCategoryId(parentCategoryId);
+                      loadOzonAttributes(e.target.value, isTypeId, parentCategoryId);
                     }}
                     className="input"
                     size={8}
