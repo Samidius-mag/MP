@@ -246,53 +246,59 @@ function generateAlternativeUrls(originalUrl) {
     const urlObj = new URL(urlWithoutQuery);
     const pathParts = urlObj.pathname.split('/').filter(p => p);
     
-    // Формат: /items/{itemId}/{version}/{imageId}.jpg?v={timestamp}
-    // Пример рабочей ссылки: /items/3916390/11/700.jpg?v=1680674667
-    // Проблема: в некоторых URL в пути используется timestamp вместо imageId
+    // Формат: /items/{itemId}/{index}/{timestamp}.jpg?v={timestamp}
+    // Пример рабочей ссылки: /items/2804723/0/1700666015.jpg?v=1700666015
+    // Где: itemId - ID товара, index - индекс изображения (0, 1, 2, 3, 4, 5), timestamp - версия
+    // 0 - главная картинка товара, 1,2,3,4,5 - остальные картинки
     if (pathParts.length >= 4 && pathParts[0] === 'items') {
       const itemId = pathParts[1];
-      const version = pathParts[2];
-      const imageId = pathParts[3].replace('.jpg', '');
-      const imageIdNum = parseInt(imageId);
-      const isTimestamp = !isNaN(imageIdNum) && imageIdNum > 1000000000;
+      const currentIndex = pathParts[2]; // Это индекс изображения (0, 1, 2, 3, 4, 5)
+      const timestamp = pathParts[3].replace('.jpg', ''); // Это timestamp
+      const timestampNum = parseInt(timestamp);
+      const isTimestamp = !isNaN(timestampNum) && timestampNum > 1000000000;
       
-      // ПРИОРИТЕТ 1: Если imageId выглядит как timestamp, пробуем разные версии с оригинальным imageId
-      // Это позволяет сохранить уникальность каждого изображения
       if (isTimestamp) {
-        // Сначала пробуем разные версии с оригинальным timestamp (может быть правильным imageId)
-        const priorityVersions = [7, 5, 11, 2, 1];
-        for (const v of priorityVersions) {
+        // Пробуем другие индексы изображений (0-5) с тем же timestamp
+        // Это правильный подход, так как 0 - главная картинка, 1-5 - остальные
+        const imageIndexes = [0, 1, 2, 3, 4, 5];
+        for (const idx of imageIndexes) {
           if (alternatives.length >= MAX_ALTERNATIVES) break;
-          if (v.toString() !== version) {
-            alternatives.push(`${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/${v}/${imageId}.jpg`);
+          if (idx.toString() !== currentIndex) {
+            // Пробуем тот же timestamp с другим индексом
+            alternatives.push(`${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/${idx}/${timestamp}.jpg`);
           }
         }
         
-        // Если не набрали достаточно альтернатив, используем оригинальный timestamp
-        // для генерации уникального популярного imageId на основе последних цифр timestamp
-        // Это позволяет каждому изображению получить уникальный альтернативный URL
+        // Если не набрали достаточно альтернатив, пробуем другие популярные timestamp'ы
+        // Используем последние цифры timestamp для генерации вариантов
         if (alternatives.length < MAX_ALTERNATIVES) {
-          // Используем последние 3 цифры timestamp для выбора популярного imageId
-          // Это обеспечивает уникальность для разных изображений
-          const lastDigits = parseInt(imageId.toString().slice(-3));
-          const commonImageIds = [700, 500, 1000, 800, 600];
-          // Выбираем imageId на основе последних цифр timestamp для уникальности
-          const selectedImageId = commonImageIds[lastDigits % commonImageIds.length];
+          const lastDigits = parseInt(timestamp.toString().slice(-3));
+          // Генерируем варианты timestamp на основе последних цифр
+          const timestampVariants = [
+            timestamp, // Оригинальный
+            timestampNum - 1,
+            timestampNum + 1,
+            timestampNum - 10,
+            timestampNum + 10
+          ].filter(ts => ts > 1000000000 && ts < 9999999999);
           
-          // Пробуем только версию 2 с выбранным imageId (наиболее часто работает)
-          if (!alternatives.some(alt => alt.includes(`/${selectedImageId}.jpg`))) {
-            alternatives.push(`${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/2/${selectedImageId}.jpg`);
+          for (const ts of timestampVariants.slice(0, 2)) {
+            if (alternatives.length >= MAX_ALTERNATIVES) break;
+            // Пробуем индекс 0 (главная картинка) с вариантами timestamp
+            if (ts.toString() !== timestamp) {
+              alternatives.push(`${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/0/${ts}.jpg`);
+            }
           }
         }
         
-        console.log(`[IMAGE PROXY] 🔍 Generated alternatives for timestamp case: itemId=${itemId}, original imageId=${imageId}, alternatives=${alternatives.length}`);
+        console.log(`[IMAGE PROXY] 🔍 Generated alternatives: itemId=${itemId}, currentIndex=${currentIndex}, timestamp=${timestamp}, alternatives=${alternatives.length}`);
       } else {
-        // ПРИОРИТЕТ 2: Если imageId нормальный, пробуем только самые популярные версии
-        const priorityVersions = [7, 5, 11, 2, 1];
-        for (const v of priorityVersions) {
+        // Если timestamp не распознан, пробуем стандартные индексы (0-5)
+        const imageIndexes = [0, 1, 2, 3, 4, 5];
+        for (const idx of imageIndexes) {
           if (alternatives.length >= MAX_ALTERNATIVES) break;
-          if (v.toString() !== version) {
-            alternatives.push(`${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/${v}/${imageId}.jpg`);
+          if (idx.toString() !== currentIndex) {
+            alternatives.push(`${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/${idx}/${timestamp}.jpg`);
           }
         }
       }

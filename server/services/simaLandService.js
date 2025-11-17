@@ -224,13 +224,20 @@ class SimaLandService {
       const hasUrlPart = product.images.some(img => img && typeof img === 'object' && img.url_part);
       if (hasUrlPart) {
         // Это новый формат с url_part - используем его
-        // Логируем структуру первого изображения для отладки
-        if (product.images[0] && typeof product.images[0] === 'object') {
-          console.log(`[SIMA LAND] 🔍 Image structure for product ${product.id || product.sid || 'unknown'}:`, JSON.stringify(product.images[0], null, 2));
+        // Логируем структуру всех изображений для отладки
+        if (product.images.length > 0) {
+          console.log(`[SIMA LAND] 🔍 Product ${product.id || product.sid || 'unknown'}: Found ${product.images.length} images in API response`);
+          product.images.slice(0, 3).forEach((img, idx) => {
+            if (img && typeof img === 'object') {
+              console.log(`[SIMA LAND]   Image ${idx}:`, JSON.stringify(img, null, 2));
+            }
+          });
         }
         imageUrls = product.images.map((img, index) => {
           const url = extractImageUrl(img, index);
-          if (!url && img && typeof img === 'object') {
+          if (url) {
+            console.log(`[SIMA LAND] ✅ Extracted URL for image ${index}: ${url}`);
+          } else if (img && typeof img === 'object') {
             console.warn(`[SIMA LAND] ⚠️ Failed to extract URL for image ${index} of product ${product.id || product.sid || 'unknown'}:`, JSON.stringify(img));
           }
           return url;
