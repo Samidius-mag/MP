@@ -34,16 +34,16 @@
       "static/chunks/133-0673c5edaa4e4066.js",
       "static/chunks/app/client/dashboard/page-23b3b501d87f93f7.js"
     ],
-    "/client/products/page": [
+    "/client/deposit/page": [
       "static/chunks/webpack-08647c67784211f6.js",
       "static/chunks/fd9d1056-1d1f67edd9dabe65.js",
       "static/chunks/938-178702252affc5cc.js",
       "static/chunks/main-app-80a44e0162bf2850.js",
       "static/chunks/737-533bd6df5857591e.js",
       "static/chunks/251-c8522eadecb4a1c7.js",
-      "static/chunks/783-7644feb628e3afb7.js",
+      "static/chunks/703-baa4b55d52d1f596.js",
       "static/chunks/133-0673c5edaa4e4066.js",
-      "static/chunks/app/client/products/page-853a6f938cc65bdb.js"
+      "static/chunks/app/client/deposit/page-d48c55ac1f0c9adb.js"
     ],
     "/client/orders/page": [
       "static/chunks/webpack-08647c67784211f6.js",
@@ -56,6 +56,17 @@
       "static/chunks/133-0673c5edaa4e4066.js",
       "static/chunks/app/client/orders/page-ac1aedf79ac77846.js"
     ],
+    "/client/products/page": [
+      "static/chunks/webpack-08647c67784211f6.js",
+      "static/chunks/fd9d1056-1d1f67edd9dabe65.js",
+      "static/chunks/938-178702252affc5cc.js",
+      "static/chunks/main-app-80a44e0162bf2850.js",
+      "static/chunks/737-533bd6df5857591e.js",
+      "static/chunks/251-c8522eadecb4a1c7.js",
+      "static/chunks/783-7644feb628e3afb7.js",
+      "static/chunks/133-0673c5edaa4e4066.js",
+      "static/chunks/app/client/products/page-853a6f938cc65bdb.js"
+    ],
     "/client/settings/page": [
       "static/chunks/webpack-08647c67784211f6.js",
       "static/chunks/fd9d1056-1d1f67edd9dabe65.js",
@@ -67,17 +78,6 @@
       "static/chunks/133-0673c5edaa4e4066.js",
       "static/chunks/app/client/settings/page-23c6c96a2ec1bb38.js"
     ],
-    "/client/deposit/page": [
-      "static/chunks/webpack-08647c67784211f6.js",
-      "static/chunks/fd9d1056-1d1f67edd9dabe65.js",
-      "static/chunks/938-178702252affc5cc.js",
-      "static/chunks/main-app-80a44e0162bf2850.js",
-      "static/chunks/737-533bd6df5857591e.js",
-      "static/chunks/251-c8522eadecb4a1c7.js",
-      "static/chunks/703-baa4b55d52d1f596.js",
-      "static/chunks/133-0673c5edaa4e4066.js",
-      "static/chunks/app/client/deposit/page-d48c55ac1f0c9adb.js"
-    ],
     "/client/sima-land/page": [
       "static/chunks/webpack-08647c67784211f6.js",
       "static/chunks/fd9d1056-1d1f67edd9dabe65.js",
@@ -87,7 +87,7 @@
       "static/chunks/251-c8522eadecb4a1c7.js",
       "static/chunks/706-31a14e136f503946.js",
       "static/chunks/133-0673c5edaa4e4066.js",
-      "static/chunks/app/client/sima-land/page-1f8656ce105ecce5.js"
+      "static/chunks/app/client/sima-land/page-2190472f5b10edc0.js"
     ],
     "/client/warehouse/page": [
       "static/chunks/webpack-08647c67784211f6.js",
