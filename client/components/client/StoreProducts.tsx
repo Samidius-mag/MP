@@ -57,6 +57,15 @@ export default function StoreProducts() {
   const [ymParams, setYmParams] = useState<any[]>([]);
   const [ymParamValues, setYmParamValues] = useState<Record<string, any>>({});
   const [ymCategorySearch, setYmCategorySearch] = useState('');
+  const [uploadingToOzon, setUploadingToOzon] = useState<number | null>(null);
+  const [ozonModalOpen, setOzonModalOpen] = useState(false);
+  const [ozonTargetProductId, setOzonTargetProductId] = useState<number | null>(null);
+  const [ozonLoading, setOzonLoading] = useState(false);
+  const [ozonCategories, setOzonCategories] = useState<any[]>([]);
+  const [ozonSelectedCategoryId, setOzonSelectedCategoryId] = useState<string>('');
+  const [ozonAttributes, setOzonAttributes] = useState<any[]>([]);
+  const [ozonAttributeValues, setOzonAttributeValues] = useState<Record<string, any>>({});
+  const [ozonCategorySearch, setOzonCategorySearch] = useState('');
 
   useEffect(() => {
     fetchProducts();
@@ -292,6 +301,82 @@ export default function StoreProducts() {
       fetchYmCategories();
     }
   }, [ymModalOpen]);
+
+  // OZON функции
+  const uploadToOzon = async (productId: number) => {
+    setOzonTargetProductId(productId);
+    setOzonModalOpen(true);
+    fetchOzonCategories();
+  };
+
+  const fetchOzonCategories = async () => {
+    setOzonLoading(true);
+    try {
+      const { data } = await api.get('/client/ozon/categories');
+      const list = (data?.categories || data?.result || data) as any[];
+      setOzonCategories(Array.isArray(list) ? list : []);
+    } catch (e: any) {
+      console.error('OZON categories error:', e);
+      toast.error(e.response?.data?.error || 'Ошибка загрузки категорий OZON');
+    } finally {
+      setOzonLoading(false);
+    }
+  };
+
+  const loadOzonAttributes = async (categoryId: string) => {
+    setOzonAttributes([]);
+    setOzonAttributeValues({});
+    if (!categoryId) return;
+    setOzonLoading(true);
+    try {
+      const { data } = await api.post(`/client/ozon/category/${categoryId}/attributes`);
+      const attrs = data?.attributes || data?.result || [];
+      setOzonAttributes(Array.isArray(attrs) ? attrs : []);
+    } catch (e: any) {
+      toast.error(e.response?.data?.error || 'Ошибка загрузки атрибутов категории');
+    } finally {
+      setOzonLoading(false);
+    }
+  };
+
+  const submitOzonUpload = async () => {
+    if (!ozonTargetProductId) return;
+    if (!ozonSelectedCategoryId) {
+      toast.error('Выберите категорию OZON');
+      return;
+    }
+    setUploadingToOzon(ozonTargetProductId);
+    try {
+      // Преобразуем значения атрибутов в формат OZON
+      const attributes = Object.entries(ozonAttributeValues)
+        .filter(([_, v]) => v !== undefined && v !== null && String(v).trim() !== '')
+        .map(([attrId, v]) => ({
+          id: Number(attrId),
+          value: String(v)
+        }));
+
+      await api.post(`/client/store-products/${ozonTargetProductId}/upload/ozon`, {
+        categoryId: Number(ozonSelectedCategoryId),
+        attributes: attributes.length > 0 ? attributes : undefined
+      });
+      toast.success('Товар загружен на OZON');
+      setOzonModalOpen(false);
+      setOzonTargetProductId(null);
+      await fetchProducts();
+    } catch (err: any) {
+      console.error('Error uploading to OZON:', err);
+      toast.error(err.response?.data?.error || 'Ошибка загрузки на OZON');
+    } finally {
+      setUploadingToOzon(null);
+    }
+  };
+
+  // Автозагрузка категорий OZON при открытии модала
+  useEffect(() => {
+    if (ozonModalOpen) {
+      fetchOzonCategories();
+    }
+  }, [ozonModalOpen]);
 
   const submitYmUpload = async () => {
     if (!ymTargetProductId) return;
@@ -642,6 +727,15 @@ export default function StoreProducts() {
                             {uploadingToYM === product.id ? 'Загрузка...' : 'Загрузить на ЯМ'}
                           </button>
                         )}
+                        {marketplaceTargets.includes('ozon') && (
+                          <button
+                            onClick={() => uploadToOzon(product.id)}
+                            disabled={uploadingToOzon === product.id}
+                            className="mt-1 px-2 py-1 text-[11px] bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                          >
+                            {uploadingToOzon === product.id ? 'Загрузка...' : 'Загрузить на OZON'}
+                          </button>
+                        )}
                       </div>
                     </td>
                     <td className="px-2 py-2 whitespace-nowrap text-[11px] text-gray-500">
@@ -833,6 +927,98 @@ export default function StoreProducts() {
                 <button onClick={() => setYmModalOpen(false)} className="btn-secondary">Отмена</button>
                 <button onClick={submitYmUpload} className="btn-primary" disabled={uploadingToYM !== null}>
                   {uploadingToYM ? 'Загрузка...' : 'Загрузить'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Модал: Загрузка на OZON */}
+      {ozonModalOpen && (
+        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-2xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold">Загрузка на OZON</h3>
+              <button onClick={() => setOzonModalOpen(false)} className="text-gray-500 hover:text-gray-700">×</button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="label">Категория OZON</label>
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="Поиск категории..."
+                    value={ozonCategorySearch}
+                    onChange={(e) => setOzonCategorySearch(e.target.value)}
+                  />
+                  <select
+                    value={ozonSelectedCategoryId}
+                    onChange={(e) => {
+                      setOzonSelectedCategoryId(e.target.value);
+                      loadOzonAttributes(e.target.value);
+                    }}
+                    className="input"
+                    size={8}
+                  >
+                    <option value="">Выберите категорию</option>
+                    {ozonCategories
+                      .filter((c: any) => {
+                        if (!ozonCategorySearch) return true;
+                        const q = ozonCategorySearch.toLowerCase();
+                        return String(c.name || c.title || c.id).toLowerCase().includes(q);
+                      })
+                      .slice(0, 200)
+                      .map((c: any) => (
+                        <option key={c.id} value={c.id}>{c.name || c.title || c.id}</option>
+                      ))}
+                  </select>
+                  <div className="text-xs text-gray-500">
+                    Найдено: {
+                      ozonCategories.filter((c: any) => {
+                        if (!ozonCategorySearch) return true;
+                        const q = ozonCategorySearch.toLowerCase();
+                        return String(c.name || c.title || c.id).toLowerCase().includes(q);
+                      }).length
+                    } (показано до 200)
+                  </div>
+                </div>
+              </div>
+
+              {ozonLoading && <div className="text-sm text-gray-500">Загрузка...</div>}
+
+              {!ozonLoading && ozonAttributes && ozonAttributes.length > 0 && (
+                <div className="space-y-3 max-h-64 overflow-y-auto">
+                  <div className="text-sm text-gray-700">Атрибуты категории (заполните обязательные):</div>
+                  {ozonAttributes.map((attr: any) => (
+                    <div key={attr.id} className="grid grid-cols-1 md:grid-cols-3 gap-2 items-center">
+                      <div className="text-sm">
+                        <span className="font-medium">{attr.name || attr.title || `Атрибут ${attr.id}`}</span>
+                        {attr.is_required && <span className="ml-1 text-red-600">*</span>}
+                      </div>
+                      <div className="md:col-span-2">
+                        <input
+                          type="text"
+                          className="input"
+                          placeholder={attr.type || ''}
+                          value={ozonAttributeValues[attr.id]?.value || ozonAttributeValues[attr.id] || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setOzonAttributeValues(prev => ({ ...prev, [attr.id]: val }));
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={() => setOzonModalOpen(false)} className="btn-secondary">Отмена</button>
+                <button onClick={submitOzonUpload} className="btn-primary" disabled={uploadingToOzon !== null}>
+                  {uploadingToOzon ? 'Загрузка...' : 'Загрузить'}
                 </button>
               </div>
             </div>

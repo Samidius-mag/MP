@@ -2800,6 +2800,138 @@ router.post('/yandex/category/:categoryId/parameters', requireClient, async (req
   }
 });
 
+// OZON: дерево категорий
+router.get('/ozon/categories', requireClient, async (req, res) => {
+  try {
+    const client = await pool.connect();
+    try {
+      const r = await client.query('SELECT id FROM clients WHERE user_id = $1', [req.user.id]);
+      if (r.rows.length === 0) return res.status(404).json({ error: 'Клиент не найден' });
+      const clientId = r.rows[0].id;
+      const OzonService = require('../services/ozonService');
+      const ozon = new OzonService();
+      const credentials = await ozon.getClientCredentials(clientId);
+      if (!credentials.apiKey || !credentials.clientId) {
+        return res.status(400).json({ error: 'API ключ или Client ID OZON не настроены' });
+      }
+      console.log(`[OZON] Fetch categories tree: clientId=${clientId}`);
+      const data = await ozon.getCategoryTree(credentials.apiKey, credentials.clientId);
+      console.log('[OZON] Raw categories tree keys:', Object.keys(data || {}));
+      
+      // OZON возвращает дерево категорий в формате result.categories
+      let root = data?.result?.categories || data?.categories || data;
+      if (!Array.isArray(root)) {
+        const vals = Object.values(data?.result || {}).filter(v => Array.isArray(v));
+        if (vals.length > 0) root = vals[0];
+      }
+      
+      const flat = [];
+      const walk = (nodes) => {
+        if (!Array.isArray(nodes)) return;
+        for (const n of nodes) {
+          const id = n.category_id || n.id;
+          const name = n.title || n.name || String(id || '');
+          const children = n.children || n.childs || n.items || n.categories || n.nodes;
+          if (Array.isArray(children) && children.length > 0) {
+            walk(children);
+          } else if (id) {
+            flat.push({ id, name });
+          }
+        }
+      };
+      walk(root);
+      console.log(`[OZON] Flattened leaf categories: count=${flat.length}`);
+      res.json({ categories: flat });
+    } finally {
+      client.release();
+    }
+  } catch (e) {
+    console.error('[OZON] Categories error:', e.response?.data || e.message);
+    res.status(500).json({ error: 'Ошибка получения категорий OZON' });
+  }
+});
+
+// OZON: атрибуты категории
+router.post('/ozon/category/:categoryId/attributes', requireClient, async (req, res) => {
+  try {
+    const client = await pool.connect();
+    try {
+      const r = await client.query('SELECT id FROM clients WHERE user_id = $1', [req.user.id]);
+      if (r.rows.length === 0) return res.status(404).json({ error: 'Клиент не найден' });
+      const clientId = r.rows[0].id;
+      const OzonService = require('../services/ozonService');
+      const ozon = new OzonService();
+      const credentials = await ozon.getClientCredentials(clientId);
+      if (!credentials.apiKey || !credentials.clientId) {
+        return res.status(400).json({ error: 'API ключ или Client ID OZON не настроены' });
+      }
+      console.log(`[OZON] Fetch attributes: categoryId=${req.params.categoryId}`);
+      const data = await ozon.getCategoryAttributes(
+        credentials.apiKey,
+        credentials.clientId,
+        req.params.categoryId
+      );
+      const attributes = data?.result || data?.attributes || [];
+      console.log(`[OZON] Attributes received: count=${Array.isArray(attributes) ? attributes.length : 0}`);
+      res.json({ attributes: attributes });
+    } finally {
+      client.release();
+    }
+  } catch (e) {
+    console.error('[OZON] Category attributes error:', e.response?.data || e.message);
+    res.status(500).json({ error: 'Ошибка получения атрибутов категории OZON' });
+  }
+});
+
+// OZON: загрузка товара
+router.post('/store-products/:productId/upload/ozon', requireClient, async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const { categoryId, attributes } = req.body;
+
+    const client = await pool.connect();
+    try {
+      // Получаем client_id
+      const clientResult = await client.query(
+        `SELECT id FROM clients WHERE user_id = $1`,
+        [req.user.id]
+      );
+
+      if (clientResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Клиент не найден' });
+      }
+
+      const clientId = clientResult.rows[0].id;
+
+      // Загружаем товар на OZON
+      const OzonService = require('../services/ozonService');
+      const ozonService = new OzonService();
+
+      const result = await ozonService.uploadProductToMarket(clientId, productId, {
+        categoryId: categoryId || null,
+        attributes: Array.isArray(attributes) ? attributes : undefined
+      });
+
+      res.json({
+        success: true,
+        message: 'Товар успешно загружен на OZON',
+        result: result
+      });
+    } catch (err) {
+      console.error('Upload to OZON error:', err);
+      res.status(500).json({ 
+        error: 'Ошибка загрузки товара на OZON',
+        details: err.message 
+      });
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('Upload to OZON error:', err);
+    res.status(500).json({ error: 'Ошибка загрузки товара' });
+  }
+});
+
 module.exports = router;
 
 
