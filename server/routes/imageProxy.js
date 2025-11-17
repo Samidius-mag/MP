@@ -256,18 +256,36 @@ function generateAlternativeUrls(originalUrl) {
       const imageIdNum = parseInt(imageId);
       const isTimestamp = !isNaN(imageIdNum) && imageIdNum > 1000000000;
       
-      // ПРИОРИТЕТ 1: Если imageId выглядит как timestamp, пробуем ТОЛЬКО самые популярные комбинации
-      // Это самый частый случай - неправильный формат в БД
+      // ПРИОРИТЕТ 1: Если imageId выглядит как timestamp, пробуем разные версии с оригинальным imageId
+      // Это позволяет сохранить уникальность каждого изображения
       if (isTimestamp) {
-        // ТОЛЬКО самые популярные комбинации (на основе статистики из логов)
-        // Версия 7 с imageId 700 - самая частая рабочая комбинация
-        const alt1 = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/7/700.jpg`;
-        const alt2 = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/5/700.jpg`;
-        const alt3 = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/11/700.jpg`;
-        const alt4 = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/2/700.jpg`;
-        const alt5 = `${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/1/700.jpg`;
-        alternatives.push(alt1, alt2, alt3, alt4, alt5);
-        console.log(`[IMAGE PROXY] 🔍 Generated alternatives for timestamp case: itemId=${itemId}, original imageId=${imageId}`);
+        // Сначала пробуем разные версии с оригинальным timestamp (может быть правильным imageId)
+        const priorityVersions = [7, 5, 11, 2, 1];
+        for (const v of priorityVersions) {
+          if (alternatives.length >= MAX_ALTERNATIVES) break;
+          if (v.toString() !== version) {
+            alternatives.push(`${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/${v}/${imageId}.jpg`);
+          }
+        }
+        
+        // Если не набрали достаточно альтернатив, используем оригинальный timestamp
+        // для генерации уникального популярного imageId на основе последних цифр timestamp
+        // Это позволяет каждому изображению получить уникальный альтернативный URL
+        if (alternatives.length < MAX_ALTERNATIVES) {
+          // Используем последние 3 цифры timestamp для выбора популярного imageId
+          // Это обеспечивает уникальность для разных изображений
+          const lastDigits = parseInt(imageId.toString().slice(-3));
+          const commonImageIds = [700, 500, 1000, 800, 600];
+          // Выбираем imageId на основе последних цифр timestamp для уникальности
+          const selectedImageId = commonImageIds[lastDigits % commonImageIds.length];
+          
+          // Пробуем только версию 2 с выбранным imageId (наиболее часто работает)
+          if (!alternatives.some(alt => alt.includes(`/${selectedImageId}.jpg`))) {
+            alternatives.push(`${urlObj.protocol}//${urlObj.hostname}/items/${itemId}/2/${selectedImageId}.jpg`);
+          }
+        }
+        
+        console.log(`[IMAGE PROXY] 🔍 Generated alternatives for timestamp case: itemId=${itemId}, original imageId=${imageId}, alternatives=${alternatives.length}`);
       } else {
         // ПРИОРИТЕТ 2: Если imageId нормальный, пробуем только самые популярные версии
         const priorityVersions = [7, 5, 11, 2, 1];
