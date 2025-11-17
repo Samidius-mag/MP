@@ -163,16 +163,13 @@ class SimaLandService {
             // url_part уже содержит путь до папки с версией: /items/{itemId}/{version}
             url = `${urlPart}/${imageId}.jpg`;
           } else {
-            // Fallback: пробуем использовать популярные imageId (700, 500, 1000)
-            // Но это может быть неправильно, если версия не соответствует imageId
-            // ВАЖНО: Если все изображения имеют одинаковый url_part и version,
-            // они получат одинаковый URL, что приведет к дубликатам
-            // В этом случае нужно использовать индекс изображения или другие данные
-            const commonImageIds = [700, 500, 1000, 300, 200];
-            // Используем индекс для выбора imageId (если передан)
-            const fallbackImageId = commonImageIds[index % commonImageIds.length] || 700;
-            url = `${urlPart}/${fallbackImageId}.jpg`;
-            console.log(`[SIMA LAND] ⚠️ No imageId found, using fallback ${fallbackImageId} for image ${index}`);
+            // Fallback: если imageId нет, НЕ используем популярные значения по индексу
+            // Это приводит к тому, что разные изображения получают одинаковые URL
+            // Вместо этого используем version как imageId (может быть неправильно, но лучше чем дубликаты)
+            // Или просто не формируем URL, если нет imageId
+            console.log(`[SIMA LAND] ⚠️ No imageId found for image ${index}, url_part=${urlPart}, version=${version}`);
+            // НЕ формируем URL без imageId - это приведет к ошибкам, но лучше чем дубликаты
+            return null;
           }
           
           // Пытаемся найти timestamp для query параметра
