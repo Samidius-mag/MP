@@ -261,9 +261,10 @@ class SimaLandService {
       
       imageUrls = product.photos.map((photo, index) => {
         // Если это первое изображение и есть поле img, используем его
+        // ВАЖНО: img содержит готовый правильный URL, который точно работает
         if (index === 0 && product.img && typeof product.img === 'string' && product.img.includes('goods-photos.static1-sima-land.com')) {
           const url = product.img;
-          console.log(`[SIMA LAND] ✅ Using img field for first image: ${url}`);
+          console.log(`[SIMA LAND] ✅ Using img field for first image (main): ${url}`);
           return url;
         }
         
@@ -295,6 +296,17 @@ class SimaLandService {
         }
         return url;
       }).filter(url => url !== null);
+      
+      // ВАЖНО: Убеждаемся, что первое изображение (главное) установлено правильно
+      // Если первое изображение не из img, но img существует, заменяем первое изображение на img
+      if (imageUrls.length > 0 && product.img && typeof product.img === 'string' && product.img.includes('goods-photos.static1-sima-land.com')) {
+        // Проверяем, не совпадает ли первое изображение с img
+        if (imageUrls[0] !== product.img) {
+          console.log(`[SIMA LAND] 🔄 Replacing first image with img field for better reliability`);
+          // Заменяем первое изображение на img (оно точно работает)
+          imageUrls[0] = product.img;
+        }
+      }
       
       // Удаляем дубликаты, но сохраняем порядок
       const uniqueUrls = [];
@@ -429,6 +441,16 @@ class SimaLandService {
     // Убираем дубликаты
     imageUrls = [...new Set(imageUrls)];
     
+    // ВАЖНО: Если imageUrls пустой, но есть поле img, используем его как главное изображение
+    // Это нужно для товаров из списка, где photos может отсутствовать
+    if (imageUrls.length === 0 && product.img && typeof product.img === 'string') {
+      console.log(`[SIMA LAND] 🔍 No images in array, but img field exists: ${product.img}`);
+      if (product.img.includes('goods-photos.static1-sima-land.com')) {
+        imageUrls.push(product.img);
+        console.log(`[SIMA LAND] ✅ Added img field to imageUrls: ${product.img}`);
+      }
+    }
+    
     // Логируем для отладки (только первые несколько товаров)
     if (process.env.NODE_ENV === 'development' || Math.random() < 0.01) {
       console.log(`[SIMA LAND] Product ${product.id || product.sid || 'unknown'}: Found ${imageUrls.length} images`);
@@ -466,7 +488,12 @@ class SimaLandService {
     }
     
     // Основное изображение (первое) - для обратной совместимости
-    const imageUrl = imageUrls.length > 0 ? imageUrls[0] : null;
+    // ВАЖНО: Если imageUrls пустой, но есть img, используем img как главное изображение
+    let imageUrl = imageUrls.length > 0 ? imageUrls[0] : null;
+    if (!imageUrl && product.img && typeof product.img === 'string' && product.img.includes('goods-photos.static1-sima-land.com')) {
+      imageUrl = product.img;
+      console.log(`[SIMA LAND] ✅ Using img field as main image: ${imageUrl}`);
+    }
 
     // Описание товара
     // Согласно документации API v3:
@@ -1342,6 +1369,23 @@ class SimaLandService {
               imagesCount += finalImageUrls.length;
             }
 
+            // ВАЖНО: Убеждаемся, что главное изображение установлено
+            // Если finalImageUrl пустое, но есть изображения в массиве, используем первое
+            if (!finalImageUrl && finalImageUrls && finalImageUrls.length > 0) {
+              finalImageUrl = finalImageUrls[0];
+              console.log(`[SIMA LAND] 🔄 Using first image from array as main image: ${finalImageUrl}`);
+            }
+            
+            // Логируем перед сохранением
+            if (parsedProduct.article && (Math.random() < 0.01 || process.env.NODE_ENV === 'development')) {
+              console.log(`[SIMA LAND] 💾 Saving product ${parsedProduct.article}:`);
+              console.log(`[SIMA LAND]   Main image (image_url): ${finalImageUrl || 'NULL'}`);
+              console.log(`[SIMA LAND]   Total images (image_urls): ${finalImageUrls ? finalImageUrls.length : 0}`);
+              if (finalImageUrls && finalImageUrls.length > 0) {
+                console.log(`[SIMA LAND]   First image URL: ${finalImageUrls[0]}`);
+              }
+            }
+            
             // Сохраняем товар в базу данных
             await client.query(
               `INSERT INTO sima_land_products 
@@ -1568,6 +1612,13 @@ class SimaLandService {
             finalImageUrls = processedUrls;
           }
 
+          // ВАЖНО: Убеждаемся, что главное изображение установлено
+          // Если finalImageUrl пустое, но есть изображения в массиве, используем первое
+          if (!finalImageUrl && finalImageUrls && finalImageUrls.length > 0) {
+            finalImageUrl = finalImageUrls[0];
+            console.log(`[SIMA LAND] 🔄 Catalog: Using first image from array as main image: ${finalImageUrl}`);
+          }
+          
           // Формируем строку для вставки в каталог
           const row = {
             id: parsedProduct.id,
@@ -1583,6 +1634,13 @@ class SimaLandService {
             description: parsedProduct.description,
             characteristics: parsedProduct.characteristics
           };
+          
+          // Логируем для отладки (только первые несколько товаров)
+          if (savedCount < 3 && parsedProduct.article) {
+            console.log(`[SIMA LAND] 💾 Catalog: Saving product ${parsedProduct.article}:`);
+            console.log(`[SIMA LAND]   Main image (image_url): ${finalImageUrl || 'NULL'}`);
+            console.log(`[SIMA LAND]   Total images (image_urls): ${finalImageUrls ? finalImageUrls.length : 0}`);
+          }
           
           buffer.push(row);
           if (buffer.length >= 500) {

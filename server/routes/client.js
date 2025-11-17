@@ -1666,11 +1666,17 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
             
             // Если это массив и image_url пустое - берем первое изображение
             if (imageUrlsArray.length > 0) {
-              if (!product.image_url || product.image_url.trim() === '') {
+              // ВАЖНО: Убеждаемся, что главное изображение установлено
+              // Если image_url пустое или null, используем первое изображение из массива
+              if (!product.image_url || product.image_url.trim() === '' || product.image_url === 'null' || product.image_url === 'undefined') {
                 product.image_url = imageUrlsArray[0];
+                console.log(`[API] 🔄 Product ${product.id}: Set main image from image_urls[0]: ${product.image_url}`);
               }
               // Устанавливаем image_urls как массив для дальнейшей обработки
               product.image_urls = imageUrlsArray;
+            } else if (product.image_url && (product.image_url.trim() === '' || product.image_url === 'null' || product.image_url === 'undefined')) {
+              // Если массив пустой, но image_url есть (но пустое), очищаем его
+              product.image_url = null;
             }
           } catch (e) {
             console.warn(`[API] Failed to parse image_urls for product ${product.id}:`, e.message);
