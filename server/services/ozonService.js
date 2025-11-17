@@ -282,6 +282,41 @@ class OzonService {
 
       // Получаем изображения товара и валидируем URL
       let images = [];
+      
+      // Функция для преобразования относительного URL в абсолютный
+      const normalizeImageUrl = (url) => {
+        if (!url || typeof url !== 'string') return null;
+        
+        try {
+          // Если URL уже абсолютный, просто валидируем его
+          const urlObj = new URL(url);
+          return urlObj.href;
+        } catch (e) {
+          // Если URL относительный, пытаемся преобразовать его в абсолютный
+          // Проверяем, является ли это прокси URL
+          if (url.startsWith('/api/')) {
+            // Это относительный URL прокси - нужно получить базовый URL
+            // Для OZON нужны абсолютные URL, поэтому извлекаем оригинальный URL из прокси
+            try {
+              const urlParams = new URLSearchParams(url.split('?')[1] || '');
+              const originalUrl = urlParams.get('url');
+              if (originalUrl) {
+                // Декодируем URL параметр
+                const decodedUrl = decodeURIComponent(originalUrl);
+                const urlObj = new URL(decodedUrl);
+                return urlObj.href;
+              }
+            } catch (e2) {
+              console.warn('Failed to extract URL from proxy:', url);
+            }
+          }
+          
+          // Если не удалось преобразовать, пропускаем
+          console.warn('Invalid image URL:', url);
+          return null;
+        }
+      };
+      
       if (product.image_urls) {
         try {
           let imageUrlsArray = product.image_urls;
@@ -290,30 +325,18 @@ class OzonService {
           }
           if (Array.isArray(imageUrlsArray) && imageUrlsArray.length > 0) {
             images = imageUrlsArray
-              .filter(url => url && typeof url === 'string')
-              .map(url => {
-                // Валидация и очистка URL
-                try {
-                  const urlObj = new URL(url);
-                  return urlObj.href; // Возвращаем нормализованный URL
-                } catch (e) {
-                  // Если URL невалидный, пропускаем
-                  console.warn('Invalid image URL:', url);
-                  return null;
-                }
-              })
+              .map(normalizeImageUrl)
               .filter(url => url !== null);
           }
         } catch (e) {
           console.warn('Failed to parse image_urls:', e.message);
         }
       }
+      
       if (images.length === 0 && product.image_url) {
-        try {
-          const urlObj = new URL(product.image_url);
-          images = [urlObj.href];
-        } catch (e) {
-          console.warn('Invalid main image URL:', product.image_url);
+        const normalizedUrl = normalizeImageUrl(product.image_url);
+        if (normalizedUrl) {
+          images = [normalizedUrl];
         }
       }
 

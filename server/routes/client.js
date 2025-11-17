@@ -2829,7 +2829,7 @@ router.get('/ozon/categories', requireClient, async (req, res) => {
       }
       
       const flat = [];
-      const walk = (nodes) => {
+      const walk = (nodes, parentCategoryId = null) => {
         if (!Array.isArray(nodes)) return;
         for (const n of nodes) {
           // OZON API использует description_category_id для категорий и type_id для типов товаров
@@ -2844,9 +2844,13 @@ router.get('/ozon/categories', requireClient, async (req, res) => {
           
           const children = n.children || n.childs || n.items || n.categories || n.nodes;
           
+          // Если это тип товара (type_id), используем текущую категорию как родительскую
+          const currentParentCategoryId = typeId ? (categoryId || parentCategoryId) : null;
+          
           // Если есть дочерние элементы, рекурсивно обрабатываем их
+          // Передаем categoryId как родительскую категорию для дочерних элементов
           if (Array.isArray(children) && children.length > 0) {
-            walk(children);
+            walk(children, categoryId || parentCategoryId);
           }
           
           // Добавляем категорию/тип в список, если у него есть ID
@@ -2856,7 +2860,7 @@ router.get('/ozon/categories', requireClient, async (req, res) => {
               id, 
               name,
               isTypeId: !!typeId, // Сохраняем информацию о том, является ли это типом товара
-              parentCategoryId: categoryId || null // Сохраняем родительскую категорию для type_id
+              parentCategoryId: currentParentCategoryId // Сохраняем родительскую категорию для type_id
             });
           }
         }
