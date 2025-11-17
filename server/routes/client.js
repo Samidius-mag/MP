@@ -2832,18 +2832,32 @@ router.get('/ozon/categories', requireClient, async (req, res) => {
       const walk = (nodes) => {
         if (!Array.isArray(nodes)) return;
         for (const n of nodes) {
-          const id = n.category_id || n.id;
-          const name = n.title || n.name || String(id || '');
+          // OZON API использует description_category_id для категорий и type_id для типов товаров
+          const categoryId = n.description_category_id;
+          const typeId = n.type_id;
+          const id = categoryId || typeId;
+          
+          // OZON API использует category_name для категорий и type_name для типов
+          const categoryName = n.category_name;
+          const typeName = n.type_name;
+          const name = categoryName || typeName || String(id || '');
+          
           const children = n.children || n.childs || n.items || n.categories || n.nodes;
+          
+          // Если есть дочерние элементы, рекурсивно обрабатываем их
           if (Array.isArray(children) && children.length > 0) {
             walk(children);
-          } else if (id) {
+          }
+          
+          // Добавляем категорию/тип в список, если у него есть ID
+          // Добавляем все элементы, не только листовые, чтобы пользователь мог выбрать любую категорию
+          if (id && name) {
             flat.push({ id, name });
           }
         }
       };
       walk(root);
-      console.log(`[OZON] Flattened leaf categories: count=${flat.length}`);
+      console.log(`[OZON] Flattened categories: count=${flat.length}`);
       res.json({ categories: flat });
     } finally {
       client.release();
