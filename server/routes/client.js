@@ -1852,7 +1852,7 @@ router.get('/sima-land/products', requireClient, async (req, res) => {
           const originalCount = product.image_urls.length;
           product.image_urls = product.image_urls.map(url => {
             if (typeof url === 'string') {
-              // ВАЖНО: Исправляем URL, где timestamp используется как имя файла
+              // ВАЖНО: Исправляем URL, где timestamp использdуется как имя файла
               const timestampMatch = url.match(/\/items\/(\d+)\/(\d+)\/(\d+)\.jpg/);
               if (timestampMatch) {
                 const itemId = timestampMatch[1]; // Извлекаем itemId из URL
