@@ -605,7 +605,7 @@ export default function SimaLandProducts() {
         </div>
       )}
 
-      {/* Пагинация */}
+      {/* Пагинацияz */}
       {Math.ceil(filteredProducts.length / itemsPerPage) > 1 && (
         <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
           <div className="text-sm text-gray-700">
