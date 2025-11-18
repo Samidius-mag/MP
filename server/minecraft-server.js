@@ -68,8 +68,12 @@ async function startMinecraftServer() {
       'gameMode': 0, // 0 = выживание, 1 = творческий
       'difficulty': 1, // 0 = мирный, 1 = легкий, 2 = нормальный, 3 = сложный
       'worldFolder': worldPath,
-      // Генерация мира - не указываем, чтобы использовать генерацию по умолчанию
-      // Если мир пустой, удалите папку minecraft-world и перезапустите сервер
+      'generation': {
+    'name': 'diamond_square',
+    'options': {
+      'worldHeight': 80
+    }
+  },
       'kickTimeout': 10000,
       'plugins': {},
       'modpe': false,
@@ -256,8 +260,9 @@ async function startMinecraftServer() {
       setTimeout(() => {
         try {
           // Пытаемся найти player entity через server.players или server._players
+          let playerEntity = null;
           if (server.players) {
-            const playerEntity = server.players[username] || server.players[uuid];
+            playerEntity = server.players[username] || server.players[uuid];
             if (playerEntity) {
               playerEntity.uuid = uuid;
               if (playerEntity.profile) {
@@ -268,8 +273,8 @@ async function startMinecraftServer() {
             }
           }
           // Также проверяем _players (приватное свойство)
-          if (server._players) {
-            const playerEntity = server._players[username] || server._players[uuid];
+          if (!playerEntity && server._players) {
+            playerEntity = server._players[username] || server._players[uuid];
             if (playerEntity) {
               playerEntity.uuid = uuid;
               if (playerEntity.profile) {
@@ -278,11 +283,16 @@ async function startMinecraftServer() {
               }
             }
           }
+          
+          // Проверяем позицию игрока и телепортируем на безопасную позицию, если нужно
+          if (playerEntity) {
+            ensureSafeSpawnPosition(playerEntity, username);
+          }
         } catch (err) {
           // Игнорируем ошибки доступа к внутренним свойствам
           console.warn(`⚠️  Could not set UUID on player entity: ${err.message}`);
         }
-      }, 1000);
+      }, 2000); // Увеличена задержка до 2 секунд для загрузки чанков
 
       // Отслеживаем прогресс генерации мира в реальном времени
       const progressInterval = setInterval(() => {
@@ -314,6 +324,27 @@ async function startMinecraftServer() {
       
       // Сохраняем ссылку на интервал для очистки при отключении
       worldGenData.progressInterval = progressInterval;
+      
+      // Добавляем дополнительную проверку позиции после загрузки чанков
+      setTimeout(() => {
+        const player = minecraftService.players.get(uuid);
+        if (player) {
+          try {
+            let playerEntity = null;
+            if (server.players) {
+              playerEntity = server.players[username] || server.players[uuid];
+            }
+            if (!playerEntity && server._players) {
+              playerEntity = server._players[username] || server._players[uuid];
+            }
+            if (playerEntity) {
+              ensureSafeSpawnPosition(playerEntity, username);
+            }
+          } catch (err) {
+            console.warn(`⚠️  Ошибка при повторной проверке позиции для ${username}: ${err.message}`);
+          }
+        }
+      }, 5000); // Проверяем через 5 секунд после подключения
 
       // Приветственное сообщение (с задержкой, чтобы игрок успел заспавниться)
       setTimeout(() => {
@@ -526,6 +557,22 @@ async function startMinecraftServer() {
           }
         });
       });
+      
+      // Обработка события спавна игрока
+      server.on('spawn', (player) => {
+        try {
+          const username = player.username || (player.entity && player.entity.username);
+          if (username) {
+            console.log(`🎮 [${username}] Игрок заспавнился, проверяем позицию...`);
+            // Проверяем позицию через небольшую задержку после спавна
+            setTimeout(() => {
+              ensureSafeSpawnPosition(player, username);
+            }, 1000);
+          }
+        } catch (err) {
+          console.warn(`⚠️  Ошибка при обработке события spawn: ${err.message}`);
+        }
+      });
     }
 
   } catch (err) {
@@ -581,6 +628,182 @@ function stopMinecraftServer() {
 }
 
 /**
+ * Находит безопасную позицию для спавна игрока (на земле)
+ */
+function findSafeSpawnPosition(world, startX, startZ) {
+  try {
+    if (!world) {
+      console.warn(`⚠️  Мир не доступен для поиска безопасной позиции`);
+      return { x: startX, y: 64, z: startZ };
+    }
+    
+    // Проверяем несколько позиций вокруг стартовой точки
+    const searchRadius = 20;
+    const minY = 0;
+    const maxY = 256;
+    
+    // Начинаем поиск с центра и расширяемся
+    for (let radius = 0; radius <= searchRadius; radius += 2) {
+      for (let offsetX = -radius; offsetX <= radius; offsetX += 2) {
+        for (let offsetZ = -radius; offsetZ <= radius; offsetZ += 2) {
+          // Пропускаем позиции вне текущего радиуса
+          if (Math.abs(offsetX) !== radius && Math.abs(offsetZ) !== radius && radius > 0) {
+            continue;
+          }
+          
+          const x = Math.floor(startX + offsetX);
+          const z = Math.floor(startZ + offsetZ);
+          
+          // Ищем безопасную позицию сверху вниз (начинаем с Y=100)
+          for (let y = 100; y >= minY; y--) {
+            try {
+              // Пытаемся получить блоки разными способами (в зависимости от API flying-squid)
+              let blockBelow = null;
+              let blockAt = null;
+              let blockAbove = null;
+              
+              // Способ 1: через getBlock
+              if (world.getBlock) {
+                try {
+                  blockBelow = world.getBlock(x, y - 1, z);
+                  blockAt = world.getBlock(x, y, z);
+                  blockAbove = world.getBlock(x, y + 1, z);
+                } catch (e) {
+                  // Игнорируем ошибки
+                }
+              }
+              
+              // Способ 2: через блоки чанка
+              if ((!blockBelow || !blockAt || !blockAbove) && world.getColumn) {
+                try {
+                  const column = world.getColumn(x, z);
+                  if (column) {
+                    if (!blockBelow) blockBelow = column.getBlock ? column.getBlock(x, y - 1, z) : null;
+                    if (!blockAt) blockAt = column.getBlock ? column.getBlock(x, y, z) : null;
+                    if (!blockAbove) blockAbove = column.getBlock ? column.getBlock(x, y + 1, z) : null;
+                  }
+                } catch (e) {
+                  // Игнорируем ошибки
+                }
+              }
+              
+              // Проверяем, что блок под ногами твердый, а на уровне игрока и выше - воздух
+              const isSolidBelow = blockBelow && (blockBelow.type !== 0 && blockBelow.type !== undefined);
+              const isAirAt = !blockAt || blockAt.type === 0 || blockAt.type === undefined || blockAt.name === 'air';
+              const isAirAbove = !blockAbove || blockAbove.type === 0 || blockAbove.type === undefined || blockAbove.name === 'air';
+              
+              if (isSolidBelow && isAirAt && isAirAbove) {
+                return { x: x + 0.5, y: y, z: z + 0.5 }; // Центрируем в блоке
+              }
+            } catch (err) {
+              // Игнорируем ошибки при проверке блоков
+              continue;
+            }
+          }
+        }
+      }
+    }
+    
+    // Если не нашли безопасную позицию, возвращаем позицию по умолчанию на уровне моря
+    console.warn(`⚠️  Не удалось найти безопасную позицию, используем позицию по умолчанию`);
+    return { x: Math.floor(startX) + 0.5, y: 64, z: Math.floor(startZ) + 0.5 };
+  } catch (err) {
+    console.warn(`⚠️  Error finding safe spawn position: ${err.message}`);
+    return { x: Math.floor(startX) + 0.5, y: 64, z: Math.floor(startZ) + 0.5 };
+  }
+}
+
+/**
+ * Проверяет и исправляет позицию спавна игрока
+ */
+function ensureSafeSpawnPosition(playerEntity, username) {
+  try {
+    if (!playerEntity || !server) return;
+    
+    // Получаем текущую позицию игрока
+    let currentX = 0;
+    let currentY = 0;
+    let currentZ = 0;
+    
+    // Пытаемся получить позицию из разных мест
+    if (playerEntity.position) {
+      currentX = playerEntity.position.x || 0;
+      currentY = playerEntity.position.y || 0;
+      currentZ = playerEntity.position.z || 0;
+    } else if (playerEntity.entity) {
+      currentX = playerEntity.entity.position?.x || 0;
+      currentY = playerEntity.entity.position?.y || 0;
+      currentZ = playerEntity.entity.position?.z || 0;
+    }
+    
+    // Если позиция в воздухе (выше 100 блоков) или очень низко (ниже 0)
+    if (currentY > 100 || currentY < 0) {
+      console.log(`🔧 [${username}] Игрок в небезопасной позиции (Y=${currentY.toFixed(1)}), ищем безопасную позицию...`);
+      
+      // Получаем мир
+      const world = server.world || (server._worlds && server._worlds[0]) || null;
+      
+      if (world) {
+        // Ищем безопасную позицию
+        const safePos = findSafeSpawnPosition(world, currentX || 0, currentZ || 0);
+        
+        // Телепортируем игрока
+        if (playerEntity.teleport) {
+          playerEntity.teleport(safePos);
+          console.log(`✅ [${username}] Телепортирован на безопасную позицию: ${safePos.x.toFixed(1)}, ${safePos.y.toFixed(1)}, ${safePos.z.toFixed(1)}`);
+        } else if (playerEntity.entity && playerEntity.entity.teleport) {
+          playerEntity.entity.teleport(safePos);
+          console.log(`✅ [${username}] Телепортирован на безопасную позицию: ${safePos.x.toFixed(1)}, ${safePos.y.toFixed(1)}, ${safePos.z.toFixed(1)}`);
+        } else {
+          // Пытаемся установить позицию напрямую
+          try {
+            if (playerEntity.position) {
+              playerEntity.position.x = safePos.x;
+              playerEntity.position.y = safePos.y;
+              playerEntity.position.z = safePos.z;
+            }
+            if (playerEntity.entity && playerEntity.entity.position) {
+              playerEntity.entity.position.x = safePos.x;
+              playerEntity.entity.position.y = safePos.y;
+              playerEntity.entity.position.z = safePos.z;
+            }
+            console.log(`✅ [${username}] Позиция установлена: ${safePos.x.toFixed(1)}, ${safePos.y.toFixed(1)}, ${safePos.z.toFixed(1)}`);
+          } catch (err) {
+            console.warn(`⚠️  Не удалось установить позицию для ${username}: ${err.message}`);
+          }
+        }
+      } else {
+        console.warn(`⚠️  Не удалось получить доступ к миру для ${username}`);
+      }
+    } else {
+      // Проверяем, что под игроком есть блок
+      const world = server.world || (server._worlds && server._worlds[0]) || null;
+      if (world && currentY > 0) {
+        try {
+          const blockBelow = world.getBlock(Math.floor(currentX), Math.floor(currentY) - 1, Math.floor(currentZ));
+          // Если под игроком воздух, телепортируем на безопасную позицию
+          if (!blockBelow || blockBelow.type === 0) {
+            console.log(`🔧 [${username}] Под игроком воздух, ищем безопасную позицию...`);
+            const safePos = findSafeSpawnPosition(world, currentX, currentZ);
+            
+            if (playerEntity.teleport) {
+              playerEntity.teleport(safePos);
+            } else if (playerEntity.entity && playerEntity.entity.teleport) {
+              playerEntity.entity.teleport(safePos);
+            }
+            console.log(`✅ [${username}] Телепортирован на безопасную позицию`);
+          }
+        } catch (err) {
+          // Игнорируем ошибки проверки блока
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(`⚠️  Ошибка при проверке позиции спавна для ${username}: ${err.message}`);
+  }
+}
+
+/**
  * Отправляет сообщение всем игрокам
  */
 function broadcastMessage(message, excludeUsername = null) {
@@ -614,7 +837,7 @@ function handleCommand(player, command) {
   switch (cmd.toLowerCase()) {
     case 'help':
       if (player.chat) {
-        player.chat('Доступные команды: /help, /list, /time');
+        player.chat('Доступные команды: /help, /list, /time, /spawn');
       }
       break;
 
@@ -631,6 +854,20 @@ function handleCommand(player, command) {
       const time = new Date().toLocaleString('ru-RU');
       if (player.chat) {
         player.chat(`Текущее время: ${time}`);
+      }
+      break;
+
+    case 'spawn':
+      // Телепортируем игрока на безопасную позицию
+      try {
+        ensureSafeSpawnPosition(player, username);
+        if (player.chat) {
+          player.chat('Телепортация на безопасную позицию...');
+        }
+      } catch (err) {
+        if (player.chat) {
+          player.chat(`Ошибка при телепортации: ${err.message}`);
+        }
       }
       break;
 
