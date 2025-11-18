@@ -339,6 +339,8 @@ async function startMinecraftServer() {
             }
             if (playerEntity) {
               ensureSafeSpawnPosition(playerEntity, username);
+              // Также предзагружаем чанки вокруг игрока
+              preloadChunksAroundPlayer(playerEntity, username);
             }
           } catch (err) {
             console.warn(`⚠️  Ошибка при повторной проверке позиции для ${username}: ${err.message}`);
@@ -426,11 +428,16 @@ async function startMinecraftServer() {
       }
     });
 
-    // Обработка ошибок клиента (предотвращаем отключение из-за ошибок UUID)
+    // Обработка ошибок клиента (предотвращаем отключение из-за ошибок UUID и soundId)
     server.on('clientError', (client, err) => {
-      // Игнорируем ошибки UUID при отправке информации об игроках
-      if (err && err.message && (err.message.includes('UUID') || err.message.includes('undefined'))) {
-        console.warn(`⚠️  UUID/undefined error for client (ignored, player stays connected):`, err.message.substring(0, 100));
+      // Игнорируем ошибки UUID и soundId при отправке информации об игроках
+      if (err && err.message && (
+        err.message.includes('UUID') || 
+        err.message.includes('undefined') ||
+        err.message.includes('soundId') ||
+        err.message.includes('sound_effect')
+      )) {
+        console.warn(`⚠️  Protocol error for client (ignored, player stays connected):`, err.message.substring(0, 100));
         
         // Пытаемся исправить UUID клиента, если он undefined
         if (client) {
@@ -568,11 +575,66 @@ async function startMinecraftServer() {
             setTimeout(() => {
               ensureSafeSpawnPosition(player, username);
             }, 1000);
+            
+            // Предзагружаем чанки вокруг спавна для ускорения генерации
+            preloadChunksAroundPlayer(player, username);
           }
         } catch (err) {
           console.warn(`⚠️  Ошибка при обработке события spawn: ${err.message}`);
         }
       });
+      
+      // Обработка добычи блоков
+      server.on('blockBreak', (player, block) => {
+        try {
+          const username = player.username;
+          console.log(`⛏️  [${username}] Добыл блок: ${block.name || block.type} в ${block.position.x}, ${block.position.y}, ${block.position.z}`);
+          
+          // Принудительно обновляем инвентарь игрока
+          setTimeout(() => {
+            updatePlayerInventory(player, username);
+          }, 100);
+        } catch (err) {
+          console.warn(`⚠️  Ошибка при обработке добычи блока: ${err.message}`);
+        }
+      });
+      
+      // Обработка завершения добычи блока
+      server.on('diggingCompleted', (player, block) => {
+        try {
+          const username = player.username;
+          // Обновляем инвентарь после завершения добычи
+          setTimeout(() => {
+            updatePlayerInventory(player, username);
+          }, 50);
+        } catch (err) {
+          console.warn(`⚠️  Ошибка при обработке завершения добычи: ${err.message}`);
+        }
+      });
+      
+      // Перехватываем пакеты звуков для исправления ошибки soundId
+      if (server.on) {
+        server.on('packet', (data, meta) => {
+          try {
+            // Исправляем пакеты sound_effect
+            if (meta && meta.name === 'sound_effect' && data) {
+              // Проверяем наличие soundId
+              if (data.soundId === undefined || data.soundId === null) {
+                // Устанавливаем значение по умолчанию или пропускаем пакет
+                data.soundId = data.soundId || 0;
+              }
+              // Проверяем ItemSoundHolder если он есть
+              if (data.soundId !== undefined && typeof data.soundId === 'object') {
+                if (!data.soundId.soundId) {
+                  data.soundId.soundId = 0;
+                }
+              }
+            }
+          } catch (err) {
+            // Игнорируем ошибки при обработке пакетов
+          }
+        });
+      }
     }
 
   } catch (err) {
@@ -800,6 +862,156 @@ function ensureSafeSpawnPosition(playerEntity, username) {
     }
   } catch (err) {
     console.warn(`⚠️  Ошибка при проверке позиции спавна для ${username}: ${err.message}`);
+  }
+}
+
+/**
+ * Предзагружает чанки вокруг игрока для ускорения генерации мира
+ */
+function preloadChunksAroundPlayer(player, username) {
+  try {
+    if (!server || !player) return;
+    
+    const world = server.world || (server._worlds && server._worlds[0]) || null;
+    if (!world) return;
+    
+    // Получаем позицию игрока
+    let playerX = 0;
+    let playerZ = 0;
+    
+    if (player.position) {
+      playerX = Math.floor(player.position.x / 16);
+      playerZ = Math.floor(player.position.z / 16);
+    } else if (player.entity && player.entity.position) {
+      playerX = Math.floor(player.entity.position.x / 16);
+      playerZ = Math.floor(player.entity.position.z / 16);
+    }
+    
+    // Предзагружаем чанки в радиусе 5 чанков
+    const preloadRadius = 5;
+    let loadedCount = 0;
+    
+    for (let dx = -preloadRadius; dx <= preloadRadius; dx++) {
+      for (let dz = -preloadRadius; dz <= preloadRadius; dz++) {
+        const chunkX = playerX + dx;
+        const chunkZ = playerZ + dz;
+        
+        try {
+          // Пытаемся загрузить чанк
+          if (world.loadColumn) {
+            world.loadColumn(chunkX, chunkZ, () => {
+              loadedCount++;
+            });
+          } else if (world.getColumn) {
+            // Если нет loadColumn, просто проверяем наличие
+            const column = world.getColumn(chunkX, chunkZ);
+            if (column) {
+              loadedCount++;
+            }
+          }
+        } catch (err) {
+          // Игнорируем ошибки загрузки отдельных чанков
+        }
+      }
+    }
+    
+    if (loadedCount > 0) {
+      console.log(`🌍 [${username}] Предзагружено ${loadedCount} чанков вокруг игрока`);
+    }
+  } catch (err) {
+    console.warn(`⚠️  Ошибка при предзагрузке чанков для ${username}: ${err.message}`);
+  }
+}
+
+/**
+ * Обновляет инвентарь игрока на клиенте
+ */
+function updatePlayerInventory(player, username) {
+  try {
+    if (!player) return;
+    
+    // Пытаемся получить entity игрока разными способами
+    let playerEntity = player.entity || player;
+    if (!playerEntity) return;
+    
+    // Пытаемся обновить инвентарь разными способами
+    // Способ 1: через inventory объекта игрока
+    if (playerEntity.inventory) {
+      try {
+        const inventory = playerEntity.inventory;
+        const client = playerEntity._client || (playerEntity.client) || (player.client);
+        
+        if (client && client.write) {
+          // Отправляем пакет обновления инвентаря
+          if (inventory.slots) {
+            client.write('window_items', {
+              windowId: 0, // Инвентарь игрока
+              items: inventory.slots
+            });
+          }
+        }
+      } catch (err) {
+        // Игнорируем ошибки отправки
+      }
+    }
+    
+    // Способ 2: через обновление слотов напрямую
+    if (playerEntity.updateSlot) {
+      try {
+        const inventory = playerEntity.inventory;
+        if (inventory && inventory.slots) {
+          // Обновляем только измененные слоты
+          for (let i = 0; i < Math.min(inventory.slots.length, 45); i++) {
+            try {
+              playerEntity.updateSlot(i, inventory.slots[i] || null);
+            } catch (err) {
+              // Игнорируем ошибки отдельных слотов
+            }
+          }
+        }
+      } catch (err) {
+        // Игнорируем ошибки
+      }
+    }
+    
+    // Способ 3: через setEquipment (обновляет экипировку и инвентарь)
+    if (playerEntity.setEquipment) {
+      try {
+        const equipment = playerEntity.equipment || {};
+        playerEntity.setEquipment(equipment);
+      } catch (err) {
+        // Игнорируем ошибки
+      }
+    }
+    
+    // Способ 4: принудительная отправка через сервер
+    if (server && server.players) {
+      try {
+        const serverPlayer = server.players[username];
+        if (serverPlayer && serverPlayer.inventory) {
+          const client = serverPlayer._client || serverPlayer.client;
+          if (client && client.write && serverPlayer.inventory.slots) {
+            client.write('set_slot', {
+              windowId: 0,
+              slot: -1, // Обновить весь инвентарь
+              item: null
+            });
+            // Затем отправляем все слоты
+            for (let i = 0; i < serverPlayer.inventory.slots.length; i++) {
+              client.write('set_slot', {
+                windowId: 0,
+                slot: i,
+                item: serverPlayer.inventory.slots[i] || null
+              });
+            }
+          }
+        }
+      } catch (err) {
+        // Игнорируем ошибки
+      }
+    }
+  } catch (err) {
+    console.warn(`⚠️  Ошибка при обновлении инвентаря для ${username}: ${err.message}`);
   }
 }
 
