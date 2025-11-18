@@ -63,24 +63,65 @@ function startMinecraftServer() {
         client
       });
 
-      // Приветственное сообщение
-      try {
-        client.write('chat', {
-          message: JSON.stringify({
-            text: `Добро пожаловать на сервер, ${username}!`,
-            color: 'green'
-          })
-        });
-      } catch (err) {
-        console.error('Error sending welcome message:', err);
-      }
+      // Инициализация игрока после логина
+      // После события 'login' нужно отправить необходимые пакеты для входа в игру
+      
+      // Обрабатываем переход в игровое состояние
+      client.once('spawn', () => {
+        console.log(`🎮 Player ${username} spawned in game`);
+      });
+
+      // Отправляем начальные данные игроку после небольшой задержки
+      // Это позволяет клиенту полностью инициализироваться
+      setTimeout(() => {
+        try {
+          // Устанавливаем игровой режим (0 = выживание, 1 = творческий)
+          client.write('game_state_change', {
+            reason: 3, // Change game mode
+            gameMode: 0 // Survival mode
+          });
+
+          // Отправляем начальную позицию (спавн)
+          client.write('position', {
+            x: 0,
+            y: 64,
+            z: 0,
+            yaw: 0,
+            pitch: 0,
+            flags: 0x00
+          });
+
+          // Приветственное сообщение
+          setTimeout(() => {
+            try {
+              client.write('chat', {
+                message: JSON.stringify({
+                  text: `Добро пожаловать на сервер, ${username}!`,
+                  color: 'green'
+                })
+              });
+            } catch (err) {
+              console.error('Error sending welcome message:', err);
+            }
+          }, 500);
+        } catch (err) {
+          console.error(`Error initializing player ${username}:`, err);
+        }
+      }, 200);
 
       // Уведомляем других игроков
       broadcastMessage(`Игрок ${username} присоединился к серверу`, username);
 
+      // Обработка всех пакетов от клиента для отладки
+      client.on('packet', (data, meta) => {
+        if (meta.name && !['keep_alive', 'position', 'position_look', 'look'].includes(meta.name)) {
+          console.log(`📦 [${username}] Received packet: ${meta.name}`, data);
+        }
+      });
+
       // Обработка ошибок клиента
       client.on('error', (err) => {
-        console.error(`Error with client ${username}:`, err);
+        console.error(`❌ Error with client ${username}:`, err);
       });
 
       // Обработка отключения клиента
