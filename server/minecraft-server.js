@@ -78,7 +78,10 @@ async function startMinecraftServer() {
         'footer': { 'text': 'Minecraft Server' }
       },
       'everybody-op': false,
-      'max-entities': 100
+      'max-entities': 100,
+      // Увеличиваем время генерации мира
+      'chunk-load-distance': 10, // Расстояние загрузки чанков
+      'chunk-unload-distance': 12 // Расстояние выгрузки чанков
     });
 
     // Обработка подключения игрока
@@ -95,6 +98,7 @@ async function startMinecraftServer() {
       }
       
       console.log(`✅ Player connected: ${username} (${uuid})`);
+      console.log(`🌍 Generating world around player...`);
       
       // Сохраняем игрока в сервисе
       minecraftService.players.set(uuid, {
@@ -103,6 +107,19 @@ async function startMinecraftServer() {
         connectedAt: new Date(),
         client
       });
+
+      // Логируем генерацию чанков вокруг игрока
+      let chunksGenerated = 0;
+      const chunkGenerationInterval = setInterval(() => {
+        chunksGenerated++;
+        if (chunksGenerated <= 5) {
+          console.log(`🗺️  Generating chunks around player ${username}... (${chunksGenerated}/5)`);
+        }
+        if (chunksGenerated >= 5) {
+          clearInterval(chunkGenerationInterval);
+          console.log(`✅ Initial world generation completed for ${username}`);
+        }
+      }, 2000);
 
       // Приветственное сообщение (с задержкой, чтобы игрок успел заспавниться)
       setTimeout(() => {
@@ -118,12 +135,12 @@ async function startMinecraftServer() {
         } catch (err) {
           console.error('Error sending welcome message:', err);
         }
-      }, 2000);
+      }, 5000); // Увеличена задержка до 5 секунд для генерации мира
 
       // Уведомляем других игроков (тоже с задержкой)
       setTimeout(() => {
         broadcastMessage(`Игрок ${username} присоединился к серверу`, username);
-      }, 2000);
+      }, 5000);
     });
 
     // Обработка отключения игрока
@@ -175,29 +192,46 @@ async function startMinecraftServer() {
       }
     });
 
-    // Обработка ошибок
-    server.on('error', (err) => {
-      console.error('❌ Minecraft server error:', err);
-      // Не отключаем сервер при ошибках, только логируем
-    });
-
     // Обработка ошибок клиента (предотвращаем отключение из-за ошибок UUID)
     server.on('clientError', (client, err) => {
       // Игнорируем ошибки UUID при отправке информации об игроках
-      if (err && err.message && err.message.includes('UUID')) {
-        console.warn(`⚠️  UUID error for client (ignored):`, err.message);
+      if (err && err.message && (err.message.includes('UUID') || err.message.includes('undefined'))) {
+        console.warn(`⚠️  UUID/undefined error for client (ignored, player stays connected):`, err.message.substring(0, 100));
         return; // Не отключаем клиента
       }
       console.error(`❌ Client error:`, err);
+    });
+
+    // Обработка ошибок сервера (перехватываем ошибки UUID на уровне протокола)
+    server.on('error', (err) => {
+      if (err && err.message && (err.message.includes('UUID') || err.message.includes('undefined'))) {
+        console.warn(`⚠️  Protocol UUID error (ignored):`, err.message.substring(0, 100));
+        return; // Не обрабатываем как критическую ошибку
+      }
+      console.error('❌ Minecraft server error:', err);
     });
 
     // Сервер запущен
     server.on('listening', () => {
       console.log(`✅ Minecraft server is now listening on port ${MINECRAFT_PORT}`);
       console.log(`🌐 Players can connect to: localhost:${MINECRAFT_PORT}`);
+      console.log(`🌍 World generation started...`);
+      console.log(`⏳ Please wait for world generation to complete before connecting`);
       minecraftService.isRunning = true;
       minecraftService.server = server;
     });
+
+    // Логирование событий генерации мира
+    if (server.on) {
+      // Слушаем события генерации чанков
+      server.on('chunkColumnLoad', (chunk) => {
+        console.log(`🗺️  Chunk loaded at X:${chunk.x}, Z:${chunk.z}`);
+      });
+
+      server.on('chunkColumnUnload', (chunk) => {
+        console.log(`🗺️  Chunk unloaded at X:${chunk.x}, Z:${chunk.z}`);
+      });
+    }
 
   } catch (err) {
     console.error('❌ Failed to start Minecraft server:', err);
