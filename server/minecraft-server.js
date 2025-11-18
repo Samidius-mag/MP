@@ -3,7 +3,9 @@ const minecraftService = require('./services/minecraftService');
 const path = require('path');
 
 const MINECRAFT_PORT = parseInt(process.env.MINECRAFT_PORT || '27015');
-const SERVER_VERSION = process.env.MINECRAFT_VERSION || '1.21.4';
+// ВАЖНО: flying-squid 1.11.0 поддерживает версии до ~1.16.4
+// Для версий 1.17+ нужна более новая библиотека или форк
+const SERVER_VERSION = process.env.MINECRAFT_VERSION || '1.16.4';
 const SERVER_MOTD = process.env.MINECRAFT_MOTD || 'Minecraft Server';
 const MAX_PLAYERS = parseInt(process.env.MINECRAFT_MAX_PLAYERS || '20');
 const ONLINE_MODE = process.env.MINECRAFT_ONLINE_MODE === 'true';
