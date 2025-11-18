@@ -1,4 +1,4 @@
-const mc = require('flying-squid');
+const { createServer } = require('prismarine-server');
 const minecraftService = require('./services/minecraftService');
 const path = require('path');
 
@@ -28,51 +28,43 @@ function startMinecraftServer() {
     // Создаем путь для мира сервера
     const worldPath = path.join(__dirname, '..', 'minecraft-world');
 
-    // Создаем сервер с помощью flying-squid
-    server = mc.createMCServer({
-      'motd': SERVER_MOTD,
-      'port': MINECRAFT_PORT,
+    // Создаем сервер с помощью prismarine-server
+    server = createServer({
+      version: SERVER_VERSION,
+      port: MINECRAFT_PORT,
+      motd: SERVER_MOTD,
       'max-players': MAX_PLAYERS,
       'online-mode': ONLINE_MODE,
-      'logging': true,
-      'gameMode': 0, // 0 = выживание, 1 = творческий
-      'difficulty': 1, // 0 = мирный, 1 = легкий, 2 = нормальный, 3 = сложный
-      'worldFolder': worldPath,
-      'generation': {
-        'name': 'superflat',
-        'options': {
-          'layers': [
+      worldFolder: worldPath,
+      generation: {
+        name: 'superflat',
+        options: {
+          layers: [
             {
-              'block': 'minecraft:bedrock',
-              'height': 1
+              block: 'minecraft:bedrock',
+              height: 1
             },
             {
-              'block': 'minecraft:dirt',
-              'height': 2
+              block: 'minecraft:dirt',
+              height: 2
             },
             {
-              'block': 'minecraft:grass_block',
-              'height': 1
+              block: 'minecraft:grass_block',
+              height: 1
             }
           ]
         }
       },
-      'kickTimeout': 10000,
-      'plugins': {},
-      'modpe': false,
-      'view-distance': 10,
-      'player-list-text': {
-        'header': { 'text': 'Добро пожаловать!' },
-        'footer': { 'text': 'Minecraft Server' }
-      },
-      'everybody-op': false,
-      'max-entities': 100
+      kickTimeout: 10000,
+      viewDistance: 10,
+      difficulty: 1, // 0 = мирный, 1 = легкий, 2 = нормальный, 3 = сложный
+      gameMode: 0 // 0 = выживание, 1 = творческий
     });
 
     // Обработка подключения игрока
     server.on('login', (client) => {
       const username = client.username;
-      const uuid = client.uuid;
+      const uuid = client.uuid || client.profile?.id || 'unknown';
       
       console.log(`✅ Player connected: ${username} (${uuid})`);
       
@@ -105,7 +97,7 @@ function startMinecraftServer() {
     // Обработка отключения игрока
     server.on('playerQuit', (player) => {
       const username = player.username;
-      const uuid = player.uuid;
+      const uuid = player.uuid || 'unknown';
       
       console.log(`❌ Player disconnected: ${username}`);
       
@@ -177,12 +169,19 @@ function stopMinecraftServer() {
     minecraftService.players.clear();
     
     // Закрываем сервер
-    server.close(() => {
-      console.log('✅ Minecraft server stopped');
+    if (server.close) {
+      server.close(() => {
+        console.log('✅ Minecraft server stopped');
+        minecraftService.isRunning = false;
+        minecraftService.server = null;
+        server = null;
+      });
+    } else {
       minecraftService.isRunning = false;
       minecraftService.server = null;
       server = null;
-    });
+      console.log('✅ Minecraft server stopped');
+    }
   } catch (err) {
     console.error('❌ Error stopping Minecraft server:', err);
     throw err;
@@ -222,23 +221,31 @@ function handleCommand(player, command) {
 
   switch (cmd.toLowerCase()) {
     case 'help':
-      player.chat('Доступные команды: /help, /list, /time');
+      if (player.chat) {
+        player.chat('Доступные команды: /help, /list, /time');
+      }
       break;
 
     case 'list':
       const playerList = Array.from(minecraftService.players.values())
         .map(p => p.username)
         .join(', ');
-      player.chat(`Игроков онлайн: ${minecraftService.players.size} - ${playerList || 'нет'}`);
+      if (player.chat) {
+        player.chat(`Игроков онлайн: ${minecraftService.players.size} - ${playerList || 'нет'}`);
+      }
       break;
 
     case 'time':
       const time = new Date().toLocaleString('ru-RU');
-      player.chat(`Текущее время: ${time}`);
+      if (player.chat) {
+        player.chat(`Текущее время: ${time}`);
+      }
       break;
 
     default:
-      player.chat(`Неизвестная команда: /${cmd}. Используйте /help для списка команд.`);
+      if (player.chat) {
+        player.chat(`Неизвестная команда: /${cmd}. Используйте /help для списка команд.`);
+      }
   }
 }
 
