@@ -85,7 +85,7 @@ module.exports = {
         NODE_ENV: 'development',
         MINECRAFT_PORT: 27015,
         MINECRAFT_VERSION: '1.21.10',
-        MINECRAFT_MOTD: 'Minecraft Server',
+        MINECRAFT_MOTD: 'Minecraft Selver',
         MINECRAFT_MAX_PLAYERS: 20,
         MINECRAFT_ONLINE_MODE: false
       },
