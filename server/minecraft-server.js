@@ -3,6 +3,118 @@ const minecraftService = require('./services/minecraftService');
 const path = require('path');
 const { nameToMcOfflineUUID } = require('minecraft-protocol/src/datatypes/uuid');
 
+// Перехватываем protodef и serializer на уровне модуля для блокировки проблемных пакетов
+try {
+  // Перехватываем Serializer из protodef
+  const serializerModule = require('protodef/src/serializer');
+  if (serializerModule && serializerModule.Serializer) {
+    const OriginalSerializer = serializerModule.Serializer;
+    const OriginalTransform = OriginalSerializer.prototype._transform;
+    
+    // Перехватываем _transform, где происходит ошибка
+    OriginalSerializer.prototype._transform = function(chunk, encoding, callback) {
+      try {
+        return OriginalTransform.call(this, chunk, encoding, callback);
+      } catch (err) {
+        // Перехватываем ошибки сериализации soundId
+        if (err && err.message && (
+          err.message.includes('soundId') ||
+          err.message.includes('sound_effect') ||
+          err.message.includes('ItemSoundHolder') ||
+          err.message.includes('SizeOf error') ||
+          err.message.includes('Cannot read properties of undefined')
+        )) {
+          console.warn(`🔇 [Serializer] Caught soundId error in _transform, ignoring: ${err.message.substring(0, 100)}`);
+          // Вызываем callback без ошибки, чтобы продолжить работу
+          if (callback) {
+            try {
+              callback(); // Вызываем без ошибки
+            } catch (e) {
+              // Игнорируем ошибки callback
+            }
+          }
+          return; // Не пробрасываем ошибку дальше
+        }
+        throw err;
+      }
+    };
+    
+    // Также перехватываем createPacketBuffer
+    const OriginalCreatePacketBuffer = OriginalSerializer.prototype.createPacketBuffer;
+    if (OriginalCreatePacketBuffer) {
+      OriginalSerializer.prototype.createPacketBuffer = function(...args) {
+        try {
+          return OriginalCreatePacketBuffer.apply(this, args);
+        } catch (err) {
+          if (err && err.message && (
+            err.message.includes('soundId') ||
+            err.message.includes('sound_effect') ||
+            err.message.includes('ItemSoundHolder') ||
+            err.message.includes('SizeOf error')
+          )) {
+            console.warn(`🔇 [Serializer] Caught soundId error in createPacketBuffer, returning empty buffer`);
+            return Buffer.alloc(0);
+          }
+          throw err;
+        }
+      };
+    }
+  }
+  
+  // Перехватываем CompiledProtodef из compiler
+  try {
+    const compilerModule = require('protodef/src/compiler');
+    if (compilerModule && compilerModule.CompiledProtodef) {
+      const OriginalCompiledProtodef = compilerModule.CompiledProtodef;
+      const OriginalCreatePacketBuffer = OriginalCompiledProtodef.prototype.createPacketBuffer;
+      
+      if (OriginalCreatePacketBuffer) {
+        OriginalCompiledProtodef.prototype.createPacketBuffer = function(...args) {
+          try {
+            return OriginalCreatePacketBuffer.apply(this, args);
+          } catch (err) {
+            if (err && err.message && (
+              err.message.includes('soundId') ||
+              err.message.includes('sound_effect') ||
+              err.message.includes('ItemSoundHolder') ||
+              err.message.includes('SizeOf error')
+            )) {
+              console.warn(`🔇 [CompiledProtodef] Caught soundId error, returning empty buffer`);
+              return Buffer.alloc(0);
+            }
+            throw err;
+          }
+        };
+      }
+      
+      // Перехватываем sizeOf, где происходит ошибка
+      const OriginalSizeOf = OriginalCompiledProtodef.prototype.sizeOf;
+      if (OriginalSizeOf) {
+        OriginalCompiledProtodef.prototype.sizeOf = function(...args) {
+          try {
+            return OriginalSizeOf.apply(this, args);
+          } catch (err) {
+            if (err && err.message && (
+              err.message.includes('soundId') ||
+              err.message.includes('sound_effect') ||
+              err.message.includes('ItemSoundHolder') ||
+              err.message.includes('SizeOf error')
+            )) {
+              console.warn(`🔇 [CompiledProtodef] Caught soundId error in sizeOf, returning 0`);
+              return 0; // Возвращаем 0 вместо ошибки
+            }
+            throw err;
+          }
+        };
+      }
+    }
+  } catch (e) {
+    // Игнорируем ошибки патчинга compiler
+  }
+} catch (err) {
+  console.warn(`⚠️  Could not patch protodef: ${err.message}`);
+}
+
 // Глобальный перехват ошибок сериализации пакетов
 process.on('uncaughtException', (err) => {
   if (err && err.message && (
@@ -162,15 +274,56 @@ async function startMinecraftServer() {
             if (originalEnd) {
               client.end = function(reason) {
                 // Если отключение происходит из-за ошибки soundId, блокируем его
-                if (reason && typeof reason === 'string' && (
-                  reason.includes('soundId') || 
-                  reason.includes('sound_effect') ||
-                  reason.includes('ItemSoundHolder')
-                )) {
-                  console.warn(`🔇 [${username}] Prevented disconnect due to soundId error: ${reason.substring(0, 100)}`);
+                const reasonStr = reason ? (typeof reason === 'string' ? reason : reason.toString()) : '';
+                const reasonStack = reason && reason.stack ? reason.stack : '';
+                
+                if (reasonStr.includes('soundId') || 
+                    reasonStr.includes('sound_effect') ||
+                    reasonStr.includes('ItemSoundHolder') ||
+                    reasonStr.includes('SizeOf error') ||
+                    reasonStack.includes('soundId') ||
+                    reasonStack.includes('sound_effect') ||
+                    reasonStack.includes('ItemSoundHolder')) {
+                  console.warn(`🔇 [${username}] Prevented disconnect due to soundId error: ${reasonStr.substring(0, 100)}`);
                   return; // Не отключаем клиента
                 }
                 return originalEnd.call(this, reason);
+              };
+            }
+            
+            // Также перехватываем на уровне _client, если он есть
+            if (client._client && client._client.end) {
+              const originalClientEnd = client._client.end;
+              client._client.end = function(reason) {
+                const reasonStr = reason ? (typeof reason === 'string' ? reason : reason.toString()) : '';
+                const reasonStack = reason && reason.stack ? reason.stack : '';
+                
+                if (reasonStr.includes('soundId') || 
+                    reasonStr.includes('sound_effect') ||
+                    reasonStr.includes('ItemSoundHolder') ||
+                    reasonStr.includes('SizeOf error') ||
+                    reasonStack.includes('soundId') ||
+                    reasonStack.includes('sound_effect') ||
+                    reasonStack.includes('ItemSoundHolder')) {
+                  console.warn(`🔇 [${username}] Prevented disconnect in _client.end due to soundId error`);
+                  return;
+                }
+                return originalClientEnd.call(this, reason);
+              };
+            }
+            
+            // Перехватываем socket.end, если он есть
+            if (client.socket && client.socket.end) {
+              const originalSocketEnd = client.socket.end;
+              client.socket.end = function(...args) {
+                // Проверяем, не связано ли это с ошибкой soundId
+                // Сохраняем стек вызовов для проверки
+                const stack = new Error().stack || '';
+                if (stack.includes('soundId') || stack.includes('sound_effect') || stack.includes('ItemSoundHolder')) {
+                  console.warn(`🔇 [${username}] Prevented socket.end due to soundId error in stack`);
+                  return;
+                }
+                return originalSocketEnd.apply(this, args);
               };
             }
             
@@ -264,6 +417,75 @@ async function startMinecraftServer() {
       };
     }
 
+    // Перехватываем процесс отключения клиентов на уровне flying-squid
+    // Это нужно делать ДО обработки login, чтобы перехватить все клиенты
+    try {
+      // Перехватываем внутренние методы отключения клиентов
+      if (server._clients) {
+        // Создаем прокси для массива клиентов
+        const clientsProxy = new Proxy(server._clients, {
+          set: function(target, property, value) {
+            // Если добавляется новый клиент, перехватываем его методы
+            if (property === 'length' || (typeof property === 'number' && value && value.end)) {
+              if (value && typeof value === 'object' && value.end) {
+                const originalEnd = value.end;
+                value.end = function(reason) {
+                  // Блокируем отключение из-за ошибок soundId
+                  const reasonStr = reason ? (typeof reason === 'string' ? reason : reason.toString()) : '';
+                  const reasonStack = reason && reason.stack ? reason.stack : '';
+                  
+                  if (reasonStr.includes('soundId') || 
+                      reasonStr.includes('sound_effect') ||
+                      reasonStr.includes('ItemSoundHolder') ||
+                      reasonStr.includes('SizeOf error') ||
+                      reasonStack.includes('soundId') ||
+                      reasonStack.includes('sound_effect') ||
+                      reasonStack.includes('ItemSoundHolder')) {
+                    console.warn(`🔇 [Client Proxy] Prevented disconnect due to soundId error`);
+                    return; // Не отключаем
+                  }
+                  return originalEnd.call(this, reason);
+                };
+              }
+            }
+            target[property] = value;
+            return true;
+          }
+        });
+        
+        // Заменяем массив клиентов на прокси
+        try {
+          Object.defineProperty(server, '_clients', {
+            value: clientsProxy,
+            writable: true,
+            configurable: true
+          });
+        } catch (e) {
+          // Игнорируем ошибки
+        }
+      }
+      
+      // Перехватываем внутренний обработчик ошибок сервера, который отключает клиентов
+      // Пытаемся найти метод, который обрабатывает ошибки и отключает клиентов
+      if (server.handleClientError) {
+        const originalHandleClientError = server.handleClientError;
+        server.handleClientError = function(client, err) {
+          if (err && err.message && (
+            err.message.includes('soundId') ||
+            err.message.includes('sound_effect') ||
+            err.message.includes('ItemSoundHolder') ||
+            err.message.includes('SizeOf error')
+          )) {
+            console.warn(`🔇 [Server] Prevented handleClientError for soundId error`);
+            return; // Не обрабатываем ошибку и не отключаем клиента
+          }
+          return originalHandleClientError.call(this, client, err);
+        };
+      }
+    } catch (err) {
+      console.warn(`⚠️  Could not setup client proxy: ${err.message}`);
+    }
+
     // Обработка подключения игрока
     server.on('login', (client) => {
       const username = client.username;
@@ -305,6 +527,91 @@ async function startMinecraftServer() {
       
       console.log(`✅ Player connected: ${username} (${uuid})`);
       console.log(`🌍 Generating world around player...`);
+      
+      // Перехватываем сериализатор пакетов клиента напрямую
+      try {
+        // Пытаемся найти сериализатор в клиенте
+        if (client._client && client._client.serializer) {
+          const serializer = client._client.serializer;
+          if (serializer && serializer._transform) {
+            const originalTransform = serializer._transform;
+            serializer._transform = function(chunk, encoding, callback) {
+              try {
+                return originalTransform.call(this, chunk, encoding, callback);
+              } catch (err) {
+                // Перехватываем ошибки сериализации
+                if (err && err.message && (
+                  err.message.includes('soundId') ||
+                  err.message.includes('sound_effect') ||
+                  err.message.includes('ItemSoundHolder') ||
+                  err.message.includes('SizeOf error')
+                )) {
+                  console.warn(`🔇 [${username}] Caught soundId serialization error, ignoring: ${err.message.substring(0, 100)}`);
+                  // Вызываем callback без ошибки, чтобы продолжить работу
+                  if (callback) callback();
+                  return;
+                }
+                throw err;
+              }
+            };
+          }
+        }
+        
+        // Перехватываем обработчик ошибок в клиенте
+        if (client._client && client._client.on) {
+          // Сохраняем оригинальный обработчик ошибок
+          const originalOnError = client._client.on;
+          let errorHandlerSet = false;
+          
+          // Перехватываем установку обработчика ошибок
+          client._client.on = function(event, handler) {
+            if (event === 'error' && !errorHandlerSet) {
+              errorHandlerSet = true;
+              // Устанавливаем наш обработчик, который фильтрует ошибки soundId
+              return originalOnError.call(this, event, (err) => {
+                if (err && err.message && (
+                  err.message.includes('soundId') ||
+                  err.message.includes('sound_effect') ||
+                  err.message.includes('ItemSoundHolder') ||
+                  err.message.includes('SizeOf error')
+                )) {
+                  console.warn(`🔇 [${username}] Intercepted soundId error in client error handler, preventing disconnect`);
+                  return; // Не вызываем оригинальный обработчик
+                }
+                // Для других ошибок вызываем оригинальный обработчик
+                if (handler) handler(err);
+              });
+            }
+            return originalOnError.call(this, event, handler);
+          };
+        }
+        
+        // Также перехватываем на уровне самого клиента
+        if (client.on) {
+          const originalClientOn = client.on;
+          let clientErrorHandlerSet = false;
+          
+          client.on = function(event, handler) {
+            if (event === 'error' && !clientErrorHandlerSet) {
+              clientErrorHandlerSet = true;
+              return originalClientOn.call(this, event, (err) => {
+                if (err && err.message && (
+                  err.message.includes('soundId') ||
+                  err.message.includes('sound_effect') ||
+                  err.message.includes('ItemSoundHolder')
+                )) {
+                  console.warn(`🔇 [${username}] Intercepted soundId error in client.on, preventing disconnect`);
+                  return;
+                }
+                if (handler) handler(err);
+              });
+            }
+            return originalClientOn.call(this, event, handler);
+          };
+        }
+      } catch (err) {
+        console.warn(`⚠️  Could not intercept client serializer for ${username}: ${err.message}`);
+      }
       
       // Сохраняем игрока в сервисе с отслеживанием прогресса генерации мира
       const viewDistance = 10; // Расстояние загрузки чанков
@@ -777,6 +1084,51 @@ async function startMinecraftServer() {
           console.warn(`⚠️  Ошибка при обработке завершения добычи: ${err.message}`);
         }
       });
+      
+      // Перехватываем отправку звуков на уровне мира/сервера
+      // Пытаемся найти методы, которые отправляют звуки при разрушении блоков
+      try {
+        const world = server.world || (server._worlds && server._worlds[0]) || null;
+        if (world) {
+          // Перехватываем методы отправки звуков в мире
+          if (world.playSoundAt) {
+            const originalPlaySoundAt = world.playSoundAt;
+            world.playSoundAt = function(...args) {
+              // Блокируем отправку звуков, чтобы избежать ошибок soundId
+              console.warn(`🔇 Blocked playSoundAt call to prevent soundId error`);
+              return; // Не отправляем звук
+            };
+          }
+          
+          if (world.playSound) {
+            const originalPlaySound = world.playSound;
+            world.playSound = function(...args) {
+              // Блокируем отправку звуков
+              console.warn(`🔇 Blocked playSound call to prevent soundId error`);
+              return;
+            };
+          }
+        }
+        
+        // Перехватываем на уровне сервера
+        if (server.playSound) {
+          const originalServerPlaySound = server.playSound;
+          server.playSound = function(...args) {
+            console.warn(`🔇 Blocked server.playSound call to prevent soundId error`);
+            return;
+          };
+        }
+        
+        if (server.playSoundAt) {
+          const originalServerPlaySoundAt = server.playSoundAt;
+          server.playSoundAt = function(...args) {
+            console.warn(`🔇 Blocked server.playSoundAt call to prevent soundId error`);
+            return;
+          };
+        }
+      } catch (err) {
+        console.warn(`⚠️  Could not intercept sound methods: ${err.message}`);
+      }
       
       // Перехватываем ошибки сериализации пакетов на уровне сервера
       // Перехватываем все ошибки перед отправкой пакетов
