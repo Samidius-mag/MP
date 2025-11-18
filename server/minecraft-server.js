@@ -3,7 +3,7 @@ const minecraftService = require('./services/minecraftService');
 const path = require('path');
 
 const MINECRAFT_PORT = parseInt(process.env.MINECRAFT_PORT || '27015');
-const SERVER_VERSION = process.env.MINECRAFT_VERSION || '1.16.4';
+const SERVER_VERSION = process.env.MINECRAFT_VERSION || '1.21.10';
 const SERVER_MOTD = process.env.MINECRAFT_MOTD || 'Minecraft Server';
 const MAX_PLAYERS = parseInt(process.env.MINECRAFT_MAX_PLAYERS || '20');
 const ONLINE_MODE = process.env.MINECRAFT_ONLINE_MODE === 'true';
@@ -29,7 +29,9 @@ function startMinecraftServer() {
     const worldPath = path.join(__dirname, '..', 'minecraft-world');
 
     // Создаем сервер с помощью flying-squid
+    // Важно: нужно указать версию явно
     server = mc.createMCServer({
+      'version': SERVER_VERSION, // Явно указываем версию
       'motd': SERVER_MOTD,
       'port': MINECRAFT_PORT,
       'max-players': MAX_PLAYERS,
