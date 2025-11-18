@@ -333,10 +333,24 @@ export default function StoreProducts() {
     try {
       const { data } = await api.post(`/client/ozon/category/${categoryId}/attributes`, {
         isTypeId: isTypeId,
-        parentCategoryId: parentCategoryId
+        parentCategoryId: parentCategoryId,
+        productId: ozonTargetProductId // Передаем ID товара для автозаполнения
       });
       const attrs = data?.attributes || data?.result || [];
       setOzonAttributes(Array.isArray(attrs) ? attrs : []);
+      
+      // Автоматически заполняем значения из товара
+      const autoValues: Record<string, any> = {};
+      attrs.forEach((attr: any) => {
+        if (attr.autoValue !== null && attr.autoValue !== undefined) {
+          autoValues[attr.id] = attr.autoValue;
+        }
+      });
+      
+      if (Object.keys(autoValues).length > 0) {
+        setOzonAttributeValues(autoValues);
+        toast.success(`Автоматически заполнено ${Object.keys(autoValues).length} атрибутов из данных товара`);
+      }
     } catch (e: any) {
       toast.error(e.response?.data?.error || 'Ошибка загрузки атрибутов категории');
     } finally {
@@ -1004,26 +1018,33 @@ export default function StoreProducts() {
               {!ozonLoading && ozonAttributes && ozonAttributes.length > 0 && (
                 <div className="space-y-3 max-h-64 overflow-y-auto">
                   <div className="text-sm text-gray-700">Атрибуты категории (заполните обязательные):</div>
-                  {ozonAttributes.map((attr: any) => (
-                    <div key={attr.id} className="grid grid-cols-1 md:grid-cols-3 gap-2 items-center">
-                      <div className="text-sm">
-                        <span className="font-medium">{attr.name || attr.title || `Атрибут ${attr.id}`}</span>
-                        {attr.is_required && <span className="ml-1 text-red-600">*</span>}
+                  {ozonAttributes.map((attr: any) => {
+                    const currentValue = ozonAttributeValues[attr.id]?.value || ozonAttributeValues[attr.id] || attr.autoValue || '';
+                    const hasAutoValue = attr.autoValue !== null && attr.autoValue !== undefined;
+                    return (
+                      <div key={attr.id} className="grid grid-cols-1 md:grid-cols-3 gap-2 items-center">
+                        <div className="text-sm">
+                          <span className="font-medium">{attr.name || attr.title || `Атрибут ${attr.id}`}</span>
+                          {attr.is_required && <span className="ml-1 text-red-600">*</span>}
+                          {hasAutoValue && (
+                            <span className="ml-2 text-xs text-green-600">(автозаполнено)</span>
+                          )}
+                        </div>
+                        <div className="md:col-span-2">
+                          <input
+                            type={attr.type === 'Integer' || attr.type === 'Decimal' ? 'number' : 'text'}
+                            className="input"
+                            placeholder={attr.type || ''}
+                            value={currentValue}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setOzonAttributeValues(prev => ({ ...prev, [attr.id]: val }));
+                            }}
+                          />
+                        </div>
                       </div>
-                      <div className="md:col-span-2">
-                        <input
-                          type="text"
-                          className="input"
-                          placeholder={attr.type || ''}
-                          value={ozonAttributeValues[attr.id]?.value || ozonAttributeValues[attr.id] || ''}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setOzonAttributeValues(prev => ({ ...prev, [attr.id]: val }));
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 

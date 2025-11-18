@@ -2894,7 +2894,11 @@ router.post('/ozon/category/:categoryId/attributes', requireClient, async (req, 
       const categoryId = req.params.categoryId;
       const isTypeId = req.query.isTypeId === 'true' || req.body?.isTypeId === true;
       const parentCategoryId = req.query.parentCategoryId || req.body?.parentCategoryId || null;
-      console.log(`[OZON] Fetch attributes: categoryId=${categoryId}, isTypeId=${isTypeId}, parentCategoryId=${parentCategoryId}`);
+      const productId = req.query.productId || req.body?.productId || null;
+      
+      console.log(`[OZON] Fetch attributes: categoryId=${categoryId}, isTypeId=${isTypeId}, parentCategoryId=${parentCategoryId}, productId=${productId}`);
+      
+      // Получаем атрибуты категории
       const data = await ozon.getCategoryAttributes(
         credentials.apiKey,
         credentials.clientId,
@@ -2907,8 +2911,56 @@ router.post('/ozon/category/:categoryId/attributes', requireClient, async (req, 
       
       // OZON API возвращает атрибуты в формате result
       // Структура может быть: { result: [{ id, name, is_required, ... }] }
-      const attributes = data?.result || data?.attributes || [];
+      let attributes = data?.result || data?.attributes || [];
       console.log(`[OZON] Attributes received: count=${Array.isArray(attributes) ? attributes.length : 0}`);
+      
+      // Если указан productId, автоматически заполняем значения из товара
+      if (productId && Array.isArray(attributes) && attributes.length > 0) {
+        try {
+          // Получаем данные товара
+          const productResult = await client.query(
+            `SELECT * FROM wb_products_cache WHERE id = $1 AND client_id = $2`,
+            [productId, clientId]
+          );
+          
+          if (productResult.rows.length > 0) {
+            const product = productResult.rows[0];
+            
+            // Парсим характеристики
+            let characteristics = null;
+            if (product.characteristics) {
+              try {
+                characteristics = typeof product.characteristics === 'string'
+                  ? JSON.parse(product.characteristics)
+                  : product.characteristics;
+              } catch (e) {
+                console.warn('Failed to parse product characteristics:', e.message);
+              }
+            }
+            
+            // Маппим данные товара на атрибуты
+            const mappedAttributes = ozon.mapCharacteristicsToOzon(product, characteristics, { result: attributes });
+            
+            // Создаем Map для быстрого поиска
+            const mappedValuesMap = new Map();
+            mappedAttributes.forEach(attr => {
+              mappedValuesMap.set(attr.id, attr.value);
+            });
+            
+            // Добавляем предзаполненные значения к атрибутам
+            attributes = attributes.map(attr => ({
+              ...attr,
+              autoValue: mappedValuesMap.get(attr.id) || null // Предзаполненное значение из товара
+            }));
+            
+            console.log(`[OZON] Auto-filled ${mappedAttributes.length} attributes from product data`);
+          }
+        } catch (productError) {
+          console.warn('[OZON] Failed to auto-fill attributes from product:', productError.message);
+          // Продолжаем без автозаполнения
+        }
+      }
+      
       res.json({ attributes: attributes });
     } finally {
       client.release();
