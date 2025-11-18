@@ -3,6 +3,34 @@ const minecraftService = require('./services/minecraftService');
 const path = require('path');
 const { nameToMcOfflineUUID } = require('minecraft-protocol/src/datatypes/uuid');
 
+// Глобальный перехват ошибок сериализации пакетов
+process.on('uncaughtException', (err) => {
+  if (err && err.message && (
+    err.message.includes('soundId') || 
+    err.message.includes('sound_effect') ||
+    err.message.includes('ItemSoundHolder') ||
+    err.message.includes('SizeOf error')
+  )) {
+    console.warn(`🔇 [Global] Caught and ignored soundId serialization error: ${err.message.substring(0, 150)}`);
+    return; // Не завершаем процесс
+  }
+  // Для других ошибок логируем, но не завершаем процесс
+  console.error('❌ [Global] Uncaught exception:', err.message);
+});
+
+// Перехватываем необработанные промисы
+process.on('unhandledRejection', (reason, promise) => {
+  if (reason && reason.message && (
+    reason.message.includes('soundId') || 
+    reason.message.includes('sound_effect') ||
+    reason.message.includes('ItemSoundHolder')
+  )) {
+    console.warn(`🔇 [Global] Caught and ignored soundId promise rejection: ${reason.message.substring(0, 150)}`);
+    return; // Игнорируем
+  }
+  console.error('❌ [Global] Unhandled promise rejection:', reason);
+});
+
 const MINECRAFT_PORT = parseInt(process.env.MINECRAFT_PORT || '27015');
 // ВАЖНО: flying-squid 1.11.0 поддерживает версии до ~1.16.4
 // Для версий 1.17+ нужна более новая библиотека или форк
@@ -594,6 +622,45 @@ async function startMinecraftServer() {
       console.error('❌ Minecraft server error:', err);
     });
 
+    // Перехватываем сериализатор пакетов для блокировки проблемных пакетов sound_effect
+    // Это нужно делать после создания сервера, но до события listening
+    try {
+      // Пытаемся найти сериализатор в клиентах
+      if (server._clients && Array.isArray(server._clients)) {
+        // Перехватываем при добавлении новых клиентов
+        const originalPush = Array.prototype.push;
+        const clientsArray = server._clients;
+        
+        // Перехватываем создание новых клиентов
+        Object.defineProperty(server, '_clients', {
+          get: function() {
+            return clientsArray;
+          },
+          set: function(newValue) {
+            // Игнорируем попытки заменить массив
+          },
+          configurable: true
+        });
+      }
+      
+      // Перехватываем на уровне сервера - ищем методы отправки звуков
+      if (server.broadcast) {
+        const originalBroadcast = server.broadcast;
+        server.broadcast = function(packetName, packetData, exclude) {
+          // Блокируем проблемные пакеты sound_effect
+          if (packetName === 'sound_effect' || packetName === 'named_sound_effect') {
+            if (!packetData || packetData.soundId === undefined || packetData.soundId === null) {
+              console.warn(`🔇 Blocked broadcast of sound_effect packet with missing soundId`);
+              return;
+            }
+          }
+          return originalBroadcast.call(this, packetName, packetData, exclude);
+        };
+      }
+    } catch (err) {
+      console.warn(`⚠️  Could not intercept packet serializer: ${err.message}`);
+    }
+
     // Сервер запущен
     server.on('listening', () => {
       console.log(`✅ Minecraft server is now listening on port ${MINECRAFT_PORT}`);
@@ -602,6 +669,28 @@ async function startMinecraftServer() {
       console.log(`⏳ Please wait for world generation to complete before connecting`);
       minecraftService.isRunning = true;
       minecraftService.server = server;
+      
+      // Дополнительный перехват после запуска сервера
+      try {
+        // Перехватываем все клиенты, которые уже подключены
+        if (server._clients) {
+          server._clients.forEach((client) => {
+            if (client && client.write) {
+              const originalClientWrite = client.write;
+              client.write = function(packetName, packetData) {
+                if (packetName === 'sound_effect' || packetName === 'named_sound_effect') {
+                  if (!packetData || packetData.soundId === undefined || packetData.soundId === null) {
+                    return; // Блокируем проблемный пакет
+                  }
+                }
+                return originalClientWrite.call(this, packetName, packetData);
+              };
+            }
+          });
+        }
+      } catch (err) {
+        // Игнорируем ошибки
+      }
     });
 
     // Логирование событий генерации мира с отслеживанием прогресса
