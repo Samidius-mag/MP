@@ -84,7 +84,7 @@ module.exports = {
       env: {
         NODE_ENV: 'development',
         MINECRAFT_PORT: 27015,
-        MINECRAFT_VERSION: '1.20.1',
+        MINECRAFT_VERSION: '1.12.2',
         MINECRAFT_MOTD: 'Minecraft Server',
         MINECRAFT_MAX_PLAYERS: 20,
         MINECRAFT_ONLINE_MODE: true
@@ -92,7 +92,7 @@ module.exports = {
       env_production: {
         NODE_ENV: 'production',
         MINECRAFT_PORT: 27015,
-        MINECRAFT_VERSION: '1.20.1',
+        MINECRAFT_VERSION: '1.12.2',
         MINECRAFT_MOTD: 'Minecraft Server',
         MINECRAFT_MAX_PLAYERS: 20,
         MINECRAFT_ONLINE_MODE: true

@@ -2,7 +2,9 @@ const minecraftProtocol = require('minecraft-protocol');
 const minecraftService = require('./services/minecraftService');
 
 const MINECRAFT_PORT = process.env.MINECRAFT_PORT || 27015;
-const SERVER_VERSION = process.env.MINECRAFT_VERSION || '1.20.1';
+// Для minecraft-protocol 1.26.5 поддерживаются версии до 1.12.2
+// Можно также не указывать версию, тогда будет использована версия по умолчанию
+const SERVER_VERSION = process.env.MINECRAFT_VERSION || '1.12.2';
 const SERVER_MOTD = process.env.MINECRAFT_MOTD || 'Minecraft Server';
 const MAX_PLAYERS = parseInt(process.env.MINECRAFT_MAX_PLAYERS || '20');
 
@@ -22,15 +24,25 @@ function startMinecraftServer() {
     console.log(`📋 Version: ${SERVER_VERSION}`);
     console.log(`👥 Max players: ${MAX_PLAYERS}`);
 
-    server = minecraftProtocol.createServer({
-      'online-mode': process.env.MINECRAFT_ONLINE_MODE !== 'false', // По умолчанию онлайн режим
-      version: SERVER_VERSION,
+    // Создаем сервер с базовыми настройками
+    // Для minecraft-protocol 1.26.5 поддерживаются версии до 1.16.5
+    // Если нужна более новая версия, можно попробовать без указания версии
+    const serverOptions = {
+      'online-mode': process.env.MINECRAFT_ONLINE_MODE !== 'false',
       motd: SERVER_MOTD,
       'max-players': MAX_PLAYERS,
       port: MINECRAFT_PORT,
       keepAlive: true,
       keepAliveInitialDelay: 10000,
-    });
+    };
+
+    // Добавляем версию только если она указана
+    // Если версия не поддерживается, можно убрать этот параметр
+    if (SERVER_VERSION && SERVER_VERSION !== 'auto' && SERVER_VERSION !== 'none') {
+      serverOptions.version = SERVER_VERSION;
+    }
+
+    server = minecraftProtocol.createServer(serverOptions);
 
     // Обработка подключения игрока
     server.on('login', (client) => {
