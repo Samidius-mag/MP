@@ -47,21 +47,6 @@ function startMinecraftServer() {
         client
       });
 
-      // Сохраняем в базу данных
-      minecraftService.savePlayer(username, uuid, {
-        ip: client.socket?.remoteAddress || 'unknown',
-        version: client.version
-      }).catch(err => {
-        console.error('Error saving player to database:', err);
-      });
-
-      // Логируем событие
-      minecraftService.logEvent('player_join', `Player ${username} joined the server`, {
-        username,
-        uuid,
-        ip: client.socket?.remoteAddress || 'unknown'
-      });
-
       // Приветственное сообщение
       try {
         client.write('chat', {
@@ -92,12 +77,6 @@ function startMinecraftServer() {
           console.log(`❌ Player disconnected: ${username}`);
           
           minecraftService.players.delete(uuid);
-          
-          // Логируем событие
-          minecraftService.logEvent('player_leave', `Player ${username} left the server`, {
-            username,
-            uuid
-          });
 
           // Уведомляем других игроков
           broadcastMessage(`Игрок ${username} покинул сервер`, username);
@@ -115,13 +94,6 @@ function startMinecraftServer() {
         console.log(`❌ Player disconnected: ${username} (${reason || 'unknown reason'})`);
         
         minecraftService.players.delete(uuid);
-        
-        // Логируем событие
-        minecraftService.logEvent('player_leave', `Player ${username} left the server`, {
-          username,
-          uuid,
-          reason: reason || 'unknown'
-        });
 
         // Уведомляем других игроков
         broadcastMessage(`Игрок ${username} покинул сервер`, username);
@@ -131,10 +103,6 @@ function startMinecraftServer() {
     // Обработка ошибок
     server.on('error', (err) => {
       console.error('❌ Minecraft server error:', err);
-      minecraftService.logEvent('error', `Server error: ${err.message}`, {
-        error: err.message,
-        stack: err.stack
-      });
     });
 
     // Обработка чата и команд
@@ -152,12 +120,6 @@ function startMinecraftServer() {
         } else {
           // Обычное сообщение в чат
           console.log(`💬 [${username}]: ${message}`);
-          
-          // Логируем сообщение
-          minecraftService.logEvent('chat', `Player ${username} said: ${message}`, {
-            username,
-            message
-          });
 
           // Отправляем сообщение всем игрокам
           broadcastMessage(`<${username}> ${message}`, username);
@@ -170,12 +132,6 @@ function startMinecraftServer() {
       console.log(`🌐 Players can connect to: localhost:${MINECRAFT_PORT}`);
       minecraftService.isRunning = true;
       minecraftService.server = server;
-      
-      minecraftService.logEvent('server_start', 'Minecraft server started', {
-        port: MINECRAFT_PORT,
-        version: SERVER_VERSION,
-        maxPlayers: MAX_PLAYERS
-      });
     });
 
   } catch (err) {
@@ -214,8 +170,6 @@ function stopMinecraftServer() {
       minecraftService.isRunning = false;
       minecraftService.server = null;
       server = null;
-      
-      minecraftService.logEvent('server_stop', 'Minecraft server stopped');
     });
   } catch (err) {
     console.error('❌ Error stopping Minecraft server:', err);
@@ -292,13 +246,6 @@ function handleCommand(client, player, command) {
         })
       });
   }
-
-  // Логируем команду
-  minecraftService.logEvent('command', `Player ${username} used command: ${command}`, {
-    username,
-    command: cmd,
-    args
-  });
 }
 
 // Обработка завершения процесса

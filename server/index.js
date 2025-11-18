@@ -46,7 +46,6 @@ const pricingRoutes = require('./routes/pricing');
 const warehouseRoutes = require('./routes/warehouse');
 const apiRoutes = require('./routes/api');
 const imageProxyRoutes = require('./routes/imageProxy');
-const minecraftRoutes = require('./routes/minecraft');
 // const testWbRoutes = require('./routes/test-wb');
 
 const { connectDB } = require('./config/database');
@@ -117,7 +116,6 @@ app.use('/api/payment', authenticateToken, paymentRoutes);
 app.use('/api/notification', authenticateToken, notificationRoutes);
 app.use('/api/pricing', authenticateToken, pricingRoutes);
 app.use('/api/warehouse', authenticateToken, warehouseRoutes);
-app.use('/api/minecraft', minecraftRoutes);
 app.use('/api/external', apiRoutes);
 // app.use('/api/test-wb', testWbRoutes);
 
@@ -202,23 +200,6 @@ try {
   console.log('💰 Pricing automation service started');
 } catch (e) {
   console.error('Pricing automation setup failed:', e.message);
-}
-
-// Запуск Minecraft сервера
-try {
-  const { startMinecraftServer } = require('./minecraft-server');
-  
-  // Запускаем Minecraft сервер после небольшой задержки
-  setTimeout(() => {
-    try {
-      startMinecraftServer();
-      console.log('🎮 Minecraft server initialization started');
-    } catch (e) {
-      console.error('Minecraft server startup failed:', e.message);
-    }
-  }, 2000); // Задержка 2 секунды для инициализации основного сервера
-} catch (e) {
-  console.error('Minecraft server setup failed:', e.message);
 }
 
 module.exports = app;

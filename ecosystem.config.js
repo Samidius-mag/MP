@@ -72,6 +72,34 @@ module.exports = {
       error_file: '/var/log/pm2/sima-catalog-updater-error.log',
       out_file: '/var/log/pm2/sima-catalog-updater-out.log',
       time: true
+    },
+    {
+      name: 'minecraft-server',
+      cwd: '/home/samidius/MP',
+      script: 'server/minecraft.js',
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '256M',
+      env: {
+        NODE_ENV: 'development',
+        MINECRAFT_PORT: 27015,
+        MINECRAFT_VERSION: '1.20.1',
+        MINECRAFT_MOTD: 'Minecraft Server',
+        MINECRAFT_MAX_PLAYERS: 20,
+        MINECRAFT_ONLINE_MODE: true
+      },
+      env_production: {
+        NODE_ENV: 'production',
+        MINECRAFT_PORT: 27015,
+        MINECRAFT_VERSION: '1.20.1',
+        MINECRAFT_MOTD: 'Minecraft Server',
+        MINECRAFT_MAX_PLAYERS: 20,
+        MINECRAFT_ONLINE_MODE: true
+      },
+      error_file: '/var/log/pm2/minecraft-server-error.log',
+      out_file: '/var/log/pm2/minecraft-server-out.log',
+      time: true
     }
   ]
 };
