@@ -84,18 +84,22 @@ module.exports = {
       env: {
         NODE_ENV: 'development',
         MINECRAFT_PORT: 27015,
-        MINECRAFT_VERSION: '1.21',
+        MINECRAFT_VERSION: '1.21.10',
         MINECRAFT_MOTD: 'Minecraft Server',
         MINECRAFT_MAX_PLAYERS: 20,
-        MINECRAFT_ONLINE_MODE: false
+        MINECRAFT_ONLINE_MODE: false,
+        MINECRAFT_MIN_MEMORY: '1024M',
+        MINECRAFT_MAX_MEMORY: '1024M'
       },
       env_production: {
         NODE_ENV: 'production',
         MINECRAFT_PORT: 27015,
-        MINECRAFT_VERSION: '1.21',
+        MINECRAFT_VERSION: '1.21.10',
         MINECRAFT_MOTD: 'Minecraft Server',
         MINECRAFT_MAX_PLAYERS: 20,
-        MINECRAFT_ONLINE_MODE: false
+        MINECRAFT_ONLINE_MODE: false,
+        MINECRAFT_MIN_MEMORY: '1024M',
+        MINECRAFT_MAX_MEMORY: '1024M'
       },
       error_file: '/var/log/pm2/minecraft-server-error.log',
       out_file: '/var/log/pm2/minecraft-server-out.log',
