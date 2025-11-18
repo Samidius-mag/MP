@@ -71,22 +71,7 @@ async function startMinecraftServer() {
       // Генерация мира - не указываем, чтобы использовать генерацию по умолчанию
       // Если мир пустой, удалите папку minecraft-world и перезапустите сервер
       'kickTimeout': 10000,
-      'plugins': {
-        // Плагин для установки UUID до отправки пакетов
-        'uuid-fix': (serv, options) => {
-          serv.on('login', (client) => {
-            const username = client.username;
-            if (!client.uuid) {
-              const uuid = nameToMcOfflineUUID(username);
-              client.uuid = uuid;
-              if (client.profile) {
-                client.profile.id = uuid;
-                client.profile.uuid = uuid;
-              }
-            }
-          });
-        }
-      },
+      'plugins': {},
       'modpe': false,
       'view-distance': 10,
       'player-list-text': {
