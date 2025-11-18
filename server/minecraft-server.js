@@ -67,8 +67,8 @@ async function startMinecraftServer() {
       'gameMode': 0, // 0 = выживание, 1 = творческий
       'difficulty': 1, // 0 = мирный, 1 = легкий, 2 = нормальный, 3 = сложный
       'worldFolder': worldPath,
-      // Генерация мира - убираем параметр, чтобы использовать генерацию по умолчанию
-      // Можно также попробовать: 'generation': 'default' или вообще не указывать
+      // Генерация мира - не указываем, чтобы использовать генерацию по умолчанию
+      // Если мир пустой, удалите папку minecraft-world и перезапустите сервер
       'kickTimeout': 10000,
       'plugins': {},
       'modpe': false,
@@ -178,6 +178,17 @@ async function startMinecraftServer() {
     // Обработка ошибок
     server.on('error', (err) => {
       console.error('❌ Minecraft server error:', err);
+      // Не отключаем сервер при ошибках, только логируем
+    });
+
+    // Обработка ошибок клиента (предотвращаем отключение из-за ошибок UUID)
+    server.on('clientError', (client, err) => {
+      // Игнорируем ошибки UUID при отправке информации об игроках
+      if (err && err.message && err.message.includes('UUID')) {
+        console.warn(`⚠️  UUID error for client (ignored):`, err.message);
+        return; // Не отключаем клиента
+      }
+      console.error(`❌ Client error:`, err);
     });
 
     // Сервер запущен
