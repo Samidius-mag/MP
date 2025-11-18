@@ -1,12 +1,12 @@
-const minecraftProtocol = require('minecraft-protocol');
+const mc = require('flying-squid');
 const minecraftService = require('./services/minecraftService');
+const path = require('path');
 
-const MINECRAFT_PORT = process.env.MINECRAFT_PORT || 27015;
-// Для minecraft-protocol 1.26.5 поддерживаются версии до 1.12.2
-// Можно также не указывать версию, тогда будет использована версия по умолчанию
-const SERVER_VERSION = process.env.MINECRAFT_VERSION || '1.12.2';
+const MINECRAFT_PORT = parseInt(process.env.MINECRAFT_PORT || '27015');
+const SERVER_VERSION = process.env.MINECRAFT_VERSION || '1.16.4';
 const SERVER_MOTD = process.env.MINECRAFT_MOTD || 'Minecraft Server';
 const MAX_PLAYERS = parseInt(process.env.MINECRAFT_MAX_PLAYERS || '20');
+const ONLINE_MODE = process.env.MINECRAFT_ONLINE_MODE === 'true';
 
 let server = null;
 
@@ -20,38 +20,59 @@ function startMinecraftServer() {
   }
 
   try {
-    const onlineMode = process.env.MINECRAFT_ONLINE_MODE === 'true';
     console.log(`🎮 Starting Minecraft server on port ${MINECRAFT_PORT}...`);
     console.log(`📋 Version: ${SERVER_VERSION}`);
     console.log(`👥 Max players: ${MAX_PLAYERS}`);
-    console.log(`🔐 Online mode: ${onlineMode ? 'ENABLED (license check)' : 'DISABLED (cracked allowed)'}`);
+    console.log(`🔐 Online mode: ${ONLINE_MODE ? 'ENABLED (license check)' : 'DISABLED (cracked allowed)'}`);
 
-    // Создаем сервер с базовыми настройками
-    // Для minecraft-protocol 1.26.5 поддерживаются версии до 1.12.2
-    // Если нужна более новая версия, можно попробовать без указания версии
-    // online-mode: false - позволяет подключаться нелицензионным версиям (по умолчанию)
-    // online-mode: true - проверяет лицензию через Mojang API
-    const serverOptions = {
-      'online-mode': process.env.MINECRAFT_ONLINE_MODE === 'true', // По умолчанию false (офлайн режим)
-      motd: SERVER_MOTD,
+    // Создаем путь для мира сервера
+    const worldPath = path.join(__dirname, '..', 'minecraft-world');
+
+    // Создаем сервер с помощью flying-squid
+    server = mc.createMCServer({
+      'motd': SERVER_MOTD,
+      'port': MINECRAFT_PORT,
       'max-players': MAX_PLAYERS,
-      port: MINECRAFT_PORT,
-      keepAlive: true,
-      keepAliveInitialDelay: 10000,
-    };
-
-    // Добавляем версию только если она указана
-    // Если версия не поддерживается, можно убрать этот параметр
-    if (SERVER_VERSION && SERVER_VERSION !== 'auto' && SERVER_VERSION !== 'none') {
-      serverOptions.version = SERVER_VERSION;
-    }
-
-    server = minecraftProtocol.createServer(serverOptions);
+      'online-mode': ONLINE_MODE,
+      'logging': true,
+      'gameMode': 0, // 0 = выживание, 1 = творческий
+      'difficulty': 1, // 0 = мирный, 1 = легкий, 2 = нормальный, 3 = сложный
+      'worldFolder': worldPath,
+      'generation': {
+        'name': 'superflat',
+        'options': {
+          'layers': [
+            {
+              'block': 'minecraft:bedrock',
+              'height': 1
+            },
+            {
+              'block': 'minecraft:dirt',
+              'height': 2
+            },
+            {
+              'block': 'minecraft:grass_block',
+              'height': 1
+            }
+          ]
+        }
+      },
+      'kickTimeout': 10000,
+      'plugins': {},
+      'modpe': false,
+      'view-distance': 10,
+      'player-list-text': {
+        'header': { 'text': 'Добро пожаловать!' },
+        'footer': { 'text': 'Minecraft Server' }
+      },
+      'everybody-op': false,
+      'max-entities': 100
+    });
 
     // Обработка подключения игрока
     server.on('login', (client) => {
-      const username = client.username || client.profile?.name || 'Unknown';
-      const uuid = client.uuid || client.profile?.id || 'unknown';
+      const username = client.username;
+      const uuid = client.uuid;
       
       console.log(`✅ Player connected: ${username} (${uuid})`);
       
@@ -63,97 +84,50 @@ function startMinecraftServer() {
         client
       });
 
-      // Инициализация игрока после логина
-      // После события 'login' нужно отправить необходимые пакеты для входа в игру
-      
-      // Обрабатываем переход в игровое состояние
-      client.once('spawn', () => {
-        console.log(`🎮 Player ${username} spawned in game`);
-      });
-
-      // Отправляем начальные данные игроку после небольшой задержки
-      // Это позволяет клиенту полностью инициализироваться
+      // Приветственное сообщение
       setTimeout(() => {
         try {
-          // Устанавливаем игровой режим (0 = выживание, 1 = творческий)
-          client.write('game_state_change', {
-            reason: 3, // Change game mode
-            gameMode: 0 // Survival mode
+          client.write('chat', {
+            message: JSON.stringify({
+              text: `Добро пожаловать на сервер, ${username}!`,
+              color: 'green'
+            })
           });
-
-          // Отправляем начальную позицию (спавн)
-          client.write('position', {
-            x: 0,
-            y: 64,
-            z: 0,
-            yaw: 0,
-            pitch: 0,
-            flags: 0x00
-          });
-
-          // Приветственное сообщение
-          setTimeout(() => {
-            try {
-              client.write('chat', {
-                message: JSON.stringify({
-                  text: `Добро пожаловать на сервер, ${username}!`,
-                  color: 'green'
-                })
-              });
-            } catch (err) {
-              console.error('Error sending welcome message:', err);
-            }
-          }, 500);
         } catch (err) {
-          console.error(`Error initializing player ${username}:`, err);
+          console.error('Error sending welcome message:', err);
         }
-      }, 200);
+      }, 1000);
 
       // Уведомляем других игроков
       broadcastMessage(`Игрок ${username} присоединился к серверу`, username);
-
-      // Обработка всех пакетов от клиента для отладки
-      client.on('packet', (data, meta) => {
-        if (meta.name && !['keep_alive', 'position', 'position_look', 'look'].includes(meta.name)) {
-          console.log(`📦 [${username}] Received packet: ${meta.name}`, data);
-        }
-      });
-
-      // Обработка ошибок клиента
-      client.on('error', (err) => {
-        console.error(`❌ Error with client ${username}:`, err);
-      });
-
-      // Обработка отключения клиента
-      client.on('end', () => {
-        const player = Array.from(minecraftService.players.values())
-          .find(p => p.client === client);
-        
-        if (player) {
-          const { username, uuid } = player;
-          console.log(`❌ Player disconnected: ${username}`);
-          
-          minecraftService.players.delete(uuid);
-
-          // Уведомляем других игроков
-          broadcastMessage(`Игрок ${username} покинул сервер`, username);
-        }
-      });
     });
 
-    // Обработка отключения игрока (старый способ, оставляем для совместимости)
-    server.on('end', (client, reason) => {
-      const player = Array.from(minecraftService.players.values())
-        .find(p => p.client === client);
+    // Обработка отключения игрока
+    server.on('playerQuit', (player) => {
+      const username = player.username;
+      const uuid = player.uuid;
       
-      if (player) {
-        const { username, uuid } = player;
-        console.log(`❌ Player disconnected: ${username} (${reason || 'unknown reason'})`);
-        
-        minecraftService.players.delete(uuid);
+      console.log(`❌ Player disconnected: ${username}`);
+      
+      minecraftService.players.delete(uuid);
 
-        // Уведомляем других игроков
-        broadcastMessage(`Игрок ${username} покинул сервер`, username);
+      // Уведомляем других игроков
+      broadcastMessage(`Игрок ${username} покинул сервер`, username);
+    });
+
+    // Обработка сообщений в чате
+    server.on('chat', (player, message) => {
+      const username = player.username;
+      const msg = message.toString().trim();
+      
+      console.log(`💬 [${username}]: ${msg}`);
+      
+      // Проверяем, является ли сообщение командой
+      if (msg.startsWith('/')) {
+        handleCommand(player, msg);
+      } else {
+        // Отправляем сообщение всем игрокам
+        broadcastMessage(`<${username}> ${msg}`, username);
       }
     });
 
@@ -162,28 +136,7 @@ function startMinecraftServer() {
       console.error('❌ Minecraft server error:', err);
     });
 
-    // Обработка чата и команд
-    server.on('chat', (client, packet) => {
-      const player = Array.from(minecraftService.players.values())
-        .find(p => p.client === client);
-      
-      if (player && packet.message) {
-        const message = packet.message.trim();
-        const username = player.username;
-        
-        // Проверяем, является ли сообщение командой
-        if (message.startsWith('/')) {
-          handleCommand(client, player, message);
-        } else {
-          // Обычное сообщение в чат
-          console.log(`💬 [${username}]: ${message}`);
-
-          // Отправляем сообщение всем игрокам
-          broadcastMessage(`<${username}> ${message}`, username);
-        }
-      }
-    });
-
+    // Сервер запущен
     server.on('listening', () => {
       console.log(`✅ Minecraft server is now listening on port ${MINECRAFT_PORT}`);
       console.log(`🌐 Players can connect to: localhost:${MINECRAFT_PORT}`);
@@ -213,7 +166,9 @@ function stopMinecraftServer() {
     // Отключаем всех игроков
     minecraftService.players.forEach((player, uuid) => {
       try {
-        player.client.end('Server is shutting down');
+        if (player.client && player.client.end) {
+          player.client.end('Server is shutting down');
+        }
       } catch (err) {
         console.error(`Error disconnecting player ${player.username}:`, err);
       }
@@ -244,12 +199,14 @@ function broadcastMessage(message, excludeUsername = null) {
     }
     
     try {
-      player.client.write('chat', {
-        message: JSON.stringify({
-          text: message,
-          color: 'yellow'
-        })
-      });
+      if (player.client && player.client.write) {
+        player.client.write('chat', {
+          message: JSON.stringify({
+            text: message,
+            color: 'yellow'
+          })
+        });
+      }
     } catch (err) {
       console.error(`Error sending message to ${player.username}:`, err);
     }
@@ -259,49 +216,29 @@ function broadcastMessage(message, excludeUsername = null) {
 /**
  * Обрабатывает команды от игроков
  */
-function handleCommand(client, player, command) {
+function handleCommand(player, command) {
   const [cmd, ...args] = command.slice(1).split(' ');
   const username = player.username;
 
   switch (cmd.toLowerCase()) {
     case 'help':
-      client.write('chat', {
-        message: JSON.stringify({
-          text: 'Доступные команды: /help, /list, /time',
-          color: 'aqua'
-        })
-      });
+      player.chat('Доступные команды: /help, /list, /time');
       break;
 
     case 'list':
       const playerList = Array.from(minecraftService.players.values())
         .map(p => p.username)
         .join(', ');
-      client.write('chat', {
-        message: JSON.stringify({
-          text: `Игроков онлайн: ${minecraftService.players.size} - ${playerList || 'нет'}`,
-          color: 'green'
-        })
-      });
+      player.chat(`Игроков онлайн: ${minecraftService.players.size} - ${playerList || 'нет'}`);
       break;
 
     case 'time':
       const time = new Date().toLocaleString('ru-RU');
-      client.write('chat', {
-        message: JSON.stringify({
-          text: `Текущее время: ${time}`,
-          color: 'gold'
-        })
-      });
+      player.chat(`Текущее время: ${time}`);
       break;
 
     default:
-      client.write('chat', {
-        message: JSON.stringify({
-          text: `Неизвестная команда: /${cmd}. Используйте /help для списка команд.`,
-          color: 'red'
-        })
-      });
+      player.chat(`Неизвестная команда: /${cmd}. Используйте /help для списка команд.`);
   }
 }
 
@@ -323,4 +260,3 @@ module.exports = {
   stopMinecraftServer,
   getServer: () => server
 };
-
