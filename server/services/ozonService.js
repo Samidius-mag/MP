@@ -203,6 +203,10 @@ class OzonService {
     const attributes = [];
     const attributeList = ozonAttributes?.result || ozonAttributes?.attributes || [];
 
+    console.log(`[OZON] Mapping attributes: ${attributeList.length} OZON attributes available`);
+    console.log(`[OZON] Product data: brand=${product.brand}, weight_kg=${product.weight_kg}, length_cm=${product.length_cm}, width_cm=${product.width_cm}, height_cm=${product.height_cm}`);
+    console.log(`[OZON] Characteristics keys:`, characteristics ? Object.keys(characteristics).slice(0, 10) : 'null');
+
     // Объединяем данные из товара и характеристик
     const productData = {
       brand: product.brand || characteristics?.brand || characteristics?.trademark || characteristics?.['Бренд'] || characteristics?.['Производитель'],
@@ -220,20 +224,23 @@ class OzonService {
 
     // Маппинг полей товара на атрибуты OZON
     const fieldMapping = {
-      brand: ['бренд', 'brand', 'производитель', 'trademark', 'марка'],
+      brand: ['бренд', 'brand', 'производитель', 'trademark', 'марка', 'марка товара'],
       color: ['цвет', 'color', 'колір', 'colour'],
       size: ['размер', 'size', 'розмір'],
-      material: ['материал', 'material', 'матеріал', 'stuff', 'состав'],
-      weight_kg: ['вес', 'weight', 'вага', 'масса'],
-      length_cm: ['длина', 'length', 'довжина'],
-      width_cm: ['ширина', 'width'],
-      height_cm: ['высота', 'height', 'висота'],
-      country: ['страна', 'country', 'страна производства', 'country_of_origin']
+      material: ['материал', 'material', 'матеріал', 'stuff', 'состав', 'состав материала'],
+      weight_kg: ['вес', 'weight', 'вага', 'масса', 'вес товара', 'вес с упаковкой'],
+      length_cm: ['длина', 'length', 'довжина', 'длина упаковки'],
+      width_cm: ['ширина', 'width', 'ширина упаковки'],
+      height_cm: ['высота', 'height', 'висота', 'высота упаковки'],
+      country: ['страна', 'country', 'страна производства', 'country_of_origin', 'страна-изготовитель']
     };
 
     for (const [fieldName, ozonNames] of Object.entries(fieldMapping)) {
       let value = productData[fieldName];
-      if (!value) continue;
+      if (!value) {
+        console.log(`[OZON] Field ${fieldName}: no value found`);
+        continue;
+      }
 
       // Преобразуем значение в строку и очищаем
       if (typeof value === 'object' && value !== null) {
@@ -241,31 +248,44 @@ class OzonService {
         value = value.name || value.title || String(value);
       }
       value = String(value).trim();
-      if (!value || value === 'null' || value === 'undefined') continue;
+      if (!value || value === 'null' || value === 'undefined') {
+        console.log(`[OZON] Field ${fieldName}: empty after processing`);
+        continue;
+      }
+
+      console.log(`[OZON] Looking for attribute for ${fieldName} = ${value}`);
 
       // Ищем соответствующий атрибут в OZON
       const attrDef = attributeList.find(attr => {
-        const attrName = (attr.name || attr.title || attr.dictionary_name || '').toLowerCase();
+        const attrName = (attr.name || attr.title || attr.dictionary_name || attr.description || '').toLowerCase();
         return ozonNames.some(on => {
           const searchTerm = on.toLowerCase();
-          return attrName.includes(searchTerm) || searchTerm.includes(attrName);
+          // Более гибкий поиск
+          return attrName.includes(searchTerm) || 
+                 searchTerm.includes(attrName) ||
+                 attrName === searchTerm ||
+                 attrName.replace(/\s+/g, '') === searchTerm.replace(/\s+/g, '');
         });
       });
 
       if (attrDef && value) {
+        console.log(`[OZON] Found attribute for ${fieldName}: ${attrDef.name || attrDef.title} (id: ${attrDef.id})`);
+        
         // Для веса преобразуем кг в граммы, если нужно
-        if (fieldName === 'weight_kg' && typeof value === 'string') {
+        if (fieldName === 'weight_kg') {
           const weightNum = parseFloat(value);
           if (!isNaN(weightNum)) {
             value = String(Math.round(weightNum * 1000)); // кг -> граммы
+            console.log(`[OZON] Converted weight: ${weightNum} kg -> ${value} g`);
           }
         }
         
         // Для размеров преобразуем см в мм, если нужно
-        if ((fieldName === 'length_cm' || fieldName === 'width_cm' || fieldName === 'height_cm') && typeof value === 'string') {
+        if ((fieldName === 'length_cm' || fieldName === 'width_cm' || fieldName === 'height_cm')) {
           const sizeNum = parseFloat(value);
           if (!isNaN(sizeNum)) {
             value = String(Math.round(sizeNum * 10)); // см -> мм
+            console.log(`[OZON] Converted ${fieldName}: ${sizeNum} cm -> ${value} mm`);
           }
         }
 
@@ -274,9 +294,18 @@ class OzonService {
           value: String(value)
         };
         attributes.push(attrValue);
+        console.log(`[OZON] Added attribute: ${attrDef.name || attrDef.title} = ${value}`);
+      } else {
+        console.warn(`[OZON] No matching attribute found for ${fieldName} = ${value}`);
+        // Логируем доступные атрибуты для отладки
+        if (fieldName === 'brand' || fieldName === 'weight_kg') {
+          console.log(`[OZON] Available OZON attributes (first 10):`, 
+            attributeList.slice(0, 10).map(a => a.name || a.title || a.id).join(', '));
+        }
       }
     }
 
+    console.log(`[OZON] Total mapped attributes: ${attributes.length}`);
     return attributes;
   }
 
@@ -303,6 +332,24 @@ class OzonService {
       }
 
       const product = productResult.rows[0];
+      
+      // Логируем структуру данных товара для отладки
+      console.log(`[OZON] Product ${product.article} data:`, {
+        id: product.id,
+        article: product.article,
+        name: product.name,
+        brand: product.brand,
+        weight_kg: product.weight_kg,
+        length_cm: product.length_cm,
+        width_cm: product.width_cm,
+        height_cm: product.height_cm,
+        image_url: product.image_url ? product.image_url.substring(0, 100) : 'NULL',
+        image_urls_type: typeof product.image_urls,
+        image_urls_is_array: Array.isArray(product.image_urls),
+        image_urls_length: Array.isArray(product.image_urls) ? product.image_urls.length : 'N/A',
+        characteristics_type: typeof product.characteristics,
+        source: product.source
+      });
 
       // Парсим характеристики
       let characteristics = null;
@@ -352,42 +399,93 @@ class OzonService {
                 return urlObj.href;
               }
             } catch (e2) {
-              console.warn('Failed to extract URL from proxy:', url);
+              console.warn(`[OZON] Failed to extract URL from proxy: ${url}`, e2.message);
             }
           }
           
           // Если не удалось преобразовать, пропускаем
-          console.warn('Invalid image URL:', url);
+          console.warn(`[OZON] Invalid image URL: ${url}`);
           return null;
         }
       };
       
+      // Логируем исходные данные для отладки
+      console.log(`[OZON] Product ${product.article}: image_urls type = ${typeof product.image_urls}, image_url = ${product.image_url || 'NULL'}`);
+      
+      // Обрабатываем image_urls - может быть массивом, строкой JSON, или объектом
       if (product.image_urls) {
         try {
           let imageUrlsArray = product.image_urls;
+          
+          // Если это строка, парсим JSON
           if (typeof imageUrlsArray === 'string') {
             imageUrlsArray = JSON.parse(imageUrlsArray);
           }
+          
+          // Если это объект (не массив), пытаемся преобразовать в массив
+          if (imageUrlsArray && typeof imageUrlsArray === 'object' && !Array.isArray(imageUrlsArray)) {
+            // Пробуем извлечь значения из объекта
+            const values = Object.values(imageUrlsArray);
+            if (values.length > 0 && values.every(v => typeof v === 'string')) {
+              imageUrlsArray = values;
+            } else {
+              // Если это не массив строк, пробуем найти массив внутри объекта
+              const arrayKeys = Object.keys(imageUrlsArray).filter(k => Array.isArray(imageUrlsArray[k]));
+              if (arrayKeys.length > 0) {
+                imageUrlsArray = imageUrlsArray[arrayKeys[0]];
+              } else {
+                imageUrlsArray = [];
+              }
+            }
+          }
+          
+          console.log(`[OZON] Product ${product.article}: image_urls array length = ${Array.isArray(imageUrlsArray) ? imageUrlsArray.length : 'not array'}`);
+          
           if (Array.isArray(imageUrlsArray) && imageUrlsArray.length > 0) {
+            // Обрабатываем все изображения из массива
             images = imageUrlsArray
-              .map(normalizeImageUrl)
+              .map((url, index) => {
+                if (!url) return null;
+                const normalized = normalizeImageUrl(url);
+                if (!normalized) {
+                  console.warn(`[OZON] Product ${product.article}: Failed to normalize image ${index + 1}: ${url}`);
+                } else {
+                  console.log(`[OZON] Product ${product.article}: Image ${index + 1} normalized: ${normalized.substring(0, 80)}...`);
+                }
+                return normalized;
+              })
               .filter(url => url !== null);
+            
+            console.log(`[OZON] Product ${product.article}: Normalized ${images.length} images from ${imageUrlsArray.length} URLs`);
+          } else {
+            console.warn(`[OZON] Product ${product.article}: image_urls is not an array or empty`);
+            if (product.image_urls) {
+              console.warn(`[OZON] Product ${product.article}: image_urls structure:`, JSON.stringify(product.image_urls).substring(0, 200));
+            }
           }
         } catch (e) {
-          console.warn('Failed to parse image_urls:', e.message);
+          console.warn(`[OZON] Failed to parse image_urls for product ${product.article}:`, e.message);
+          console.warn(`[OZON] Raw image_urls type:`, typeof product.image_urls);
+          console.warn(`[OZON] Raw image_urls:`, product.image_urls);
         }
+      } else {
+        console.warn(`[OZON] Product ${product.article}: image_urls is null or undefined`);
       }
       
       // Если изображений из массива нет, пробуем взять из image_url
       if (images.length === 0 && product.image_url) {
+        console.log(`[OZON] Product ${product.article}: Using image_url as fallback`);
         const normalizedUrl = normalizeImageUrl(product.image_url);
         if (normalizedUrl) {
           images = [normalizedUrl];
         }
       }
 
-      // Логируем количество изображений для отладки
-      console.log(`[OZON] Product ${product.article}: ${images.length} images prepared`);
+      // Логируем финальное количество изображений
+      console.log(`[OZON] Product ${product.article}: Final images count = ${images.length}`);
+      if (images.length > 0) {
+        console.log(`[OZON] Product ${product.article}: First image = ${images[0].substring(0, 100)}...`);
+      }
 
       if (images.length === 0) {
         throw new Error('At least one valid product image URL is required for OZON');
@@ -436,7 +534,7 @@ class OzonService {
         price: String(sellingPrice.toFixed(2)), // Цена в рублях (строка)
         vat: '0', // НДС (0, 0.1, 0.2)
         description: product.description || product.name,
-        images: images,
+        images: images, // Все изображения из массива
         attributes: attributes.length > 0 ? attributes : undefined,
         weight: product.weight_kg ? Math.round(product.weight_kg * 1000) : undefined, // Вес в граммах
         dimension_unit: 'mm',
@@ -444,6 +542,21 @@ class OzonService {
         length: product.length_cm ? Math.round(product.length_cm * 10) : undefined, // Длина в мм
         width: product.width_cm ? Math.round(product.width_cm * 10) : undefined // Ширина в мм
       };
+      
+      // Логируем финальные данные для импорта
+      console.log(`[OZON] Product ${product.article} import data:`, {
+        offer_id: productData.offer_id,
+        name: productData.name.substring(0, 50) + '...',
+        price: productData.price,
+        images_count: productData.images.length,
+        attributes_count: productData.attributes ? productData.attributes.length : 0,
+        weight: productData.weight,
+        dimensions: {
+          length: productData.length,
+          width: productData.width,
+          height: productData.height
+        }
+      });
 
       // Если это type_id, используем ОБА параметра: description_category_id и type_id
       if (isTypeId) {
