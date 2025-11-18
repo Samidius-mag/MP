@@ -11,7 +11,7 @@ const ONLINE_MODE = process.env.MINECRAFT_ONLINE_MODE === 'true';
 let server = null;
 
 /**
- * Создает и запускает Minecraft сервер
+ * Создает и запускает Minecrafte сервер
  */
 function startMinecraftServer() {
   if (server) {
