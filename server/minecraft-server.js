@@ -71,7 +71,22 @@ async function startMinecraftServer() {
       // Генерация мира - не указываем, чтобы использовать генерацию по умолчанию
       // Если мир пустой, удалите папку minecraft-world и перезапустите сервер
       'kickTimeout': 10000,
-      'plugins': {},
+      'plugins': {
+        // Плагин для установки UUID до отправки пакетов
+        'uuid-fix': (serv, options) => {
+          serv.on('login', (client) => {
+            const username = client.username;
+            if (!client.uuid) {
+              const uuid = nameToMcOfflineUUID(username);
+              client.uuid = uuid;
+              if (client.profile) {
+                client.profile.id = uuid;
+                client.profile.uuid = uuid;
+              }
+            }
+          });
+        }
+      },
       'modpe': false,
       'view-distance': 10,
       'player-list-text': {
@@ -84,6 +99,108 @@ async function startMinecraftServer() {
       'chunk-load-distance': 10, // Расстояние загрузки чанков
       'chunk-unload-distance': 12 // Расстояние выгрузки чанков
     });
+
+    // Перехватываем подключение клиента ДО события login
+    // Это позволяет установить UUID до того, как flying-squid начнет отправлять пакеты
+    if (server.on) {
+      // Перехватываем создание клиента через внутренние события
+      const originalEmit = server.emit;
+      server.emit = function(event, ...args) {
+        if (event === 'login' && args[0]) {
+          const client = args[0];
+          const username = client.username;
+          
+          // Устанавливаем UUID ДО того, как другие обработчики получат событие
+          if (!client.uuid) {
+            let uuid = null;
+            // Пытаемся получить UUID из разных мест
+            if (client.profile) {
+              uuid = client.profile.id || client.profile.uuid;
+            }
+            if (!uuid && client.session && client.session.selectedProfile) {
+              uuid = client.session.selectedProfile.id;
+            }
+            // Если UUID все еще не найден, генерируем его
+            if (!uuid) {
+              uuid = nameToMcOfflineUUID(username);
+            }
+            
+            // Устанавливаем UUID везде синхронно
+            client.uuid = uuid;
+            if (client.profile) {
+              client.profile.id = uuid;
+              client.profile.uuid = uuid;
+            }
+            if (client.session) {
+              if (client.session.selectedProfile) {
+                client.session.selectedProfile.id = uuid;
+              }
+              client.session.uuid = uuid;
+            }
+            
+            console.log(`🔧 [UUID Fix] Set UUID for ${username} before login event: ${uuid}`);
+            
+            // Перехватываем отправку пакетов, чтобы убедиться, что UUID всегда установлен
+            // Сохраняем UUID в замыкании для использования в перехвате
+            const clientUuid = uuid;
+            const originalWrite = client.write;
+            if (originalWrite) {
+              client.write = function(packetName, packetData) {
+                try {
+                  // Если это player_info пакет, убеждаемся что UUID установлен
+                  if (packetName === 'player_info' || (packetData && (packetData.action === 'add_player' || packetData.action === 0))) {
+                    // Структура пакета может быть разной в зависимости от версии
+                    if (packetData) {
+                      let fixed = false;
+                      // Если есть массив данных игроков
+                      if (Array.isArray(packetData.data)) {
+                        packetData.data = packetData.data.map(playerData => {
+                          if (playerData) {
+                            if (!playerData.UUID && !playerData.uuid) {
+                              playerData.UUID = clientUuid;
+                              playerData.uuid = clientUuid;
+                              fixed = true;
+                            }
+                            // Также проверяем вложенные объекты
+                            if (playerData.profile && !playerData.profile.UUID && !playerData.profile.uuid) {
+                              playerData.profile.UUID = clientUuid;
+                              playerData.profile.uuid = clientUuid;
+                              playerData.profile.id = clientUuid;
+                              fixed = true;
+                            }
+                          }
+                          return playerData;
+                        });
+                      }
+                      // Если данные игрока напрямую в пакете
+                      if (!packetData.UUID && !packetData.uuid) {
+                        packetData.UUID = clientUuid;
+                        packetData.uuid = clientUuid;
+                        fixed = true;
+                      }
+                      if (packetData.profile && !packetData.profile.UUID && !packetData.profile.uuid) {
+                        packetData.profile.UUID = clientUuid;
+                        packetData.profile.uuid = clientUuid;
+                        packetData.profile.id = clientUuid;
+                        fixed = true;
+                      }
+                      if (fixed) {
+                        console.log(`🔧 [UUID Fix] Fixed UUID in ${packetName} packet for ${username}`);
+                      }
+                    }
+                  }
+                } catch (err) {
+                  // Игнорируем ошибки при обработке пакетов, но логируем
+                  console.warn(`⚠️  Error processing packet ${packetName}:`, err.message);
+                }
+                return originalWrite.call(this, packetName, packetData);
+              };
+            }
+          }
+        }
+        return originalEmit.apply(this, [event, ...args]);
+      };
+    }
 
     // Обработка подключения игрока
     server.on('login', (client) => {
@@ -100,6 +217,7 @@ async function startMinecraftServer() {
       }
       
       // ВАЖНО: Устанавливаем UUID в объект клиента, чтобы flying-squid мог его использовать
+      // Делаем это синхронно и агрессивно
       client.uuid = uuid;
       if (client.profile) {
         client.profile.id = uuid;
@@ -114,16 +232,39 @@ async function startMinecraftServer() {
         client.session.uuid = uuid;
       }
       
+      // Устанавливаем UUID на всех возможных вложенных объектах
+      if (client._client) {
+        client._client.uuid = uuid;
+        if (client._client.profile) {
+          client._client.profile.id = uuid;
+          client._client.profile.uuid = uuid;
+        }
+      }
+      
       console.log(`✅ Player connected: ${username} (${uuid})`);
       console.log(`🌍 Generating world around player...`);
       
-      // Сохраняем игрока в сервисе
+      // Сохраняем игрока в сервисе с отслеживанием прогресса генерации мира
+      const viewDistance = 10; // Расстояние загрузки чанков
+      const expectedChunks = Math.pow(2 * viewDistance + 1, 2); // Примерно 441 чанк для view-distance 10
+      const worldGenData = {
+        loadedChunks: 0,
+        expectedChunks: expectedChunks,
+        chunks: new Set(), // Храним координаты загруженных чанков для избежания дубликатов
+        lastProgressLog: 0,
+        startTime: Date.now(),
+        progressInterval: null // Будет установлен ниже
+      };
+      
       minecraftService.players.set(uuid, {
         username,
         uuid,
         connectedAt: new Date(),
-        client
+        client,
+        worldGen: worldGenData
       });
+      
+      console.log(`🌍 [${username}] Начало генерации мира (ожидается ~${expectedChunks} чанков)...`);
       
       // После того как игрок заспавнится, убедимся что UUID установлен на player entity
       // Используем setTimeout чтобы дать flying-squid время создать player entity
@@ -158,18 +299,36 @@ async function startMinecraftServer() {
         }
       }, 1000);
 
-      // Логируем генерацию чанков вокруг игрока (5 сообщений)
-      let chunksGenerated = 0;
-      const chunkGenerationInterval = setInterval(() => {
-        chunksGenerated++;
-        if (chunksGenerated <= 5) {
-          console.log(`🗺️  [${username}] Generating chunks... (${chunksGenerated}/5)`);
+      // Отслеживаем прогресс генерации мира в реальном времени
+      const progressInterval = setInterval(() => {
+        const player = minecraftService.players.get(uuid);
+        if (!player || !player.worldGen) {
+          clearInterval(progressInterval);
+          return;
         }
-        if (chunksGenerated >= 5) {
-          clearInterval(chunkGenerationInterval);
-          console.log(`✅ [${username}] Initial world generation completed`);
+        
+        const { loadedChunks, expectedChunks, startTime } = player.worldGen;
+        const progress = Math.min(100, Math.round((loadedChunks / expectedChunks) * 100));
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        
+        // Логируем прогресс каждые 5% или каждые 2 секунды
+        if (progress !== player.worldGen.lastProgressLog && progress % 5 === 0) {
+          console.log(`🌍 [${username}] Генерация мира: ${progress}% (${loadedChunks}/${expectedChunks} чанков загружено, ${elapsed}с)`);
+          player.worldGen.lastProgressLog = progress;
+        }
+        
+        // Если достигли 100%, останавливаем интервал
+        if (progress >= 100) {
+          clearInterval(progressInterval);
+          console.log(`✅ [${username}] Генерация мира завершена! (${loadedChunks} чанков загружено за ${elapsed}с)`);
+          if (player.worldGen) {
+            player.worldGen.progressInterval = null;
+          }
         }
       }, 2000);
+      
+      // Сохраняем ссылку на интервал для очистки при отключении
+      worldGenData.progressInterval = progressInterval;
 
       // Приветственное сообщение (с задержкой, чтобы игрок успел заспавниться)
       setTimeout(() => {
@@ -211,6 +370,11 @@ async function startMinecraftServer() {
       
       if (uuid) {
         console.log(`❌ Player disconnected: ${username} (${uuid})`);
+        const player = minecraftService.players.get(uuid);
+        // Очищаем интервал отслеживания прогресса, если он существует
+        if (player && player.worldGen && player.worldGen.progressInterval) {
+          clearInterval(player.worldGen.progressInterval);
+        }
         minecraftService.players.delete(uuid);
       } else {
         console.log(`❌ Player disconnected: ${username} (UUID not found)`);
@@ -218,6 +382,10 @@ async function startMinecraftServer() {
         const toDelete = Array.from(minecraftService.players.entries())
           .find(([id, p]) => p.username === username);
         if (toDelete) {
+          // Очищаем интервал отслеживания прогресса, если он существует
+          if (toDelete[1].worldGen && toDelete[1].worldGen.progressInterval) {
+            clearInterval(toDelete[1].worldGen.progressInterval);
+          }
           minecraftService.players.delete(toDelete[0]);
         }
       }
@@ -336,15 +504,42 @@ async function startMinecraftServer() {
       minecraftService.server = server;
     });
 
-    // Логирование событий генерации мира
+    // Логирование событий генерации мира с отслеживанием прогресса
     if (server.on) {
-      // Слушаем события генерации чанков
+      // Слушаем события генерации чанков и обновляем прогресс для всех игроков
       server.on('chunkColumnLoad', (chunk) => {
-        console.log(`🗺️  Chunk loaded at X:${chunk.x}, Z:${chunk.z}`);
+        const chunkKey = `${chunk.x},${chunk.z}`;
+        
+        // Обновляем прогресс для всех игроков (так как чанки могут быть общими)
+        minecraftService.players.forEach((player, uuid) => {
+          if (player.worldGen && !player.worldGen.chunks.has(chunkKey)) {
+            player.worldGen.chunks.add(chunkKey);
+            player.worldGen.loadedChunks = player.worldGen.chunks.size;
+            
+            // Логируем каждые 50 чанков или при достижении важных процентов
+            const progress = Math.min(100, Math.round((player.worldGen.loadedChunks / player.worldGen.expectedChunks) * 100));
+            if (player.worldGen.loadedChunks % 50 === 0 || 
+                (progress >= 25 && progress < 30 && player.worldGen.lastProgressLog < 25) ||
+                (progress >= 50 && progress < 55 && player.worldGen.lastProgressLog < 50) ||
+                (progress >= 75 && progress < 80 && player.worldGen.lastProgressLog < 75) ||
+                (progress >= 95 && player.worldGen.lastProgressLog < 95)) {
+              const elapsed = ((Date.now() - player.worldGen.startTime) / 1000).toFixed(1);
+              console.log(`🌍 [${player.username}] Генерация мира: ${progress}% (${player.worldGen.loadedChunks}/${player.worldGen.expectedChunks} чанков, ${elapsed}с)`);
+              player.worldGen.lastProgressLog = progress;
+            }
+          }
+        });
       });
 
       server.on('chunkColumnUnload', (chunk) => {
-        console.log(`🗺️  Chunk unloaded at X:${chunk.x}, Z:${chunk.z}`);
+        const chunkKey = `${chunk.x},${chunk.z}`;
+        // Удаляем чанк из отслеживания для всех игроков
+        minecraftService.players.forEach((player) => {
+          if (player.worldGen && player.worldGen.chunks.has(chunkKey)) {
+            player.worldGen.chunks.delete(chunkKey);
+            player.worldGen.loadedChunks = player.worldGen.chunks.size;
+          }
+        });
       });
     }
 
