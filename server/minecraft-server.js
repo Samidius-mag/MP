@@ -93,8 +93,22 @@ async function startMinecraftServer() {
         uuid = client.profile.id || client.profile.uuid;
       }
       if (!uuid) {
-        // Генерируем временный UUID если его нет
-        uuid = 'temp-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+        // Генерируем правильный UUID формат (32 hex символа в формате xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+        const generateUUID = () => {
+          return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+          });
+        };
+        uuid = generateUUID();
+      }
+      
+      // ВАЖНО: Устанавливаем UUID в объект клиента, чтобы flying-squid мог его использовать
+      client.uuid = uuid;
+      if (client.profile) {
+        client.profile.id = uuid;
+        client.profile.uuid = uuid;
       }
       
       console.log(`✅ Player connected: ${username} (${uuid})`);
@@ -108,16 +122,16 @@ async function startMinecraftServer() {
         client
       });
 
-      // Логируем генерацию чанков вокруг игрока
+      // Логируем генерацию чанков вокруг игрока (5 сообщений)
       let chunksGenerated = 0;
       const chunkGenerationInterval = setInterval(() => {
         chunksGenerated++;
         if (chunksGenerated <= 5) {
-          console.log(`🗺️  Generating chunks around player ${username}... (${chunksGenerated}/5)`);
+          console.log(`🗺️  [${username}] Generating chunks... (${chunksGenerated}/5)`);
         }
         if (chunksGenerated >= 5) {
           clearInterval(chunkGenerationInterval);
-          console.log(`✅ Initial world generation completed for ${username}`);
+          console.log(`✅ [${username}] Initial world generation completed`);
         }
       }, 2000);
 
@@ -197,6 +211,21 @@ async function startMinecraftServer() {
       // Игнорируем ошибки UUID при отправке информации об игроках
       if (err && err.message && (err.message.includes('UUID') || err.message.includes('undefined'))) {
         console.warn(`⚠️  UUID/undefined error for client (ignored, player stays connected):`, err.message.substring(0, 100));
+        
+        // Пытаемся исправить UUID клиента, если он undefined
+        if (client && !client.uuid) {
+          const player = Array.from(minecraftService.players.values())
+            .find(p => p.client === client);
+          if (player && player.uuid) {
+            client.uuid = player.uuid;
+            if (client.profile) {
+              client.profile.id = player.uuid;
+              client.profile.uuid = player.uuid;
+            }
+            console.log(`🔧 Fixed UUID for client: ${player.username} -> ${player.uuid}`);
+          }
+        }
+        
         return; // Не отключаем клиента
       }
       console.error(`❌ Client error:`, err);
