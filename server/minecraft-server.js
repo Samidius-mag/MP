@@ -1,6 +1,7 @@
 const mc = require('flying-squid');
 const minecraftService = require('./services/minecraftService');
 const path = require('path');
+const { nameToMcOfflineUUID } = require('minecraft-protocol/src/datatypes/uuid');
 
 const MINECRAFT_PORT = parseInt(process.env.MINECRAFT_PORT || '27015');
 // ВАЖНО: flying-squid 1.11.0 поддерживает версии до ~1.16.4
@@ -93,15 +94,9 @@ async function startMinecraftServer() {
         uuid = client.profile.id || client.profile.uuid;
       }
       if (!uuid) {
-        // Генерируем правильный UUID формат (32 hex символа в формате xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
-        const generateUUID = () => {
-          return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-            const r = Math.random() * 16 | 0;
-            const v = c === 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
-          });
-        };
-        uuid = generateUUID();
+        // Генерируем правильный UUID для офлайн-игроков используя стандартную функцию Minecraft
+        // Это гарантирует правильный формат и совместимость с протоколом
+        uuid = nameToMcOfflineUUID(username);
       }
       
       // ВАЖНО: Устанавливаем UUID в объект клиента, чтобы flying-squid мог его использовать
@@ -109,6 +104,14 @@ async function startMinecraftServer() {
       if (client.profile) {
         client.profile.id = uuid;
         client.profile.uuid = uuid;
+      }
+      
+      // Также устанавливаем UUID в session, если он существует
+      if (client.session) {
+        if (client.session.selectedProfile) {
+          client.session.selectedProfile.id = uuid;
+        }
+        client.session.uuid = uuid;
       }
       
       console.log(`✅ Player connected: ${username} (${uuid})`);
@@ -121,6 +124,39 @@ async function startMinecraftServer() {
         connectedAt: new Date(),
         client
       });
+      
+      // После того как игрок заспавнится, убедимся что UUID установлен на player entity
+      // Используем setTimeout чтобы дать flying-squid время создать player entity
+      setTimeout(() => {
+        try {
+          // Пытаемся найти player entity через server.players или server._players
+          if (server.players) {
+            const playerEntity = server.players[username] || server.players[uuid];
+            if (playerEntity) {
+              playerEntity.uuid = uuid;
+              if (playerEntity.profile) {
+                playerEntity.profile.id = uuid;
+                playerEntity.profile.uuid = uuid;
+              }
+              console.log(`🔧 Set UUID on player entity: ${username} -> ${uuid}`);
+            }
+          }
+          // Также проверяем _players (приватное свойство)
+          if (server._players) {
+            const playerEntity = server._players[username] || server._players[uuid];
+            if (playerEntity) {
+              playerEntity.uuid = uuid;
+              if (playerEntity.profile) {
+                playerEntity.profile.id = uuid;
+                playerEntity.profile.uuid = uuid;
+              }
+            }
+          }
+        } catch (err) {
+          // Игнорируем ошибки доступа к внутренним свойствам
+          console.warn(`⚠️  Could not set UUID on player entity: ${err.message}`);
+        }
+      }, 1000);
 
       // Логируем генерацию чанков вокруг игрока (5 сообщений)
       let chunksGenerated = 0;
@@ -213,16 +249,66 @@ async function startMinecraftServer() {
         console.warn(`⚠️  UUID/undefined error for client (ignored, player stays connected):`, err.message.substring(0, 100));
         
         // Пытаемся исправить UUID клиента, если он undefined
-        if (client && !client.uuid) {
+        if (client) {
           const player = Array.from(minecraftService.players.values())
-            .find(p => p.client === client);
+            .find(p => p.client === client || p.username === client.username);
+          
           if (player && player.uuid) {
+            // Устанавливаем UUID везде где возможно
             client.uuid = player.uuid;
             if (client.profile) {
               client.profile.id = player.uuid;
               client.profile.uuid = player.uuid;
             }
+            if (client.session) {
+              if (client.session.selectedProfile) {
+                client.session.selectedProfile.id = player.uuid;
+              }
+              client.session.uuid = player.uuid;
+            }
+            
+            // Также пытаемся найти и исправить player entity
+            try {
+              if (server.players) {
+                const playerEntity = server.players[player.username] || server.players[player.uuid];
+                if (playerEntity) {
+                  playerEntity.uuid = player.uuid;
+                  if (playerEntity.profile) {
+                    playerEntity.profile.id = player.uuid;
+                    playerEntity.profile.uuid = player.uuid;
+                  }
+                }
+              }
+              if (server._players) {
+                const playerEntity = server._players[player.username] || server._players[player.uuid];
+                if (playerEntity) {
+                  playerEntity.uuid = player.uuid;
+                  if (playerEntity.profile) {
+                    playerEntity.profile.id = player.uuid;
+                    playerEntity.profile.uuid = player.uuid;
+                  }
+                }
+              }
+            } catch (e) {
+              // Игнорируем ошибки доступа
+            }
+            
             console.log(`🔧 Fixed UUID for client: ${player.username} -> ${player.uuid}`);
+          } else if (client.username) {
+            // Если игрок не найден в нашем сервисе, генерируем UUID используя стандартную функцию
+            const newUuid = nameToMcOfflineUUID(client.username);
+            client.uuid = newUuid;
+            if (client.profile) {
+              client.profile.id = newUuid;
+              client.profile.uuid = newUuid;
+            }
+            if (client.session) {
+              if (client.session.selectedProfile) {
+                client.session.selectedProfile.id = newUuid;
+              }
+              client.session.uuid = newUuid;
+            }
+            console.log(`🔧 Generated new UUID for client: ${client.username} -> ${newUuid}`);
           }
         }
         
