@@ -11,9 +11,9 @@ const ONLINE_MODE = process.env.MINECRAFT_ONLINE_MODE === 'true';
 let server = null;
 
 /**
- * Создает и запускает Minecrafte сервер
+ * Создает и запускает Minecraft сервер
  */
-function startMinecraftServer() {
+async function startMinecraftServer() {
   if (server) {
     console.log('⚠️  Minecraft server is already running');
     return;
@@ -24,6 +24,31 @@ function startMinecraftServer() {
     console.log(`📋 Version: ${SERVER_VERSION}`);
     console.log(`👥 Max players: ${MAX_PLAYERS}`);
     console.log(`🔐 Online mode: ${ONLINE_MODE ? 'ENABLED (license check)' : 'DISABLED (cracked allowed)'}`);
+
+    // Проверяем, не занят ли порт (простая проверка)
+    const net = require('net');
+    const testServer = net.createServer();
+    
+    try {
+      await new Promise((resolve, reject) => {
+        testServer.once('error', (err) => {
+          if (err.code === 'EADDRINUSE') {
+            console.error(`❌ Port ${MINECRAFT_PORT} is already in use!`);
+            console.error(`💡 Try stopping the existing server: pm2 stop minecraft-server`);
+            console.error(`💡 Or check what's using the port: lsof -i :${MINECRAFT_PORT} or netstat -tulpn | grep ${MINECRAFT_PORT}`);
+            reject(new Error(`Port ${MINECRAFT_PORT} is already in use`));
+          } else {
+            reject(err);
+          }
+        });
+        
+        testServer.listen(MINECRAFT_PORT, () => {
+          testServer.close(() => resolve());
+        });
+      });
+    } catch (err) {
+      throw err;
+    }
 
     // Создаем путь для мира сервера
     const worldPath = path.join(__dirname, '..', 'minecraft-world');

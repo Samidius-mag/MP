@@ -45,11 +45,13 @@ const { startMinecraftServer } = require('./minecraft-server');
 
 console.log('🎮 Starting Minecraft server as standalone process...');
 
-try {
-  startMinecraftServer();
-  console.log('✅ Minecraft server started successfully');
-} catch (error) {
-  console.error('❌ Failed to start Minecraft server:', error);
-  process.exit(1);
-}
+(async () => {
+  try {
+    await startMinecraftServer();
+    console.log('✅ Minecraft server started successfully');
+  } catch (error) {
+    console.error('❌ Failed to start Minecraft server:', error);
+    process.exit(1);
+  }
+})();
 
