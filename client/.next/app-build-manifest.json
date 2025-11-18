@@ -65,18 +65,7 @@
       "static/chunks/251-c8522eadecb4a1c7.js",
       "static/chunks/783-7644feb628e3afb7.js",
       "static/chunks/133-0673c5edaa4e4066.js",
-      "static/chunks/app/client/products/page-c3a2d5f3b13979c8.js"
-    ],
-    "/client/sima-land/page": [
-      "static/chunks/webpack-20b9061d385feef4.js",
-      "static/chunks/fd9d1056-1d1f67edd9dabe65.js",
-      "static/chunks/938-178702252affc5cc.js",
-      "static/chunks/main-app-80a44e0162bf2850.js",
-      "static/chunks/737-533bd6df5857591e.js",
-      "static/chunks/251-c8522eadecb4a1c7.js",
-      "static/chunks/706-31a14e136f503946.js",
-      "static/chunks/133-0673c5edaa4e4066.js",
-      "static/chunks/app/client/sima-land/page-04d1cc2f68f9bf0b.js"
+      "static/chunks/app/client/products/page-733de32e20b777b6.js"
     ],
     "/client/settings/page": [
       "static/chunks/webpack-20b9061d385feef4.js",
@@ -88,6 +77,17 @@
       "static/chunks/279-f17c6ec6137efb9a.js",
       "static/chunks/133-0673c5edaa4e4066.js",
       "static/chunks/app/client/settings/page-23c6c96a2ec1bb38.js"
+    ],
+    "/client/sima-land/page": [
+      "static/chunks/webpack-20b9061d385feef4.js",
+      "static/chunks/fd9d1056-1d1f67edd9dabe65.js",
+      "static/chunks/938-178702252affc5cc.js",
+      "static/chunks/main-app-80a44e0162bf2850.js",
+      "static/chunks/737-533bd6df5857591e.js",
+      "static/chunks/251-c8522eadecb4a1c7.js",
+      "static/chunks/706-31a14e136f503946.js",
+      "static/chunks/133-0673c5edaa4e4066.js",
+      "static/chunks/app/client/sima-land/page-04d1cc2f68f9bf0b.js"
     ],
     "/client/warehouse/page": [
       "static/chunks/webpack-20b9061d385feef4.js",
