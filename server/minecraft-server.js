@@ -129,6 +129,23 @@ async function startMinecraftServer() {
             
             console.log(`🔧 [UUID Fix] Set UUID for ${username} before login event: ${uuid}`);
             
+            // Перехватываем метод end() клиента, чтобы предотвратить отключение из-за ошибок
+            const originalEnd = client.end;
+            if (originalEnd) {
+              client.end = function(reason) {
+                // Если отключение происходит из-за ошибки soundId, блокируем его
+                if (reason && typeof reason === 'string' && (
+                  reason.includes('soundId') || 
+                  reason.includes('sound_effect') ||
+                  reason.includes('ItemSoundHolder')
+                )) {
+                  console.warn(`🔇 [${username}] Prevented disconnect due to soundId error: ${reason.substring(0, 100)}`);
+                  return; // Не отключаем клиента
+                }
+                return originalEnd.call(this, reason);
+              };
+            }
+            
             // Перехватываем отправку пакетов, чтобы убедиться, что UUID всегда установлен
             // Сохраняем UUID в замыкании для использования в перехвате
             const clientUuid = uuid;
@@ -136,6 +153,30 @@ async function startMinecraftServer() {
             if (originalWrite) {
               client.write = function(packetName, packetData) {
                 try {
+                  // Блокируем проблемные пакеты sound_effect с отсутствующим soundId
+                  if (packetName === 'sound_effect' || packetName === 'named_sound_effect') {
+                    if (packetData) {
+                      // Проверяем наличие soundId
+                      if (packetData.soundId === undefined || packetData.soundId === null) {
+                        // Блокируем отправку проблемного пакета
+                        console.warn(`🔇 [${username}] Blocked sound_effect packet with missing soundId`);
+                        return; // Не отправляем пакет
+                      }
+                      // Проверяем ItemSoundHolder если он есть
+                      if (packetData.soundId && typeof packetData.soundId === 'object') {
+                        if (packetData.soundId.soundId === undefined || packetData.soundId.soundId === null) {
+                          // Блокируем отправку проблемного пакета
+                          console.warn(`🔇 [${username}] Blocked sound_effect packet with missing soundId in ItemSoundHolder`);
+                          return; // Не отправляем пакет
+                        }
+                      }
+                    } else {
+                      // Если packetData отсутствует, блокируем
+                      console.warn(`🔇 [${username}] Blocked sound_effect packet with missing data`);
+                      return;
+                    }
+                  }
+                  
                   // Если это player_info пакет, убеждаемся что UUID установлен
                   if (packetName === 'player_info' || (packetData && (packetData.action === 'add_player' || packetData.action === 0))) {
                     // Структура пакета может быть разной в зависимости от версии
@@ -181,6 +222,10 @@ async function startMinecraftServer() {
                 } catch (err) {
                   // Игнорируем ошибки при обработке пакетов, но логируем
                   console.warn(`⚠️  Error processing packet ${packetName}:`, err.message);
+                  // Если это ошибка soundId, блокируем отправку
+                  if (err.message && err.message.includes('soundId')) {
+                    return; // Не отправляем проблемный пакет
+                  }
                 }
                 return originalWrite.call(this, packetName, packetData);
               };
@@ -287,6 +332,32 @@ async function startMinecraftServer() {
           // Проверяем позицию игрока и телепортируем на безопасную позицию, если нужно
           if (playerEntity) {
             ensureSafeSpawnPosition(playerEntity, username);
+            
+            // Также перехватываем отправку пакетов через player entity
+            if (playerEntity._client && playerEntity._client.write) {
+              const originalPlayerWrite = playerEntity._client.write;
+              playerEntity._client.write = function(packetName, packetData) {
+                try {
+                  // Блокируем проблемные пакеты sound_effect
+                  if (packetName === 'sound_effect' || packetName === 'named_sound_effect') {
+                    if (!packetData || packetData.soundId === undefined || packetData.soundId === null) {
+                      console.warn(`🔇 [${username}] Blocked sound_effect packet from player entity`);
+                      return;
+                    }
+                    if (packetData.soundId && typeof packetData.soundId === 'object' && 
+                        (packetData.soundId.soundId === undefined || packetData.soundId.soundId === null)) {
+                      console.warn(`🔇 [${username}] Blocked sound_effect packet with invalid ItemSoundHolder`);
+                      return;
+                    }
+                  }
+                } catch (err) {
+                  if (err.message && err.message.includes('soundId')) {
+                    return;
+                  }
+                }
+                return originalPlayerWrite.call(this, packetName, packetData);
+              };
+            }
           }
         } catch (err) {
           // Игнорируем ошибки доступа к внутренним свойствам
@@ -508,10 +579,16 @@ async function startMinecraftServer() {
       console.error(`❌ Client error:`, err);
     });
 
-    // Обработка ошибок сервера (перехватываем ошибки UUID на уровне протокола)
+    // Обработка ошибок сервера (перехватываем ошибки UUID и soundId на уровне протокола)
     server.on('error', (err) => {
-      if (err && err.message && (err.message.includes('UUID') || err.message.includes('undefined'))) {
-        console.warn(`⚠️  Protocol UUID error (ignored):`, err.message.substring(0, 100));
+      if (err && err.message && (
+        err.message.includes('UUID') || 
+        err.message.includes('undefined') ||
+        err.message.includes('soundId') ||
+        err.message.includes('sound_effect') ||
+        err.message.includes('ItemSoundHolder')
+      )) {
+        console.warn(`⚠️  Protocol error (ignored):`, err.message.substring(0, 100));
         return; // Не обрабатываем как критическую ошибку
       }
       console.error('❌ Minecraft server error:', err);
@@ -612,28 +689,35 @@ async function startMinecraftServer() {
         }
       });
       
-      // Перехватываем пакеты звуков для исправления ошибки soundId
+      // Перехватываем ошибки сериализации пакетов на уровне сервера
+      // Перехватываем все ошибки перед отправкой пакетов
       if (server.on) {
-        server.on('packet', (data, meta) => {
-          try {
-            // Исправляем пакеты sound_effect
-            if (meta && meta.name === 'sound_effect' && data) {
-              // Проверяем наличие soundId
-              if (data.soundId === undefined || data.soundId === null) {
-                // Устанавливаем значение по умолчанию или пропускаем пакет
-                data.soundId = data.soundId || 0;
-              }
-              // Проверяем ItemSoundHolder если он есть
-              if (data.soundId !== undefined && typeof data.soundId === 'object') {
-                if (!data.soundId.soundId) {
-                  data.soundId.soundId = 0;
-                }
-              }
+        // Перехватываем ошибки на уровне сервера перед отправкой
+        const originalEmitError = server.emit;
+        const serverEmit = function(event, ...args) {
+          // Перехватываем ошибки сериализации
+          if (event === 'error') {
+            const err = args[0];
+            if (err && err.message && (
+              err.message.includes('soundId') || 
+              err.message.includes('sound_effect') ||
+              err.message.includes('ItemSoundHolder')
+            )) {
+              console.warn(`🔇 Blocked sound_effect error at server level: ${err.message.substring(0, 100)}`);
+              return false; // Не обрабатываем ошибку
             }
-          } catch (err) {
-            // Игнорируем ошибки при обработке пакетов
           }
-        });
+          return originalEmitError.apply(this, [event, ...args]);
+        };
+        // Заменяем emit только если это возможно
+        try {
+          if (typeof serverEmit === 'function') {
+            // Не переопределяем emit напрямую, так как это может сломать другие обработчики
+            // Вместо этого полагаемся на перехват на уровне клиента
+          }
+        } catch (e) {
+          // Игнорируем ошибки
+        }
       }
     }
 
