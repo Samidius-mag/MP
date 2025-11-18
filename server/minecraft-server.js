@@ -68,22 +68,9 @@ async function startMinecraftServer() {
       'difficulty': 1, // 0 = мирный, 1 = легкий, 2 = нормальный, 3 = сложный
       'worldFolder': worldPath,
       'generation': {
-        'name': 'superflat',
+        'name': 'default', // Нормальная генерация мира с биомами
         'options': {
-          'layers': [
-            {
-              'block': 'minecraft:bedrock',
-              'height': 1
-            },
-            {
-              'block': 'minecraft:dirt',
-              'height': 2
-            },
-            {
-              'block': 'minecraft:grass_block',
-              'height': 1
-            }
-          ]
+          'seed': Math.floor(Math.random() * 2147483647) // Случайный seed для мира
         }
       },
       'kickTimeout': 10000,
@@ -101,7 +88,15 @@ async function startMinecraftServer() {
     // Обработка подключения игрока
     server.on('login', (client) => {
       const username = client.username;
-      const uuid = client.uuid || client.profile?.id || 'unknown';
+      // В flying-squid UUID может быть в разных форматах
+      let uuid = client.uuid;
+      if (!uuid && client.profile) {
+        uuid = client.profile.id || client.profile.uuid;
+      }
+      if (!uuid) {
+        // Генерируем временный UUID если его нет
+        uuid = 'temp-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+      }
       
       console.log(`✅ Player connected: ${username} (${uuid})`);
       
@@ -113,10 +108,10 @@ async function startMinecraftServer() {
         client
       });
 
-      // Приветственное сообщение
+      // Приветственное сообщение (с задержкой, чтобы игрок успел заспавниться)
       setTimeout(() => {
         try {
-          if (client.write) {
+          if (client && client.write) {
             client.write('chat', {
               message: JSON.stringify({
                 text: `Добро пожаловать на сервер, ${username}!`,
@@ -127,20 +122,42 @@ async function startMinecraftServer() {
         } catch (err) {
           console.error('Error sending welcome message:', err);
         }
-      }, 1000);
+      }, 2000);
 
-      // Уведомляем других игроков
-      broadcastMessage(`Игрок ${username} присоединился к серверу`, username);
+      // Уведомляем других игроков (тоже с задержкой)
+      setTimeout(() => {
+        broadcastMessage(`Игрок ${username} присоединился к серверу`, username);
+      }, 2000);
     });
 
     // Обработка отключения игрока
     server.on('playerQuit', (player) => {
       const username = player.username;
-      const uuid = player.uuid || 'unknown';
+      let uuid = player.uuid;
+      if (!uuid && player.profile) {
+        uuid = player.profile.id || player.profile.uuid;
+      }
+      if (!uuid) {
+        // Ищем по username если UUID нет
+        const found = Array.from(minecraftService.players.values())
+          .find(p => p.username === username);
+        if (found) {
+          uuid = found.uuid;
+        }
+      }
       
-      console.log(`❌ Player disconnected: ${username}`);
-      
-      minecraftService.players.delete(uuid);
+      if (uuid) {
+        console.log(`❌ Player disconnected: ${username} (${uuid})`);
+        minecraftService.players.delete(uuid);
+      } else {
+        console.log(`❌ Player disconnected: ${username} (UUID not found)`);
+        // Удаляем по username если UUID не найден
+        const toDelete = Array.from(minecraftService.players.entries())
+          .find(([id, p]) => p.username === username);
+        if (toDelete) {
+          minecraftService.players.delete(toDelete[0]);
+        }
+      }
 
       // Уведомляем других игроков
       broadcastMessage(`Игрок ${username} покинул сервер`, username);
