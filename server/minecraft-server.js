@@ -67,12 +67,8 @@ async function startMinecraftServer() {
       'gameMode': 0, // 0 = выживание, 1 = творческий
       'difficulty': 1, // 0 = мирный, 1 = легкий, 2 = нормальный, 3 = сложный
       'worldFolder': worldPath,
-      'generation': {
-        'name': 'default', // Нормальная генерация мира с биомами
-        'options': {
-          'seed': Math.floor(Math.random() * 2147483647) // Случайный seed для мира
-        }
-      },
+      // Генерация мира - убираем параметр, чтобы использовать генерацию по умолчанию
+      // Можно также попробовать: 'generation': 'default' или вообще не указывать
       'kickTimeout': 10000,
       'plugins': {},
       'modpe': false,
