@@ -1,4 +1,4 @@
-const { createServer } = require('prismarine-server');
+const mc = require('flying-squid');
 const minecraftService = require('./services/minecraftService');
 const path = require('path');
 
@@ -28,37 +28,45 @@ function startMinecraftServer() {
     // Создаем путь для мира сервера
     const worldPath = path.join(__dirname, '..', 'minecraft-world');
 
-    // Создаем сервер с помощью prismarine-server
-    server = createServer({
-      version: SERVER_VERSION,
-      port: MINECRAFT_PORT,
-      motd: SERVER_MOTD,
+    // Создаем сервер с помощью flying-squid
+    server = mc.createMCServer({
+      'motd': SERVER_MOTD,
+      'port': MINECRAFT_PORT,
       'max-players': MAX_PLAYERS,
       'online-mode': ONLINE_MODE,
-      worldFolder: worldPath,
-      generation: {
-        name: 'superflat',
-        options: {
-          layers: [
+      'logging': true,
+      'gameMode': 0, // 0 = выживание, 1 = творческий
+      'difficulty': 1, // 0 = мирный, 1 = легкий, 2 = нормальный, 3 = сложный
+      'worldFolder': worldPath,
+      'generation': {
+        'name': 'superflat',
+        'options': {
+          'layers': [
             {
-              block: 'minecraft:bedrock',
-              height: 1
+              'block': 'minecraft:bedrock',
+              'height': 1
             },
             {
-              block: 'minecraft:dirt',
-              height: 2
+              'block': 'minecraft:dirt',
+              'height': 2
             },
             {
-              block: 'minecraft:grass_block',
-              height: 1
+              'block': 'minecraft:grass_block',
+              'height': 1
             }
           ]
         }
       },
-      kickTimeout: 10000,
-      viewDistance: 10,
-      difficulty: 1, // 0 = мирный, 1 = легкий, 2 = нормальный, 3 = сложный
-      gameMode: 0 // 0 = выживание, 1 = творческий
+      'kickTimeout': 10000,
+      'plugins': {},
+      'modpe': false,
+      'view-distance': 10,
+      'player-list-text': {
+        'header': { 'text': 'Добро пожаловать!' },
+        'footer': { 'text': 'Minecraft Server' }
+      },
+      'everybody-op': false,
+      'max-entities': 100
     });
 
     // Обработка подключения игрока
@@ -79,12 +87,14 @@ function startMinecraftServer() {
       // Приветственное сообщение
       setTimeout(() => {
         try {
-          client.write('chat', {
-            message: JSON.stringify({
-              text: `Добро пожаловать на сервер, ${username}!`,
-              color: 'green'
-            })
-          });
+          if (client.write) {
+            client.write('chat', {
+              message: JSON.stringify({
+                text: `Добро пожаловать на сервер, ${username}!`,
+                color: 'green'
+              })
+            });
+          }
         } catch (err) {
           console.error('Error sending welcome message:', err);
         }
