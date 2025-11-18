@@ -87,7 +87,7 @@ module.exports = {
         MINECRAFT_VERSION: '1.12.2',
         MINECRAFT_MOTD: 'Minecraft Server',
         MINECRAFT_MAX_PLAYERS: 20,
-        MINECRAFT_ONLINE_MODE: true
+        MINECRAFT_ONLINE_MODE: false
       },
       env_production: {
         NODE_ENV: 'production',
@@ -95,7 +95,7 @@ module.exports = {
         MINECRAFT_VERSION: '1.12.2',
         MINECRAFT_MOTD: 'Minecraft Server',
         MINECRAFT_MAX_PLAYERS: 20,
-        MINECRAFT_ONLINE_MODE: true
+        MINECRAFT_ONLINE_MODE: false
       },
       error_file: '/var/log/pm2/minecraft-server-error.log',
       out_file: '/var/log/pm2/minecraft-server-out.log',

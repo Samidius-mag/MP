@@ -20,15 +20,19 @@ function startMinecraftServer() {
   }
 
   try {
+    const onlineMode = process.env.MINECRAFT_ONLINE_MODE === 'true';
     console.log(`🎮 Starting Minecraft server on port ${MINECRAFT_PORT}...`);
     console.log(`📋 Version: ${SERVER_VERSION}`);
     console.log(`👥 Max players: ${MAX_PLAYERS}`);
+    console.log(`🔐 Online mode: ${onlineMode ? 'ENABLED (license check)' : 'DISABLED (cracked allowed)'}`);
 
     // Создаем сервер с базовыми настройками
-    // Для minecraft-protocol 1.26.5 поддерживаются версии до 1.16.5
+    // Для minecraft-protocol 1.26.5 поддерживаются версии до 1.12.2
     // Если нужна более новая версия, можно попробовать без указания версии
+    // online-mode: false - позволяет подключаться нелицензионным версиям (по умолчанию)
+    // online-mode: true - проверяет лицензию через Mojang API
     const serverOptions = {
-      'online-mode': process.env.MINECRAFT_ONLINE_MODE !== 'false',
+      'online-mode': process.env.MINECRAFT_ONLINE_MODE === 'true', // По умолчанию false (офлайн режим)
       motd: SERVER_MOTD,
       'max-players': MAX_PLAYERS,
       port: MINECRAFT_PORT,
