@@ -1,0 +1,17 @@
+[INFO]: Started logging...
+0 [[32mINFO[39m]: Server listening on port 27015, version 1.16.4 (path: /home/samidius/MP/minecraft-world)
+November 18th 2025, 12:55:30 [[32mINFO[39m]: World seed: 640690912
+November 18th 2025, 12:58:29 [[32mINFO[39m]: Position written, spawning player...
+November 18th 2025, 12:58:28 [[32mINFO[39m]: Samidius (::ffff:192.168.31.1) connected
+November 18th 2025, 12:58:33 [[31mERROR[39m]: Client ::ffff:192.168.31.1:56487 : TypeError: Write error for undefined : Cannot read properties of undefined (reading 'length')
+    at module.exports.Write.UUID (/home/samidius/MP/server/node_modules/minecraft-protocol/src/datatypes/compiler-minecraft.js:120:25)
+    at eval (eval at compile (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:262:12), <anonymous>:1530:30)
+    at eval (eval at compile (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:262:12), <anonymous>:1605:11)
+    at Object.packet_player_info (eval at compile (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:262:12), <anonymous>:1608:9)
+    at eval (eval at compile (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:262:12), <anonymous>:2405:62)
+    at packet (eval at compile (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:262:12), <anonymous>:2446:9)
+    at CompiledProtodef.write (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:76:12)
+    at e.message (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:102:25)
+    at tryCatch (/home/samidius/MP/server/node_modules/protodef/src/utils.js:50:16)
+    at CompiledProtodef.createPacketBuffer (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:102:5)
+November 18th 2025, 12:59:03 [[32mINFO[39m]: Samidius disconnected

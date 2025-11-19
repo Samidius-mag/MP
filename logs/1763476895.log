@@ -1,0 +1,16 @@
+[INFO]: Started logging...
+November 18th 2025, 14:41:35 [[32mINFO[39m]: World seed: 1144735563
+November 18th 2025, 14:55:31 [[32mINFO[39m]: samidius (::ffff:192.168.31.1) connected
+November 18th 2025, 14:55:31 [[32mINFO[39m]: Position written, spawning player...
+November 18th 2025, 14:56:10 [[31mERROR[39m]: Client ::ffff:192.168.31.1:54847 : TypeError: SizeOf error for undefined : Cannot read properties of undefined (reading 'soundId')
+    at Object.ItemSoundHolder (eval at compile (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:262:12), <anonymous>:718:17)
+    at Object.packet_sound_effect (eval at compile (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:262:12), <anonymous>:3590:36)
+    at eval (eval at compile (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:262:12), <anonymous>:4138:64)
+    at packet (eval at compile (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:262:12), <anonymous>:4160:9)
+    at CompiledProtodef.sizeOf (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:89:14)
+    at e.message (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:96:40)
+    at tryCatch (/home/samidius/MP/server/node_modules/protodef/src/utils.js:50:16)
+    at CompiledProtodef.createPacketBuffer (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:96:20)
+    at Serializer.createPacketBuffer (/home/samidius/MP/server/node_modules/protodef/src/serializer.js:12:23)
+    at Serializer._transform (/home/samidius/MP/server/node_modules/protodef/src/serializer.js:18:18)
+November 18th 2025, 14:56:40 [[32mINFO[39m]: samidius disconnected

@@ -1,0 +1,45 @@
+[INFO]: Started logging...
+9 [[32mINFO[39m]: Server listening on port 27015, version 1.21 (path: /home/samidius/MP/minecraft-world)
+November 18th 2025, 14:29:29 [[32mINFO[39m]: World seed: 2037637330
+November 18th 2025, 14:30:41 [[32mINFO[39m]: Misha (::ffff:192.168.31.1) connected
+November 18th 2025, 14:30:41 [[32mINFO[39m]: Position written, spawning player...
+November 18th 2025, 14:32:14 [[31mERROR[39m]: Client ::ffff:192.168.31.1:55376 : TypeError: SizeOf error for undefined : Cannot read properties of undefined (reading 'soundId')
+    at Object.ItemSoundHolder (eval at compile (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:262:12), <anonymous>:718:17)
+    at Object.packet_sound_effect (eval at compile (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:262:12), <anonymous>:3590:36)
+    at eval (eval at compile (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:262:12), <anonymous>:4138:64)
+    at packet (eval at compile (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:262:12), <anonymous>:4160:9)
+    at CompiledProtodef.sizeOf (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:89:14)
+    at e.message (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:96:40)
+    at tryCatch (/home/samidius/MP/server/node_modules/protodef/src/utils.js:50:16)
+    at CompiledProtodef.createPacketBuffer (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:96:20)
+    at Serializer.createPacketBuffer (/home/samidius/MP/server/node_modules/protodef/src/serializer.js:12:23)
+    at Serializer._transform (/home/samidius/MP/server/node_modules/protodef/src/serializer.js:18:18)
+November 18th 2025, 14:32:44 [[32mINFO[39m]: Misha disconnected
+November 18th 2025, 14:32:50 [[32mINFO[39m]: Misha (::ffff:192.168.31.1) connected
+November 18th 2025, 14:32:50 [[32mINFO[39m]: Position written, spawning player...
+November 18th 2025, 14:33:22 [[31mERROR[39m]: Client ::ffff:192.168.31.1:55495 : TypeError: SizeOf error for undefined : Cannot read properties of undefined (reading 'soundId')
+    at Object.ItemSoundHolder (eval at compile (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:262:12), <anonymous>:718:17)
+    at Object.packet_sound_effect (eval at compile (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:262:12), <anonymous>:3590:36)
+    at eval (eval at compile (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:262:12), <anonymous>:4138:64)
+    at packet (eval at compile (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:262:12), <anonymous>:4160:9)
+    at CompiledProtodef.sizeOf (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:89:14)
+    at e.message (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:96:40)
+    at tryCatch (/home/samidius/MP/server/node_modules/protodef/src/utils.js:50:16)
+    at CompiledProtodef.createPacketBuffer (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:96:20)
+    at Serializer.createPacketBuffer (/home/samidius/MP/server/node_modules/protodef/src/serializer.js:12:23)
+    at Serializer._transform (/home/samidius/MP/server/node_modules/protodef/src/serializer.js:18:18)
+November 18th 2025, 14:33:52 [[32mINFO[39m]: Misha disconnected
+November 18th 2025, 14:34:10 [[32mINFO[39m]: Misha (::ffff:192.168.31.1) connected
+November 18th 2025, 14:34:10 [[32mINFO[39m]: Position written, spawning player...
+November 18th 2025, 14:34:55 [[31mERROR[39m]: Client ::ffff:192.168.31.1:55520 : TypeError: SizeOf error for undefined : Cannot read properties of undefined (reading 'soundId')
+    at Object.ItemSoundHolder (eval at compile (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:262:12), <anonymous>:718:17)
+    at Object.packet_sound_effect (eval at compile (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:262:12), <anonymous>:3590:36)
+    at eval (eval at compile (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:262:12), <anonymous>:4138:64)
+    at packet (eval at compile (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:262:12), <anonymous>:4160:9)
+    at CompiledProtodef.sizeOf (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:89:14)
+    at e.message (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:96:40)
+    at tryCatch (/home/samidius/MP/server/node_modules/protodef/src/utils.js:50:16)
+    at CompiledProtodef.createPacketBuffer (/home/samidius/MP/server/node_modules/protodef/src/compiler.js:96:20)
+    at Serializer.createPacketBuffer (/home/samidius/MP/server/node_modules/protodef/src/serializer.js:12:23)
+    at Serializer._transform (/home/samidius/MP/server/node_modules/protodef/src/serializer.js:18:18)
+November 18th 2025, 14:35:25 [[32mINFO[39m]: Misha disconnected
