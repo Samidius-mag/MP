@@ -10,9 +10,129 @@ const MAX_PLAYERS = parseInt(process.env.MINECRAFT_MAX_PLAYERS || '20');
 const ONLINE_MODE = process.env.MINECRAFT_ONLINE_MODE === 'true';
 const MIN_MEMORY = process.env.MINECRAFT_MIN_MEMORY || '1024M';
 const MAX_MEMORY = process.env.MINECRAFT_MAX_MEMORY || '1024M';
+const SERVER_NAME = process.env.MINECRAFT_SERVER_NAME || 'Minecraft Server';
+const SERVER_DESCRIPTION = process.env.MINECRAFT_SERVER_DESCRIPTION || '';
 
 let serverProcess = null;
 let serverDir = null;
+
+/**
+ * Создает или обновляет server.properties с красивым MOTD
+ * Поддерживает цветовые коды Minecraft (§)
+ */
+function configureServerProperties(serverDirPath) {
+  const serverPropertiesPath = path.join(serverDirPath, 'server.properties');
+  
+  // Функция для конвертации цветовых кодов из env в формат Minecraft
+  // Поддерживает как § коды, так и простой текст
+  function formatMOTD(motd) {
+    if (!motd) return 'Minecraft Server';
+    
+    // Если уже есть § коды, используем как есть
+    if (motd.includes('§')) {
+      return motd;
+    }
+    
+    // Если это простой текст, создаем красивый формат
+    // Пример: "VIMEMC" -> "§6§lVIMEMC"
+    return `§6§l${motd}§r`;
+  }
+  
+  // Создаем красивое MOTD
+  let motdLine1 = formatMOTD(SERVER_NAME);
+  let motdLine2 = SERVER_DESCRIPTION || '§7Добро пожаловать на сервер!';
+  
+  // Если MOTD содержит \n, разделяем на две строки
+  if (SERVER_MOTD.includes('\\n')) {
+    const parts = SERVER_MOTD.split('\\n');
+    motdLine1 = formatMOTD(parts[0] || SERVER_NAME);
+    motdLine2 = formatMOTD(parts[1] || SERVER_DESCRIPTION || '§7Добро пожаловать!');
+  } else if (SERVER_MOTD !== 'Minecraft Server' && SERVER_MOTD !== SERVER_NAME) {
+    motdLine1 = formatMOTD(SERVER_MOTD);
+  }
+  
+  // Читаем существующий server.properties или создаем новый
+  let properties = {};
+  
+  if (fs.existsSync(serverPropertiesPath)) {
+    const content = fs.readFileSync(serverPropertiesPath, 'utf8');
+    content.split('\n').forEach(line => {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#')) {
+        const [key, ...valueParts] = trimmed.split('=');
+        if (key) {
+          properties[key.trim()] = valueParts.join('=').trim();
+        }
+      }
+    });
+  }
+  
+  // Обновляем настройки
+  properties['server-port'] = MINECRAFT_PORT.toString();
+  properties['max-players'] = MAX_PLAYERS.toString();
+  properties['online-mode'] = ONLINE_MODE.toString();
+  properties['motd'] = `${motdLine1}\n${motdLine2}`;
+  
+  // Сохраняем server.properties
+  const propertiesLines = [
+    '# Minecraft Server Properties',
+    '# Generated automatically by minecraft-server.js',
+    '#',
+    `server-port=${properties['server-port']}`,
+    `max-players=${properties['max-players']}`,
+    `online-mode=${properties['online-mode']}`,
+    `motd=${properties['motd']}`,
+    '',
+    '# World Settings',
+    `level-name=${properties['level-name'] || 'world'}`,
+    `level-seed=${properties['level-seed'] || ''}`,
+    `level-type=${properties['level-type'] || 'minecraft:normal'}`,
+    '',
+    '# Server Settings',
+    `difficulty=${properties['difficulty'] || 'easy'}`,
+    `gamemode=${properties['gamemode'] || 'survival'}`,
+    `force-gamemode=${properties['force-gamemode'] || 'false'}`,
+    `hardcore=${properties['hardcore'] || 'false'}`,
+    `pvp=${properties['pvp'] || 'true'}`,
+    `spawn-monsters=${properties['spawn-monsters'] || 'true'}`,
+    `spawn-npcs=${properties['spawn-npcs'] || 'true'}`,
+    `spawn-animals=${properties['spawn-animals'] || 'true'}`,
+    `generate-structures=${properties['generate-structures'] || 'true'}`,
+    '',
+    '# Network Settings',
+    `network-compression-threshold=${properties['network-compression-threshold'] || '256'}`,
+    `max-world-size=${properties['max-world-size'] || '29999984'}`,
+    '',
+    '# Performance',
+    `view-distance=${properties['view-distance'] || '10'}`,
+    `simulation-distance=${properties['simulation-distance'] || '10'}`,
+    `max-tick-time=${properties['max-tick-time'] || '60000'}`,
+    '',
+    '# Other Settings',
+    `enable-command-block=${properties['enable-command-block'] || 'false'}`,
+    `enable-query=${properties['enable-query'] || 'false'}`,
+    `enable-rcon=${properties['enable-rcon'] || 'false'}`,
+    `white-list=${properties['white-list'] || 'false'}`,
+    `enforce-whitelist=${properties['enforce-whitelist'] || 'false'}`,
+  ];
+  
+  fs.writeFileSync(serverPropertiesPath, propertiesLines.join('\n'), 'utf8');
+  console.log(`✅ Server properties configured: ${serverPropertiesPath}`);
+  console.log(`   MOTD Line 1: ${motdLine1.replace(/§./g, '')}`);
+  console.log(`   MOTD Line 2: ${motdLine2.replace(/§./g, '')}`);
+  
+  // Проверяем наличие иконки сервера
+  const serverIconPath = path.join(serverDirPath, 'server-icon.png');
+  if (fs.existsSync(serverIconPath)) {
+    console.log(`✅ Server icon found: server-icon.png`);
+  } else {
+    console.log(`⚠️  Server icon not found: server-icon.png`);
+    console.log(`   💡 To add a server icon:`);
+    console.log(`      1. Create a 64x64 pixel PNG image`);
+    console.log(`      2. Save it as 'server-icon.png' in ${serverDirPath}`);
+    console.log(`      3. Restart the server`);
+  }
+}
 
 /**
  * Создает и запускает официальный Minecraft сервер через Java
@@ -76,6 +196,9 @@ async function startMinecraftServer() {
         `\nPlease download the server from: https://www.minecraft.net/en-us/download/server`
       );
     }
+    
+    // Настраиваем server.properties перед запуском
+    configureServerProperties(serverDir);
     
     // Запускаем сервер
     await startJavaServer(serverJarPath);
