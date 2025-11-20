@@ -2,8 +2,43 @@ const express = require('express');
 const { body, validationResult, query } = require('express-validator');
 const { pool } = require('../config/database');
 const { requireOperator } = require('../middleware/auth');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const sharp = require('sharp');
 
 const router = express.Router();
+
+// Настройка multer для загрузки изображений (без потери качества)
+const imageStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = path.join(__dirname, '..', 'uploads', 'yv-products');
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, `yv-product-${uniqueSuffix}${ext}`);
+  }
+});
+
+const imageUpload = multer({ 
+  storage: imageStorage,
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Недопустимый тип файла. Разрешены только JPEG, PNG, WebP.'));
+    }
+  },
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB
+  }
+});
 
 // Получение заказов для сборки
 router.get('/orders', requireOperator, [
@@ -807,6 +842,640 @@ router.post('/inventory/bulk-update', requireOperator, [
   } catch (error) {
     console.error('Error bulk updating inventory:', error);
     res.status(500).json({ error: 'Ошибка массового обновления остатков' });
+  }
+});
+
+// ===== УПРАВЛЕНИЕ ТОВАРАМИ ЮЖНЫХ ВОРОТ (ЮВ) =====
+
+// Генерация следующего уникального артикула
+async function generateNextArticle(clientId) {
+  const dbClient = await pool.connect();
+  try {
+    // Получаем максимальный артикул для данного клиента
+    const result = await dbClient.query(
+      `SELECT MAX(CAST(article AS INTEGER)) as max_article 
+       FROM yv_products 
+       WHERE client_id = $1 AND article ~ '^[0-9]+$'`,
+      [clientId]
+    );
+    
+    const maxArticle = result.rows[0]?.max_article || 0;
+    let nextArticle = maxArticle + 1;
+    
+    // Проверяем уникальность (должен быть уникальным среди всех поставщиков)
+    let isUnique = false;
+    let attempts = 0;
+    
+    while (!isUnique && attempts < 1000) {
+      // Проверяем в yv_products
+      const checkYv = await dbClient.query(
+        'SELECT id FROM yv_products WHERE article = $1',
+        [String(nextArticle)]
+      );
+      
+      // Проверяем в sima_land_products
+      const checkSima = await dbClient.query(
+        'SELECT id FROM sima_land_products WHERE article = $1',
+        [String(nextArticle)]
+      );
+      
+      // Проверяем в wb_products_cache
+      const checkWb = await dbClient.query(
+        'SELECT id FROM wb_products_cache WHERE article = $1',
+        [String(nextArticle)]
+      );
+      
+      if (checkYv.rows.length === 0 && checkSima.rows.length === 0 && checkWb.rows.length === 0) {
+        isUnique = true;
+      } else {
+        nextArticle++;
+        attempts++;
+      }
+    }
+    
+    if (!isUnique) {
+      throw new Error('Не удалось сгенерировать уникальный артикул');
+    }
+    
+    return String(nextArticle);
+  } finally {
+    dbClient.release();
+  }
+}
+
+// Генерация описания по названию товара
+async function generateDescription(name) {
+  // Простая генерация описания на основе названия
+  // В будущем можно использовать AI API (OpenAI, Yandex GPT и т.д.)
+  const description = `Качественный товар "${name}". Подробное описание и характеристики уточняйте у поставщика.`;
+  return description;
+}
+
+// Генерация штрихкода
+function generateBarcode(article) {
+  // Используем артикул как основу для штрихкода
+  // В будущем можно использовать библиотеку для генерации EAN-13 или других форматов
+  const barcode = `2000000000${article.padStart(9, '0')}`.substring(0, 13);
+  return barcode;
+}
+
+// Генерация SKU
+function generateSKU(article, clientId) {
+  return `YV-${clientId}-${article}`;
+}
+
+// Получение списка клиентов для добавления товаров
+router.get('/yv-products/clients', requireOperator, async (req, res) => {
+  try {
+    const client = await pool.connect();
+    try {
+      const clientsResult = await client.query(
+        `SELECT c.id, c.company_name, u.first_name, u.last_name, u.email
+         FROM clients c
+         JOIN users u ON c.user_id = u.id
+         ORDER BY c.company_name`
+      );
+
+      res.json(clientsResult.rows);
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('Clients list error:', err);
+    res.status(500).json({ error: 'Failed to get clients list' });
+  }
+});
+
+// Получение списка товаров ЮВ
+router.get('/yv-products', requireOperator, [
+  query('page').optional().isInt({ min: 1 }),
+  query('limit').optional().isInt({ min: 1, max: 100 }),
+  query('client_id').optional().isInt({ min: 1 }),
+  query('search').optional().trim()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+    const { client_id, search } = req.query;
+
+    const client = await pool.connect();
+    try {
+      let whereClause = 'WHERE 1=1';
+      let queryParams = [];
+      let paramIndex = 1;
+
+      if (client_id) {
+        whereClause += ` AND yp.client_id = $${paramIndex}`;
+        queryParams.push(client_id);
+        paramIndex++;
+      }
+
+      if (search) {
+        whereClause += ` AND (yp.name ILIKE $${paramIndex} OR yp.article ILIKE $${paramIndex})`;
+        queryParams.push(`%${search}%`);
+        paramIndex++;
+      }
+
+      const productsResult = await client.query(
+        `SELECT yp.*, c.company_name, u.first_name as operator_first_name, u.last_name as operator_last_name
+         FROM yv_products yp
+         LEFT JOIN clients c ON yp.client_id = c.id
+         LEFT JOIN users u ON yp.operator_id = u.id
+         ${whereClause}
+         ORDER BY yp.created_at DESC
+         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+        [...queryParams, limit, offset]
+      );
+
+      const countResult = await client.query(
+        `SELECT COUNT(*) as total
+         FROM yv_products yp
+         ${whereClause}`,
+        queryParams
+      );
+
+      const total = parseInt(countResult.rows[0].total);
+      const totalPages = Math.ceil(total / limit);
+
+      res.json({
+        products: productsResult.rows,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrev: page > 1
+        }
+      });
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('YV products list error:', err);
+    res.status(500).json({ error: 'Failed to get products list' });
+  }
+});
+
+// Получение одного товара ЮВ
+router.get('/yv-products/:id', requireOperator, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const client = await pool.connect();
+    try {
+      const productResult = await client.query(
+        `SELECT yp.*, c.company_name, u.first_name as operator_first_name, u.last_name as operator_last_name
+         FROM yv_products yp
+         LEFT JOIN clients c ON yp.client_id = c.id
+         LEFT JOIN users u ON yp.operator_id = u.id
+         WHERE yp.id = $1`,
+        [id]
+      );
+
+      if (productResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Product not found' });
+      }
+
+      res.json(productResult.rows[0]);
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('YV product get error:', err);
+    res.status(500).json({ error: 'Failed to get product' });
+  }
+});
+
+// Создание нового товара ЮВ
+router.post('/yv-products', requireOperator, [
+  body('client_id').isInt({ min: 1 }),
+  body('name').notEmpty().trim(),
+  body('description').optional().trim(),
+  body('purchase_price').optional().isFloat({ min: 0 }),
+  body('seller_price').optional().isFloat({ min: 0 }),
+  body('marketplace_price').optional().isFloat({ min: 0 }),
+  body('fulfillment_price').optional().isFloat({ min: 0 }),
+  body('stock_quantity').optional().isInt({ min: 0 }),
+  body('package_length_cm').optional().isFloat({ min: 0 }),
+  body('package_width_cm').optional().isFloat({ min: 0 }),
+  body('package_height_cm').optional().isFloat({ min: 0 }),
+  body('package_weight_kg').optional().isFloat({ min: 0 }),
+  body('brand').optional().trim(),
+  body('category').optional().trim(),
+  body('auto_generate_description').optional().isBoolean(),
+  body('article').optional().trim()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const {
+      client_id,
+      name,
+      description,
+      purchase_price,
+      seller_price,
+      marketplace_price,
+      fulfillment_price,
+      stock_quantity,
+      package_length_cm,
+      package_width_cm,
+      package_height_cm,
+      package_weight_kg,
+      brand,
+      category,
+      auto_generate_description,
+      article
+    } = req.body;
+
+    const dbClient = await pool.connect();
+    try {
+      // Проверяем существование клиента
+      const clientCheck = await dbClient.query(
+        'SELECT id FROM clients WHERE id = $1',
+        [client_id]
+      );
+
+      if (clientCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Client not found' });
+      }
+
+      // Генерируем артикул (если не указан)
+      let finalArticle = article;
+      if (!finalArticle) {
+        finalArticle = await generateNextArticle(client_id);
+      } else {
+        // Проверяем уникальность указанного артикула
+        const checkArticle = await dbClient.query(
+          `SELECT id FROM yv_products WHERE client_id = $1 AND article = $2`,
+          [client_id, finalArticle]
+        );
+        
+        if (checkArticle.rows.length > 0) {
+          return res.status(409).json({ error: 'Товар с таким артикулом уже существует для этого клиента' });
+        }
+      }
+
+      // Генерируем описание (если нужно)
+      let finalDescription = description;
+      if (!finalDescription && auto_generate_description) {
+        finalDescription = await generateDescription(name);
+      }
+
+      // Генерируем штрихкод и SKU
+      const barcode = generateBarcode(finalArticle);
+      const sku = generateSKU(finalArticle, client_id);
+
+      // Создаем товар
+      const result = await dbClient.query(
+        `INSERT INTO yv_products (
+          client_id, operator_id, article, name, description,
+          purchase_price, seller_price, marketplace_price, fulfillment_price,
+          barcode, sku, stock_quantity,
+          package_length_cm, package_width_cm, package_height_cm, package_weight_kg,
+          brand, category, images, main_image_url
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        RETURNING *`,
+        [
+          client_id,
+          req.user.id,
+          finalArticle,
+          name,
+          finalDescription || null,
+          purchase_price || null,
+          seller_price || null,
+          marketplace_price || null,
+          fulfillment_price || null,
+          barcode,
+          sku,
+          stock_quantity || 0,
+          package_length_cm || null,
+          package_width_cm || null,
+          package_height_cm || null,
+          package_weight_kg || null,
+          brand || null,
+          category || null,
+          '[]',
+          null
+        ]
+      );
+
+      res.status(201).json({
+        message: 'Товар успешно создан',
+        product: result.rows[0]
+      });
+    } finally {
+      dbClient.release();
+    }
+  } catch (err) {
+    console.error('YV product creation error:', err);
+    if (err.code === '23505') { // Unique violation
+      res.status(409).json({ error: 'Товар с таким артикулом уже существует' });
+    } else {
+      res.status(500).json({ error: 'Failed to create product' });
+    }
+  }
+});
+
+// Обновление товара ЮВ
+router.put('/yv-products/:id', requireOperator, [
+  body('name').optional().trim(),
+  body('description').optional().trim(),
+  body('purchase_price').optional().isFloat({ min: 0 }),
+  body('seller_price').optional().isFloat({ min: 0 }),
+  body('marketplace_price').optional().isFloat({ min: 0 }),
+  body('fulfillment_price').optional().isFloat({ min: 0 }),
+  body('stock_quantity').optional().isInt({ min: 0 }),
+  body('package_length_cm').optional().isFloat({ min: 0 }),
+  body('package_width_cm').optional().isFloat({ min: 0 }),
+  body('package_height_cm').optional().isFloat({ min: 0 }),
+  body('package_weight_kg').optional().isFloat({ min: 0 }),
+  body('brand').optional().trim(),
+  body('category').optional().trim(),
+  body('is_active').optional().isBoolean()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { id } = req.params;
+    const updates = req.body;
+
+    const dbClient = await pool.connect();
+    try {
+      // Проверяем существование товара
+      const productCheck = await dbClient.query(
+        'SELECT * FROM yv_products WHERE id = $1',
+        [id]
+      );
+
+      if (productCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Product not found' });
+      }
+
+      // Формируем запрос обновления
+      const updateFields = [];
+      const updateValues = [];
+      let paramIndex = 1;
+
+      Object.keys(updates).forEach(key => {
+        if (updates[key] !== undefined && key !== 'id') {
+          updateFields.push(`${key} = $${paramIndex}`);
+          updateValues.push(updates[key]);
+          paramIndex++;
+        }
+      });
+
+      if (updateFields.length === 0) {
+        return res.status(400).json({ error: 'Нет данных для обновления' });
+      }
+
+      updateValues.push(id);
+
+      await dbClient.query(
+        `UPDATE yv_products SET ${updateFields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = $${paramIndex}`,
+        updateValues
+      );
+
+      // Получаем обновленный товар
+      const updatedProduct = await dbClient.query(
+        'SELECT * FROM yv_products WHERE id = $1',
+        [id]
+      );
+
+      res.json({
+        message: 'Товар успешно обновлен',
+        product: updatedProduct.rows[0]
+      });
+    } finally {
+      dbClient.release();
+    }
+  } catch (err) {
+    console.error('YV product update error:', err);
+    res.status(500).json({ error: 'Failed to update product' });
+  }
+});
+
+// Удаление товара ЮВ
+router.delete('/yv-products/:id', requireOperator, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const dbClient = await pool.connect();
+    try {
+      const productCheck = await dbClient.query(
+        'SELECT id FROM yv_products WHERE id = $1',
+        [id]
+      );
+
+      if (productCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Product not found' });
+      }
+
+      await dbClient.query(
+        'DELETE FROM yv_products WHERE id = $1',
+        [id]
+      );
+
+      res.json({ message: 'Товар успешно удален' });
+    } finally {
+      dbClient.release();
+    }
+  } catch (err) {
+    console.error('YV product deletion error:', err);
+    res.status(500).json({ error: 'Failed to delete product' });
+  }
+});
+
+// Загрузка изображений товара
+router.post('/yv-products/:id/images', requireOperator, imageUpload.array('images', 10), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const files = req.files;
+
+    if (!files || files.length === 0) {
+      return res.status(400).json({ error: 'No images uploaded' });
+    }
+
+    const dbClient = await pool.connect();
+    try {
+      // Проверяем существование товара
+      const productCheck = await dbClient.query(
+        'SELECT * FROM yv_products WHERE id = $1',
+        [id]
+      );
+
+      if (productCheck.rows.length === 0) {
+        // Удаляем загруженные файлы
+        files.forEach(file => {
+          if (fs.existsSync(file.path)) {
+            fs.unlinkSync(file.path);
+          }
+        });
+        return res.status(404).json({ error: 'Product not found' });
+      }
+
+      const product = productCheck.rows[0];
+      const baseUrl = process.env.SERVER_URL || 'http://localhost:3001';
+      
+      // Обрабатываем изображения (сохраняем без потери качества)
+      const imageUrls = [];
+      for (const file of files) {
+        // Используем sharp для обработки изображения без потери качества
+        const imageBuffer = await sharp(file.path)
+          .png({ quality: 100, compressionLevel: 0 }) // Максимальное качество
+          .toBuffer();
+        
+        // Перезаписываем файл с максимальным качеством
+        await fs.promises.writeFile(file.path, imageBuffer);
+
+        const imageUrl = `${baseUrl}/uploads/yv-products/${path.basename(file.path)}`;
+        imageUrls.push(imageUrl);
+      }
+
+      // Обновляем массив изображений товара
+      const currentImages = product.images || [];
+      const newImages = [...currentImages, ...imageUrls];
+      const mainImageUrl = product.main_image_url || newImages[0];
+
+      await dbClient.query(
+        `UPDATE yv_products 
+         SET images = $1, main_image_url = COALESCE($2, main_image_url), updated_at = CURRENT_TIMESTAMP 
+         WHERE id = $3`,
+        [JSON.stringify(newImages), mainImageUrl, id]
+      );
+
+      res.json({
+        message: 'Изображения успешно загружены',
+        images: newImages,
+        main_image_url: mainImageUrl
+      });
+    } finally {
+      dbClient.release();
+    }
+  } catch (err) {
+    console.error('Image upload error:', err);
+    // Удаляем загруженные файлы при ошибке
+    if (req.files) {
+      req.files.forEach(file => {
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+      });
+    }
+    res.status(500).json({ error: 'Failed to upload images' });
+  }
+});
+
+// Генерация описания по названию
+router.post('/yv-products/generate-description', requireOperator, [
+  body('name').notEmpty().trim()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { name } = req.body;
+    const description = await generateDescription(name);
+
+    res.json({ description });
+  } catch (err) {
+    console.error('Description generation error:', err);
+    res.status(500).json({ error: 'Failed to generate description' });
+  }
+});
+
+// AI замена фона на изображении (используя бесплатный API)
+router.post('/yv-products/ai-replace-background', requireOperator, imageUpload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image uploaded' });
+    }
+
+    const { prompt } = req.body; // Например: "заменить фон с белого на синий"
+
+    // TODO: Реализовать интеграцию с AI API для замены фона
+    // Пример: Remove.bg API (имеет бесплатный тариф), Hugging Face и т.д.
+
+    res.json({
+      message: 'AI замена фона будет реализована позже',
+      original_image: req.file.path,
+      prompt
+    });
+  } catch (err) {
+    console.error('AI background replacement error:', err);
+    res.status(500).json({ error: 'Failed to replace background' });
+  }
+});
+
+// Массовое редактирование фотографий для нескольких товаров
+router.post('/yv-products/bulk-edit-images', requireOperator, [
+  body('product_ids').isArray({ min: 1 }),
+  body('product_ids.*').isInt({ min: 1 }),
+  body('prompt').notEmpty().trim() // Например: "заменить фон с белого на синий"
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { product_ids, prompt } = req.body;
+
+    const dbClient = await pool.connect();
+    try {
+      const results = [];
+
+      for (const productId of product_ids) {
+        // Получаем товар
+        const productResult = await dbClient.query(
+          'SELECT * FROM yv_products WHERE id = $1',
+          [productId]
+        );
+
+        if (productResult.rows.length === 0) {
+          results.push({
+            product_id: productId,
+            success: false,
+            error: 'Товар не найден'
+          });
+          continue;
+        }
+
+        const product = productResult.rows[0];
+        const images = product.images || [];
+
+        // TODO: Реализовать массовую замену фона для всех изображений товара
+
+        results.push({
+          product_id: productId,
+          success: true,
+          message: 'Обработка изображений будет реализована позже',
+          images_count: images.length
+        });
+      }
+
+      res.json({
+        message: 'Массовое редактирование изображений',
+        results
+      });
+    } finally {
+      dbClient.release();
+    }
+  } catch (err) {
+    console.error('Bulk image edit error:', err);
+    res.status(500).json({ error: 'Failed to edit images' });
   }
 });
 

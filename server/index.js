@@ -98,6 +98,7 @@ app.use(requestLogger);
 
 // Статическая отдача обработанных изображений
 app.use('/uploads/products', express.static(path.join(__dirname, 'uploads', 'products')));
+app.use('/uploads/yv-products', express.static(path.join(__dirname, 'uploads', 'yv-products')));
 
 // Routes
 // Публичные сервисные маршруты (без JWT)

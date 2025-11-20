@@ -15,7 +15,8 @@ import {
   TagIcon,
   ArchiveBoxIcon,
   Squares2X2Icon,
-  TruckIcon
+  TruckIcon,
+  PlusCircleIcon
 } from '@heroicons/react/24/outline';
 
 interface SidebarProps {
@@ -48,6 +49,7 @@ export default function Sidebar({ role }: SidebarProps) {
           { name: 'Заказы', href: '/operator/orders', icon: ShoppingBagIcon },
           { name: 'Стикеры', href: '/operator/stickers', icon: BellIcon },
           { name: 'Клиенты', href: '/operator/clients', icon: UserGroupIcon },
+          { name: 'Добавление товара ЮВ', href: '/operator/yv-products', icon: PlusCircleIcon },
         ];
       case 'admin':
         return [
