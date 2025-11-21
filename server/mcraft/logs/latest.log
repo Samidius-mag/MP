@@ -1,27 +1,409 @@
-[07:49:47] [ServerMain/INFO]: Environment: Environment[sessionHost=https://sessionserver.mojang.com, servicesHost=https://api.minecraftservices.com, profilesHost=https://api.mojang.com, name=PROD]
-[07:49:48] [ServerMain/INFO]: Loaded 1461 recipes
-[07:49:48] [ServerMain/INFO]: Loaded 1574 advancements
-[07:49:48] [Server thread/INFO]: Starting minecraft server version 1.21.10
-[07:49:48] [Server thread/INFO]: Loading properties
-[07:49:48] [Server thread/INFO]: Default game type: SURVIVAL
-[07:49:48] [Server thread/INFO]: Generating keypair
-[07:49:48] [Server thread/INFO]: Starting Minecraft server on *:27015
-[07:49:48] [Server thread/INFO]: Using epoll channel type
-[07:49:48] [Server thread/WARN]: **** SERVER IS RUNNING IN OFFLINE/INSECURE MODE!
-[07:49:48] [Server thread/WARN]: The server will make no attempt to authenticate usernames. Beware.
-[07:49:48] [Server thread/WARN]: While this makes the game possible to play without internet access, it also opens up the ability for hackers to connect with any username they choose.
-[07:49:48] [Server thread/WARN]: To change this, set "online-mode" to "true" in the server.properties file.
-[07:49:48] [Server thread/INFO]: Preparing level "world"
-[07:49:49] [Server thread/INFO]: Loading 0 persistent chunks...
-[07:49:49] [Server thread/INFO]: Preparing spawn area: 100%
-[07:49:49] [Server thread/INFO]: Time elapsed: 15 ms
-[07:49:49] [Server thread/INFO]: Done (0.262s)! For help, type "help"
-[07:49:54] [Server thread/INFO]: An objective already exists by that name
-[07:49:54] [Server thread/INFO]: Nothing changed. That display slot is already showing that objective
-[07:50:19] [Server thread/WARN]: UUID of added entity already exists: cww['Slime'/137, l='ServerLevel[world]', x=-615.96, y=-3.00, z=-460.96]
-[07:50:20] [Server thread/INFO]: samidius[/192.168.31.1:51172] logged in with entity id 139 at (-640.505941304007, 64.0, -470.60106787990094)
-[07:50:20] [Server thread/INFO]: samidius joined the game
-[07:50:20] [Server thread/WARN]: UUID of added entity already exists: cyx['Villager'/191, l='ServerLevel[world]', x=-684.68, y=69.00, z=-399.73]
-[07:50:22] [Server thread/WARN]: UUID of added entity already exists: crz['Turtle'/247, l='ServerLevel[world]', x=-795.80, y=52.01, z=-357.31]
-[07:52:36] [Server thread/INFO]: samidius lost connection: Disconnected
-[07:52:36] [Server thread/INFO]: samidius left the game
+[07:57:49] [ServerMain/INFO]: Environment: Environment[sessionHost=https://sessionserver.mojang.com, servicesHost=https://api.minecraftservices.com, profilesHost=https://api.mojang.com, name=PROD]
+[07:57:51] [ServerMain/INFO]: Loaded 1461 recipes
+[07:57:51] [ServerMain/INFO]: Loaded 1574 advancements
+[07:57:51] [Server thread/INFO]: Starting minecraft server version 1.21.10
+[07:57:51] [Server thread/INFO]: Loading properties
+[07:57:51] [Server thread/INFO]: Default game type: SURVIVAL
+[07:57:51] [Server thread/INFO]: Generating keypair
+[07:57:51] [Server thread/INFO]: Starting Minecraft server on *:27015
+[07:57:51] [Server thread/INFO]: Using epoll channel type
+[07:57:51] [Server thread/WARN]: **** SERVER IS RUNNING IN OFFLINE/INSECURE MODE!
+[07:57:51] [Server thread/WARN]: The server will make no attempt to authenticate usernames. Beware.
+[07:57:51] [Server thread/WARN]: While this makes the game possible to play without internet access, it also opens up the ability for hackers to connect with any username they choose.
+[07:57:51] [Server thread/WARN]: To change this, set "online-mode" to "true" in the server.properties file.
+[07:57:51] [Server thread/INFO]: Preparing level "world"
+[07:57:51] [Server thread/INFO]: Loading 0 persistent chunks...
+[07:57:51] [Server thread/INFO]: Preparing spawn area: 100%
+[07:57:51] [Server thread/INFO]: Time elapsed: 14 ms
+[07:57:51] [Server thread/INFO]: Done (0.259s)! For help, type "help"
+[07:57:56] [Server thread/INFO]: An objective already exists by that name
+[07:57:56] [Server thread/INFO]: Nothing changed. That display slot is already showing that objective
+[07:57:56] [Server thread/INFO]: Set [⏰ Игровое время] for #const_1000 to 1000
+[07:57:56] [Server thread/INFO]: Set [⏰ Игровое время] for #const_24 to 24
+[07:57:56] [Server thread/INFO]: Set [⏰ Игровое время] for #const_60 to 60
+[07:57:56] [Server thread/INFO]: Set [⏰ Игровое время] for #time to 0
+[07:57:56] [Server thread/INFO]: Set [⏰ Игровое время] for #hours to 0
+[07:57:56] [Server thread/INFO]: Set [⏰ Игровое время] for #minutes to 0
+[07:57:56] [Server thread/INFO]: Set [⏰ Игровое время] for #minutes_temp to 0
+[07:57:58] [Server thread/INFO]: The time is 17738
+[07:57:58] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:57:58] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:57:58] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:57:58] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:00] [Server thread/INFO]: The time is 17778
+[07:58:00] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:00] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:00] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:00] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:02] [Server thread/INFO]: The time is 17818
+[07:58:02] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:02] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:02] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:02] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:04] [Server thread/INFO]: The time is 17858
+[07:58:04] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:04] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:04] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:04] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:06] [Server thread/INFO]: The time is 17898
+[07:58:06] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:06] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:06] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:06] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:08] [Server thread/INFO]: The time is 17938
+[07:58:08] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:08] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:08] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:08] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:10] [Server thread/INFO]: The time is 17978
+[07:58:10] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:10] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:10] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:10] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:12] [Server thread/INFO]: The time is 18019
+[07:58:12] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:12] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:12] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:12] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:14] [Server thread/INFO]: The time is 18058
+[07:58:14] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:14] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:14] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:14] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:16] [Server thread/INFO]: The time is 18099
+[07:58:16] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:16] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:16] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:16] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:18] [Server thread/INFO]: The time is 18139
+[07:58:18] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:18] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:18] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:18] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:20] [Server thread/INFO]: The time is 18179
+[07:58:20] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:20] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:20] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:20] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:22] [Server thread/INFO]: The time is 18219
+[07:58:22] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:22] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:22] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:22] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:24] [Server thread/INFO]: The time is 18259
+[07:58:24] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:24] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:24] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:24] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:27] [Server thread/INFO]: samidius[/192.168.31.1:51413] logged in with entity id 139 at (-640.505941304007, 64.0, -470.60106787990094)
+[07:58:27] [Server thread/INFO]: samidius joined the game
+[07:58:27] [Server thread/INFO]: The time is 18296
+[07:58:27] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:27] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:27] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:27] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:28] [Server thread/INFO]: The time is 18338
+[07:58:28] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:28] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:28] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:28] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:30] [Server thread/INFO]: The time is 18378
+[07:58:30] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:30] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:30] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:30] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:32] [Server thread/INFO]: The time is 18418
+[07:58:32] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:32] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:32] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:32] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:34] [Server thread/INFO]: The time is 18458
+[07:58:34] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:34] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:34] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:34] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:36] [Server thread/INFO]: The time is 18498
+[07:58:36] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:36] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:36] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:36] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:38] [Server thread/INFO]: The time is 18538
+[07:58:38] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:38] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:38] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:38] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:40] [Server thread/INFO]: The time is 18578
+[07:58:40] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:40] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:40] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:40] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:42] [Server thread/INFO]: The time is 18618
+[07:58:42] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:42] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:42] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:42] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:44] [Server thread/INFO]: The time is 18658
+[07:58:44] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:44] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:44] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:44] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:46] [Server thread/INFO]: The time is 18698
+[07:58:46] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:46] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:46] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:46] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:48] [Server thread/INFO]: The time is 18738
+[07:58:48] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:48] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:48] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:48] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:50] [Server thread/INFO]: The time is 18778
+[07:58:50] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:50] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:50] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:50] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:52] [Server thread/INFO]: The time is 18818
+[07:58:52] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:52] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:52] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:52] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:54] [Server thread/INFO]: The time is 18858
+[07:58:54] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:54] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:54] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:54] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:56] [Server thread/INFO]: The time is 18898
+[07:58:56] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:56] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:56] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:56] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:58:58] [Server thread/INFO]: The time is 18938
+[07:58:58] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:58] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:58:58] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:58:58] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:00] [Server thread/INFO]: The time is 18978
+[07:59:00] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:00] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:00] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:00] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:02] [Server thread/INFO]: The time is 19018
+[07:59:02] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:02] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:02] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:02] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:04] [Server thread/INFO]: The time is 19058
+[07:59:04] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:04] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:04] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:04] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:06] [Server thread/INFO]: The time is 19098
+[07:59:06] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:06] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:06] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:06] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:08] [Server thread/INFO]: The time is 19138
+[07:59:08] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:08] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:08] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:08] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:10] [Server thread/INFO]: The time is 19178
+[07:59:10] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:10] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:10] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:10] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:12] [Server thread/INFO]: The time is 19218
+[07:59:12] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:12] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:12] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:12] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:14] [Server thread/INFO]: The time is 19258
+[07:59:14] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:14] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:14] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:14] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:16] [Server thread/INFO]: The time is 19298
+[07:59:16] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:16] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:16] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:16] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:18] [Server thread/INFO]: The time is 19338
+[07:59:18] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:18] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:18] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:18] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:20] [Server thread/INFO]: The time is 19378
+[07:59:20] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:20] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:20] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:20] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:22] [Server thread/INFO]: The time is 19418
+[07:59:22] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:22] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:22] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:22] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:24] [Server thread/INFO]: The time is 19458
+[07:59:24] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:24] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:24] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:24] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:26] [Server thread/INFO]: The time is 19499
+[07:59:26] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:26] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:26] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:26] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:28] [Server thread/INFO]: The time is 19538
+[07:59:28] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:28] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:28] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:28] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:30] [Server thread/INFO]: The time is 19578
+[07:59:30] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:30] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:30] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:30] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:32] [Server thread/INFO]: The time is 19618
+[07:59:32] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:32] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:32] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:32] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:34] [Server thread/INFO]: The time is 19658
+[07:59:34] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:34] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:34] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:34] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:36] [Server thread/INFO]: The time is 19698
+[07:59:36] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:36] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:36] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:36] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:38] [Server thread/INFO]: The time is 19738
+[07:59:38] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:38] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:38] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:38] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:40] [Server thread/INFO]: The time is 19778
+[07:59:40] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:40] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:40] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:40] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:42] [Server thread/INFO]: The time is 19818
+[07:59:42] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:42] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:42] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:42] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:44] [Server thread/INFO]: The time is 19859
+[07:59:44] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:44] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:44] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:44] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:46] [Server thread/INFO]: The time is 19899
+[07:59:46] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:46] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:46] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:46] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:48] [Server thread/INFO]: The time is 19938
+[07:59:48] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:48] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:48] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:48] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:50] [Server thread/INFO]: The time is 19978
+[07:59:50] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:50] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:50] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:50] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:52] [Server thread/INFO]: The time is 20018
+[07:59:52] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:52] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:52] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:52] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:54] [Server thread/INFO]: The time is 20058
+[07:59:54] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:54] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:54] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:54] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:56] [Server thread/INFO]: The time is 20098
+[07:59:56] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:56] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:56] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:56] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[07:59:58] [Server thread/INFO]: The time is 20138
+[07:59:58] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:58] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[07:59:58] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[07:59:58] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[08:00:00] [Server thread/INFO]: The time is 20179
+[08:00:00] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:00] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[08:00:00] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:00] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[08:00:02] [Server thread/INFO]: The time is 20218
+[08:00:02] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:02] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[08:00:02] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:02] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[08:00:04] [Server thread/INFO]: The time is 20258
+[08:00:04] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:04] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[08:00:04] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:04] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[08:00:06] [Server thread/INFO]: The time is 20298
+[08:00:06] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:06] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[08:00:06] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:06] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[08:00:08] [Server thread/INFO]: The time is 20338
+[08:00:08] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:08] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[08:00:08] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:08] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[08:00:10] [Server thread/INFO]: The time is 20378
+[08:00:10] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:10] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[08:00:10] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:10] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[08:00:12] [Server thread/INFO]: The time is 20418
+[08:00:12] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:12] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[08:00:12] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:12] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[08:00:14] [Server thread/INFO]: The time is 20458
+[08:00:14] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:14] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[08:00:14] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:14] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[08:00:16] [Server thread/INFO]: The time is 20499
+[08:00:16] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:16] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[08:00:16] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:16] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[08:00:18] [Server thread/INFO]: The time is 20538
+[08:00:18] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:18] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[08:00:18] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:18] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[08:00:20] [Server thread/INFO]: The time is 20579
+[08:00:20] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:20] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[08:00:20] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:20] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[08:00:22] [Server thread/INFO]: The time is 20618
+[08:00:22] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:22] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[08:00:22] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:22] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[08:00:24] [Server thread/INFO]: The time is 20658
+[08:00:24] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:24] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[08:00:24] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:24] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[08:00:26] [Server thread/INFO]: The time is 20698
+[08:00:26] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:26] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[08:00:26] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:26] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
+[08:00:28] [Server thread/INFO]: The time is 20738
+[08:00:28] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:28] [Server thread/INFO]: ...et "Время дня" gametime_display 0<--[HERE]
+[08:00:28] [Server thread/INFO]: Expected whitespace to end one argument, but found trailing data
+[08:00:28] [Server thread/INFO]: ...on "Время дня" gametime_display = #time gametime_display<--[HERE]
