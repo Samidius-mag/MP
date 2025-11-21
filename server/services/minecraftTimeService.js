@@ -121,7 +121,8 @@ class MinecraftTimeService {
     this.sendCommandFn('scoreboard objectives add KILL dummy "Убийства"');
     
     // Устанавливаем scoreboard статистики в sidebar справа
-    this.sendCommandFn('scoreboard objectives setdisplay sidebar gametime_display');
+    // Отображаем индивидуальную статистику каждого игрока
+    this.sendCommandFn('scoreboard objectives setdisplay sidebar KILL');
     
     // Инициализируем переменные для суммирования статистики
     this.sendCommandFn('scoreboard players set #total_kills gametime_display 0');
@@ -166,23 +167,10 @@ class MinecraftTimeService {
         this.sendCommandFn(`execute as @a run scoreboard players operation @s KILL += @s kill_${mob}`);
       });
       
-      // Инициализируем общие счетчики
-      this.sendCommandFn('scoreboard players set #total_kills gametime_display 0');
-      this.sendCommandFn('scoreboard players set #total_deaths gametime_display 0');
-      
-      // Суммируем убийства всех игроков
-      this.sendCommandFn('execute as @a run scoreboard players operation #total_kills gametime_display += @s KILL');
-      
-      // Суммируем смерти всех игроков из scoreboard DEAD
-      this.sendCommandFn('execute as @a run scoreboard players operation #total_deaths gametime_display += @s DEAD');
-      
-      // Отображаем общую статистику в основном scoreboard
-      // Используем фиктивных игроков KILL и DEAD для отображения
-      this.sendCommandFn('scoreboard players set KILL gametime_display 0');
-      this.sendCommandFn('scoreboard players operation KILL gametime_display = #total_kills gametime_display');
-      
-      this.sendCommandFn('scoreboard players set DEAD gametime_display 0');
-      this.sendCommandFn('scoreboard players operation DEAD gametime_display = #total_deaths gametime_display');
+      // Отображаем индивидуальную статистику каждого игрока в scoreboard
+      // Каждый игрок видит свою статистику в scoreboard KILL и DEAD
+      // Статистика уже обновлена для каждого игрока отдельно
+      // Не нужно суммировать - scoreboard автоматически показывает статистику каждого игрока
       
       // Удаляем старые строки времени, если они существуют
       this.sendCommandFn('scoreboard players reset GameTime gametime_display');
@@ -230,6 +218,7 @@ class MinecraftTimeService {
       this.sendCommandFn('scoreboard players operation #kills_mod10 gametime_display %= #const_10 gametime_display');
       
       // Проверяем каждые 100 убийств (алмазный блок) - приоритет выше
+      // Выдаем только если достигли 100 и последняя награда была меньше 100
       this.sendCommandFn('execute as @a if score @s KILL matches 100.. if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills matches ..99 run give @s minecraft:diamond_block 1');
       this.sendCommandFn('execute as @a if score @s KILL matches 100.. if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills matches ..99 run scoreboard players set @s last_rewarded_kills 100');
       
@@ -238,10 +227,13 @@ class MinecraftTimeService {
       this.sendCommandFn('execute as @a if score @s KILL matches 50..99 if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills matches ..49 run scoreboard players set @s last_rewarded_kills 50');
       
       // Проверяем каждые 10 убийств (1 железный слиток) - только если не 50 и не 100
-      this.sendCommandFn('execute as @a if score @s KILL matches 10.. if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills < @s KILL if score @s KILL matches ..49 run give @s minecraft:iron_ingot 1');
-      this.sendCommandFn('execute as @a if score @s KILL matches 10.. if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills < @s KILL if score @s KILL matches ..49 run scoreboard players operation @s last_rewarded_kills = @s KILL');
+      // Для 10, 20, 30, 40
+      this.sendCommandFn('execute as @a if score @s KILL matches 10..49 if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills < @s KILL run give @s minecraft:iron_ingot 1');
+      this.sendCommandFn('execute as @a if score @s KILL matches 10..49 if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills < @s KILL run scoreboard players operation @s last_rewarded_kills = @s KILL');
+      // Для 60, 70, 80, 90
       this.sendCommandFn('execute as @a if score @s KILL matches 60..99 if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills matches 50..59 run give @s minecraft:iron_ingot 1');
       this.sendCommandFn('execute as @a if score @s KILL matches 60..99 if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills matches 50..59 run scoreboard players operation @s last_rewarded_kills = @s KILL');
+      // Для 110, 120, 130...
       this.sendCommandFn('execute as @a if score @s KILL matches 110.. if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills matches 100..109 run give @s minecraft:iron_ingot 1');
       this.sendCommandFn('execute as @a if score @s KILL matches 110.. if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills matches 100..109 run scoreboard players operation @s last_rewarded_kills = @s KILL');
       
