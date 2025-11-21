@@ -75,9 +75,9 @@ class MinecraftTimeService {
       // Scoreboard уже существует, это нормально
     }
     
-    // НЕ устанавливаем scoreboard в fsidebar, так как время будет в actionbar
-    // Явно убираем scoreboard из sidebar, если он был установлен ранее
-    this.sendCommandFn('scoreboard objectives setdisplay sidebar');
+    // Устанавливаем scoreboard в sidebar слева (хотя в Minecraft он всегда справа)
+    // Это ближайший вариант к левому нижнему углу через стандартные команды
+    this.sendCommandFn('scoreboard objectives setdisplay sidebar gametime_display');
     
     // Устанавливаем константы для вычислений
     this.sendCommandFn('scoreboard players set #const_1000 gametime_display 1000');
@@ -168,12 +168,29 @@ class MinecraftTimeService {
       this.sendCommandFn('scoreboard players operation #min_ones gametime_display = #minutes gametime_display');
       this.sendCommandFn('scoreboard players operation #min_ones gametime_display %= #const_10 gametime_display');
       
-      // Для AM (AMPM = 0) - показываем "AM" в actionbar
-      // Используем упрощенный JSON формат для лучшей совместимости
+      // Отображаем время в scoreboard справа в формате "HH:MM AM/PM"
+      // Формируем строку времени с двоеточием и AM/PM
+      // Используем формат: "Hour:MinTensMinOnes AMPM"
+      
+      // Вычисляем время в формате HHMM для отображения
+      this.sendCommandFn('scoreboard players operation #time_display gametime_display = #hours12 gametime_display');
+      this.sendCommandFn('scoreboard players operation #time_display gametime_display *= #const_100 gametime_display');
+      this.sendCommandFn('scoreboard players operation #time_display gametime_display += #minutes gametime_display');
+      
+      // Отображаем время в scoreboard
+      // Формат будет: "Time" = HHMM (например, 1030 для 10:30)
+      this.sendCommandFn('scoreboard players set Time gametime_display 0');
+      this.sendCommandFn('scoreboard players operation Time gametime_display = #time_display gametime_display');
+      
+      // Отображаем AM/PM отдельно (0 = AM, 1 = PM)
+      // В scoreboard можно показать только числа, поэтому используем 0/1
+      // Но можно использовать команду tellraw для красивого отображения
+      
+      // Также отображаем в actionbar для красивого формата с текстом AM/PM
+      // Для AM (AMPM = 0)
       this.sendCommandFn('execute if score AMPM gametime_display matches 0 run title @a actionbar {"text":"","extra":[{"score":{"name":"Hour","objective":"gametime_display"},"color":"white"},{"text":":","color":"white"},{"score":{"name":"#min_tens","objective":"gametime_display"},"color":"white"},{"score":{"name":"#min_ones","objective":"gametime_display"},"color":"white"},{"text":" AM","color":"gray"}]}');
       
-      // Для PM (AMPM = 1) - показываем "PM" в actionbar
-      // Используем упрощенный JSON формат для лучшей совместимости
+      // Для PM (AMPM = 1)
       this.sendCommandFn('execute if score AMPM gametime_display matches 1 run title @a actionbar {"text":"","extra":[{"score":{"name":"Hour","objective":"gametime_display"},"color":"white"},{"text":":","color":"white"},{"score":{"name":"#min_tens","objective":"gametime_display"},"color":"white"},{"score":{"name":"#min_ones","objective":"gametime_display"},"color":"white"},{"text":" PM","color":"gray"}]}');
       
       // Удаляем старые строки, если они существуют
