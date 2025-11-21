@@ -93,11 +93,32 @@ class MinecraftTimeService {
     
     // Создаем отдельные scoreboard для статистики убийств и смертей
     // Используем правильные критерии:
-    // - totalKillCount - для общего количества убийств (включая мобов)
     // - deathCount - для количества смертей
-    // Эти scoreboard автоматически обновляются для каждого игрока
-    this.sendCommandFn('scoreboard objectives add KILL totalKillCount "KILL"');
-    this.sendCommandFn('scoreboard objectives add DEAD deathCount "DEAD"');
+    // Для убийств враждебных мобов используем отдельные scoreboard для каждого типа моба
+    // и суммируем их в основной scoreboard
+    this.sendCommandFn('scoreboard objectives add DEAD deathCount "Смертей"');
+    
+    // Создаем scoreboard для каждого типа враждебного моба
+    // Список основных враждебных мобов: zombie, skeleton, spider, creeper, enderman, witch, etc.
+    const hostileMobs = [
+      'zombie', 'skeleton', 'spider', 'creeper', 'enderman', 'witch',
+      'zombie_villager', 'husk', 'stray', 'cave_spider', 'silverfish',
+      'endermite', 'shulker', 'phantom', 'drowned', 'pillager', 'vindicator',
+      'evoker', 'vex', 'vindicator', 'ravager', 'piglin_brute', 'zoglin',
+      'wither_skeleton', 'blaze', 'ghast', 'magma_cube', 'slime'
+    ];
+    
+    // Создаем scoreboard для каждого типа враждебного моба
+    hostileMobs.forEach(mob => {
+      try {
+        this.sendCommandFn(`scoreboard objectives add kill_${mob} minecraft.killed:minecraft.${mob}`);
+      } catch (e) {
+        // Scoreboard уже существует, это нормально
+      }
+    });
+    
+    // Создаем основной scoreboard для отображения общего количества убийств
+    this.sendCommandFn('scoreboard objectives add KILL dummy "Убийства"');
     
     // Устанавливаем scoreboard статистики в sidebar справа
     this.sendCommandFn('scoreboard objectives setdisplay sidebar gametime_display');
@@ -105,6 +126,14 @@ class MinecraftTimeService {
     // Инициализируем переменные для суммирования статистики
     this.sendCommandFn('scoreboard players set #total_kills gametime_display 0');
     this.sendCommandFn('scoreboard players set #total_deaths gametime_display 0');
+    
+    // Создаем константу для проверки кратности 10
+    this.sendCommandFn('scoreboard players set #const_10 gametime_display 10');
+    
+    // Создаем временные переменные для проверки наград
+    this.sendCommandFn('scoreboard players set #kills_temp gametime_display 0');
+    this.sendCommandFn('scoreboard players set #kills_mod10 gametime_display 0');
+    this.sendCommandFn('scoreboard players set #last_rewarded_temp gametime_display 0');
     
     console.log('✅ Stats scoreboard initialized');
   }
@@ -119,16 +148,29 @@ class MinecraftTimeService {
 
     try {
       // Обновляем статистику для всех игроков
-      // Scoreboard с типом stat.killEntity и stat.deaths автоматически обновляется Minecraft
-      // Нам нужно суммировать статистику всех игроков и отобразить в основном scoreboard
+      // Сначала обновляем индивидуальную статистику каждого игрока
+      // Затем суммируем общую статистику
+      
+      // Список враждебных мобов
+      const hostileMobs = [
+        'zombie', 'skeleton', 'spider', 'creeper', 'enderman', 'witch',
+        'zombie_villager', 'husk', 'stray', 'cave_spider', 'silverfish',
+        'endermite', 'shulker', 'phantom', 'drowned', 'pillager', 'vindicator',
+        'evoker', 'vex', 'ravager', 'piglin_brute', 'zoglin',
+        'wither_skeleton', 'blaze', 'ghast', 'magma_cube', 'slime'
+      ];
+      
+      // Для каждого игрока обнуляем счетчик убийств и суммируем убийства всех типов враждебных мобов
+      this.sendCommandFn('execute as @a run scoreboard players set @s KILL 0');
+      hostileMobs.forEach(mob => {
+        this.sendCommandFn(`execute as @a run scoreboard players operation @s KILL += @s kill_${mob}`);
+      });
       
       // Инициализируем общие счетчики
       this.sendCommandFn('scoreboard players set #total_kills gametime_display 0');
       this.sendCommandFn('scoreboard players set #total_deaths gametime_display 0');
       
-      // Получаем статистику из scoreboard KILL и DEAD
-      // Эти scoreboard автоматически обновляются для каждого игрока
-      // Суммируем убийства всех игроков из scoreboard KILL
+      // Суммируем убийства всех игроков
       this.sendCommandFn('execute as @a run scoreboard players operation #total_kills gametime_display += @s KILL');
       
       // Суммируем смерти всех игроков из scoreboard DEAD
@@ -149,9 +191,63 @@ class MinecraftTimeService {
       this.sendCommandFn('scoreboard players reset Min gametime_display');
       this.sendCommandFn('scoreboard players reset AMPM gametime_display');
       
+      // Проверяем и выдаем награды за убийства
+      this.checkAndRewardKills();
+      
     } catch (error) {
       // Игнорируем ошибки, чтобы не спамить логи
       // console.error('Error updating stats display:', error);
+    }
+  }
+
+  /**
+   * Проверяет количество убийств игроков и выдает награды
+   */
+  checkAndRewardKills() {
+    if (!this.sendCommandFn) {
+      return;
+    }
+
+    try {
+      // Для каждого игрока проверяем количество убийств и выдаем награды
+      // Каждые 10 убийств = 1 железный слиток
+      // Каждые 50 убийств = 10 железных слитков
+      // Каждые 100 убийств = 1 алмазный блок
+      
+      // Создаем scoreboard для отслеживания последнего выданного количества убийств
+      try {
+        this.sendCommandFn('scoreboard objectives add last_rewarded_kills dummy');
+      } catch (e) {
+        // Scoreboard уже существует
+      }
+      
+      // Для каждого игрока проверяем награды
+      // Награды выдаются при каждом достижении порога, кратного 10 (10, 20, 30, 40, 50, 60, 70, 80, 90, 100...)
+      // При 50 и 100 выдаются специальные награды
+      
+      // Используем модуль для проверки кратности 10
+      this.sendCommandFn('execute as @a store result score #kills_mod10 gametime_display run scoreboard players get @s KILL');
+      this.sendCommandFn('scoreboard players operation #kills_mod10 gametime_display %= #const_10 gametime_display');
+      
+      // Проверяем каждые 100 убийств (алмазный блок) - приоритет выше
+      this.sendCommandFn('execute as @a if score @s KILL matches 100.. if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills matches ..99 run give @s minecraft:diamond_block 1');
+      this.sendCommandFn('execute as @a if score @s KILL matches 100.. if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills matches ..99 run scoreboard players set @s last_rewarded_kills 100');
+      
+      // Проверяем каждые 50 убийств (10 железных слитков) - только если не достигли 100
+      this.sendCommandFn('execute as @a if score @s KILL matches 50..99 if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills matches ..49 run give @s minecraft:iron_ingot 10');
+      this.sendCommandFn('execute as @a if score @s KILL matches 50..99 if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills matches ..49 run scoreboard players set @s last_rewarded_kills 50');
+      
+      // Проверяем каждые 10 убийств (1 железный слиток) - только если не 50 и не 100
+      this.sendCommandFn('execute as @a if score @s KILL matches 10.. if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills < @s KILL if score @s KILL matches ..49 run give @s minecraft:iron_ingot 1');
+      this.sendCommandFn('execute as @a if score @s KILL matches 10.. if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills < @s KILL if score @s KILL matches ..49 run scoreboard players operation @s last_rewarded_kills = @s KILL');
+      this.sendCommandFn('execute as @a if score @s KILL matches 60..99 if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills matches 50..59 run give @s minecraft:iron_ingot 1');
+      this.sendCommandFn('execute as @a if score @s KILL matches 60..99 if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills matches 50..59 run scoreboard players operation @s last_rewarded_kills = @s KILL');
+      this.sendCommandFn('execute as @a if score @s KILL matches 110.. if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills matches 100..109 run give @s minecraft:iron_ingot 1');
+      this.sendCommandFn('execute as @a if score @s KILL matches 110.. if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills matches 100..109 run scoreboard players operation @s last_rewarded_kills = @s KILL');
+      
+    } catch (error) {
+      // Игнорируем ошибки
+      // console.error('Error checking rewards:', error);
     }
   }
 
