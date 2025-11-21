@@ -81,19 +81,23 @@ class MinecraftTimeService {
     // Устанавливаем константы для вычислений
     this.sendCommandFn('scoreboard players set #const_1000 gametime_display 1000');
     this.sendCommandFn('scoreboard players set #const_24 gametime_display 24');
+    this.sendCommandFn('scoreboard players set #const_12 gametime_display 12');
     this.sendCommandFn('scoreboard players set #const_60 gametime_display 60');
     
     // Инициализируем переменные
     this.sendCommandFn('scoreboard players set #time gametime_display 0');
-    this.sendCommandFn('scoreboard players set #hours gametime_display 0');
+    this.sendCommandFn('scoreboard players set #hours24 gametime_display 0');
+    this.sendCommandFn('scoreboard players set #hours12 gametime_display 0');
     this.sendCommandFn('scoreboard players set #minutes gametime_display 0');
     this.sendCommandFn('scoreboard players set #minutes_temp gametime_display 0');
+    this.sendCommandFn('scoreboard players set #ampm_temp gametime_display 0');
+    this.sendCommandFn('scoreboard players set #is_zero gametime_display 0');
     
     console.log('✅ Time scoreboard initialized');
   }
 
   /**
-   * Обновляет отображение времени в scoreboard
+   * Обновляет отображение времени в scoreboard в формате AM/PM
    */
   updateTimeDisplay() {
     if (!this.sendCommandFn) {
@@ -101,18 +105,48 @@ class MinecraftTimeService {
     }
 
     try {
-      // Используем команду execute store result score для получения времени
-      // и сохранения его в scoreboard напрямую
-      // ВАЖНО: Используем английские названия, так как кириллица не работает в командах
-      
-      // Команда: execute store result score #time gametime_display run time query daytime
-      // Сохраняет текущее время дня (0-24000) в score #time
+      // Получаем текущее время дня (0-24000) и сохраняем в scoreboard
       this.sendCommandFn('execute store result score #time gametime_display run time query daytime');
       
-      // Обновляем отображение времени в scoreboard
-      // Используем английское название, так как кириллица вызывает ошибки при парсинге команд
-      this.sendCommandFn('scoreboard players set GameTime gametime_display 0');
-      this.sendCommandFn('scoreboard players operation GameTime gametime_display = #time gametime_display');
+      // Вычисляем игровые часы (0-23)
+      // Формула: часы = (время / 1000) % 24
+      this.sendCommandFn('scoreboard players operation #hours24 gametime_display = #time gametime_display');
+      this.sendCommandFn('scoreboard players operation #hours24 gametime_display /= #const_1000 gametime_display');
+      this.sendCommandFn('scoreboard players operation #hours24 gametime_display %= #const_24 gametime_display');
+      
+      // Вычисляем игровые минуты (0-59)
+      // Формула: минуты = ((время % 1000) / 1000) * 60
+      this.sendCommandFn('scoreboard players operation #minutes_temp gametime_display = #time gametime_display');
+      this.sendCommandFn('scoreboard players operation #minutes_temp gametime_display %= #const_1000 gametime_display');
+      this.sendCommandFn('scoreboard players operation #minutes_temp gametime_display *= #const_60 gametime_display');
+      this.sendCommandFn('scoreboard players operation #minutes gametime_display = #minutes_temp gametime_display');
+      this.sendCommandFn('scoreboard players operation #minutes gametime_display /= #const_1000 gametime_display');
+      
+      // Вычисляем часы в 12-часовом формате (1-12)
+      // Если часы = 0, то 12 (полночь)
+      // Если часы = 12, то 12 (полдень)
+      // Если часы > 12, то часы - 12
+      // Иначе часы (1-11)
+      this.sendCommandFn('scoreboard players operation #hours12 gametime_display = #hours24 gametime_display');
+      
+      // Если часы = 0, устанавливаем 12
+      this.sendCommandFn('execute if score #hours24 gametime_display matches 0 run scoreboard players set #hours12 gametime_display 12');
+      
+      // Если часы > 12, вычитаем 12
+      this.sendCommandFn('execute if score #hours24 gametime_display matches 13.. run scoreboard players operation #hours12 gametime_display -= #const_12 gametime_display');
+      
+      // Определяем AM/PM (0 = AM, 1 = PM)
+      // AM если часы < 12 (0-11), PM если часы >= 12 (12-23)
+      this.sendCommandFn('scoreboard players set AMPM gametime_display 0');
+      this.sendCommandFn('execute if score #hours24 gametime_display matches 12.. run scoreboard players set AMPM gametime_display 1');
+      
+      // Отображаем часы (1-12)
+      this.sendCommandFn('scoreboard players set Hour gametime_display 0');
+      this.sendCommandFn('scoreboard players operation Hour gametime_display = #hours12 gametime_display');
+      
+      // Отображаем минуты (0-59)
+      this.sendCommandFn('scoreboard players set Min gametime_display 0');
+      this.sendCommandFn('scoreboard players operation Min gametime_display = #minutes gametime_display');
       
     } catch (error) {
       // Игнорируем ошибки, чтобы не спамить логи
