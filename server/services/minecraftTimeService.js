@@ -1,6 +1,6 @@
 /**
- * Сервис для отображения времени игрового мира в Minecraft
- * Обновляет scoreboard с текущим временем игрового мира
+ * Сервис для отображения статистики игроков в Minecraft
+ * Отображает количество убийств (KILL) и смертей (DEAD) в scoreboard
  */
 
 class MinecraftTimeService {
@@ -12,38 +12,38 @@ class MinecraftTimeService {
   }
 
   /**
-   * Запускает сервис обновления времени
+   * Запускает сервис обновления статистики
    * @param {Function} sendCommandFn - Функция для отправки команд в сервер
    */
   start(sendCommandFn) {
     if (this.isRunning) {
-      console.log('⏰ Minecraft time service is already running');
+      console.log('📊 Minecraft stats service is already running');
       return;
     }
 
     if (!sendCommandFn) {
-      console.error('❌ sendCommand function is required to start time service');
+      console.error('❌ sendCommand function is required to start stats service');
       return;
     }
 
     this.sendCommandFn = sendCommandFn;
 
-    console.log('⏰ Starting Minecraft time display service...');
+    console.log('📊 Starting Minecraft stats display service...');
     
     // Инициализируем scoreboard при первом запуске
     this.initializeScoreboard();
     
-    // Запускаем периодическое обновление
+    // Запускаем периодическое обновление статистики
     this.updateInterval = setInterval(() => {
       this.updateTimeDisplay();
     }, this.updateIntervalMs);
 
     this.isRunning = true;
-    console.log('✅ Minecraft time display service started');
+    console.log('✅ Minecraft stats display service started');
   }
 
   /**
-   * Останавливает сервис обновления времени
+   * Останавливает сервис обновления статистики
    */
   stop() {
     if (!this.isRunning) {
@@ -56,11 +56,11 @@ class MinecraftTimeService {
     }
 
     this.isRunning = false;
-    console.log('⏹️  Minecraft time display service stopped');
+    console.log('⏹️  Minecraft stats display service stopped');
   }
 
   /**
-   * Инициализирует scoreboard для отображения времени
+   * Инициализирует scoreboard для отображения статистики
    */
   initializeScoreboard() {
     if (!this.sendCommandFn) {
@@ -69,39 +69,39 @@ class MinecraftTimeService {
     }
 
     try {
-      // Создаем scoreboard, если его еще нет
-      this.sendCommandFn('scoreboard objectives add gametime_display dummy "⏰ Игровое время"');
+      // Создаем scoreboard для статистики, если его еще нет
+      this.sendCommandFn('scoreboard objectives add gametime_display dummy "Статистика"');
     } catch (e) {
       // Scoreboard уже существует, это нормально
     }
     
-    // НЕ устанавливаем scoreboard в sidebar, так как время будет в actionbar/subtitle
-    // Явно убираем scoreboard из sidebar
-    this.sendCommandFn('scoreboard objectives setdisplay sidebar');
+    // Создаем отдельные scoreboard для статистики убийств и смертей
+    // Используем встроенные типы статистики Minecraft
+    try {
+      this.sendCommandFn('scoreboard objectives add KILL stat.killEntity "KILL"');
+    } catch (e) {
+      // Scoreboard уже существует
+    }
     
-    // Устанавливаем константы для вычислений
-    this.sendCommandFn('scoreboard players set #const_1000 gametime_display 1000');
-    this.sendCommandFn('scoreboard players set #const_24 gametime_display 24');
-    this.sendCommandFn('scoreboard players set #const_12 gametime_display 12');
-    this.sendCommandFn('scoreboard players set #const_60 gametime_display 60');
-    this.sendCommandFn('scoreboard players set #const_100 gametime_display 100');
-    this.sendCommandFn('scoreboard players set #const_10 gametime_display 10');
+    try {
+      this.sendCommandFn('scoreboard objectives add DEAD stat.deaths "DEAD"');
+    } catch (e) {
+      // Scoreboard уже существует
+    }
     
-    // Инициализируем переменные
-    this.sendCommandFn('scoreboard players set #time gametime_display 0');
-    this.sendCommandFn('scoreboard players set #hours24 gametime_display 0');
-    this.sendCommandFn('scoreboard players set #hours12 gametime_display 0');
-    this.sendCommandFn('scoreboard players set #minutes gametime_display 0');
-    this.sendCommandFn('scoreboard players set #minutes_temp gametime_display 0');
-    this.sendCommandFn('scoreboard players set #time_display gametime_display 0');
-    this.sendCommandFn('scoreboard players set #min_tens gametime_display 0');
-    this.sendCommandFn('scoreboard players set #min_ones gametime_display 0');
+    // Устанавливаем scoreboard статистики в sidebar справа
+    // Используем gametime_display для отображения общей статистики
+    this.sendCommandFn('scoreboard objectives setdisplay sidebar gametime_display');
     
-    console.log('✅ Time scoreboard initialized');
+    // Инициализируем переменные для суммирования статистики
+    this.sendCommandFn('scoreboard players set #total_kills gametime_display 0');
+    this.sendCommandFn('scoreboard players set #total_deaths gametime_display 0');
+    
+    console.log('✅ Stats scoreboard initialized');
   }
 
   /**
-   * Обновляет отображение времени в scoreboard в формате AM/PM
+   * Обновляет отображение статистики (KILL и DEAD) в scoreboard
    */
   updateTimeDisplay() {
     if (!this.sendCommandFn) {
@@ -109,76 +109,28 @@ class MinecraftTimeService {
     }
 
     try {
-      // Получаем текущее время дня (0-24000) и сохраняем в scoreboard
-      this.sendCommandFn('execute store result score #time gametime_display run time query daytime');
+      // Обновляем статистику для всех игроков
+      // Scoreboard с типом stat.killEntity и stat.deaths автоматически обновляется Minecraft
+      // Нам нужно только суммировать статистику всех игроков и отобразить в основном scoreboard
       
-      // Вычисляем игровые часы (0-23)
-      // Формула: часы = (время / 1000) % 24
-      this.sendCommandFn('scoreboard players operation #hours24 gametime_display = #time gametime_display');
-      this.sendCommandFn('scoreboard players operation #hours24 gametime_display /= #const_1000 gametime_display');
-      this.sendCommandFn('scoreboard players operation #hours24 gametime_display %= #const_24 gametime_display');
+      // Инициализируем общие счетчики
+      this.sendCommandFn('scoreboard players set #total_kills gametime_display 0');
+      this.sendCommandFn('scoreboard players set #total_deaths gametime_display 0');
       
-      // Вычисляем игровые минуты (0-59)
-      // Формула: минуты = ((время % 1000) / 1000) * 60
-      this.sendCommandFn('scoreboard players operation #minutes_temp gametime_display = #time gametime_display');
-      this.sendCommandFn('scoreboard players operation #minutes_temp gametime_display %= #const_1000 gametime_display');
-      this.sendCommandFn('scoreboard players operation #minutes_temp gametime_display *= #const_60 gametime_display');
-      this.sendCommandFn('scoreboard players operation #minutes gametime_display = #minutes_temp gametime_display');
-      this.sendCommandFn('scoreboard players operation #minutes gametime_display /= #const_1000 gametime_display');
+      // Суммируем убийства всех игроков из scoreboard KILL
+      this.sendCommandFn('execute as @a run scoreboard players operation #total_kills gametime_display += @s KILL');
       
-      // Вычисляем часы в 12-часовом формате (1-12)
-      // Если часы = 0, то 12 (полночь)
-      // Если часы = 12, то 12 (полдень)
-      // Если часы > 12, то часы - 12
-      // Иначе часы (1-11)
-      this.sendCommandFn('scoreboard players operation #hours12 gametime_display = #hours24 gametime_display');
+      // Суммируем смерти всех игроков из scoreboard DEAD
+      this.sendCommandFn('execute as @a run scoreboard players operation #total_deaths gametime_display += @s DEAD');
       
-      // Если часы = 0, устанавливаем 12
-      this.sendCommandFn('execute if score #hours24 gametime_display matches 0 run scoreboard players set #hours12 gametime_display 12');
+      // Отображаем общую статистику в основном scoreboard
+      this.sendCommandFn('scoreboard players set KILL gametime_display 0');
+      this.sendCommandFn('scoreboard players operation KILL gametime_display = #total_kills gametime_display');
       
-      // Если часы > 12, вычитаем 12
-      this.sendCommandFn('execute if score #hours24 gametime_display matches 13.. run scoreboard players operation #hours12 gametime_display -= #const_12 gametime_display');
+      this.sendCommandFn('scoreboard players set DEAD gametime_display 0');
+      this.sendCommandFn('scoreboard players operation DEAD gametime_display = #total_deaths gametime_display');
       
-      // Определяем AM/PM (0 = AM, 1 = PM)
-      // AM если часы < 12 (0-11), PM если часы >= 12 (12-23)
-      this.sendCommandFn('scoreboard players set AMPM gametime_display 0');
-      this.sendCommandFn('execute if score #hours24 gametime_display matches 12.. run scoreboard players set AMPM gametime_display 1');
-      
-      // Отображаем часы в scoreboard
-      this.sendCommandFn('scoreboard players set Hour gametime_display 0');
-      this.sendCommandFn('scoreboard players operation Hour gametime_display = #hours12 gametime_display');
-      
-      // Отображаем минуты в scoreboard (с ведущим нулем через вычисления)
-      // Формируем минуты с ведущим нулем: если минуты < 10, добавляем 0
-      this.sendCommandFn('scoreboard players set Min gametime_display 0');
-      this.sendCommandFn('scoreboard players operation Min gametime_display = #minutes gametime_display');
-      
-      // Определяем AM/PM (0 = AM, 1 = PM)
-      // AM если часы < 12 (0-11), PM если часы >= 12 (12-23)
-      this.sendCommandFn('scoreboard players set AMPM gametime_display 0');
-      this.sendCommandFn('execute if score #hours24 gametime_display matches 12.. run scoreboard players set AMPM gametime_display 1');
-      
-      // Вычисляем десятки и единицы минут для правильного отображения с ведущим нулем
-      this.sendCommandFn('scoreboard players operation #min_tens gametime_display = #minutes gametime_display');
-      this.sendCommandFn('scoreboard players operation #min_tens gametime_display /= #const_10 gametime_display');
-      this.sendCommandFn('scoreboard players operation #min_ones gametime_display = #minutes gametime_display');
-      this.sendCommandFn('scoreboard players operation #min_ones gametime_display %= #const_10 gametime_display');
-      
-      // Отображаем время в верхней части экрана через команду title
-      // Используем title (не subtitle) для отображения в верхней части экрана по центру
-      // Устанавливаем очень долгое время отображения, чтобы текст постоянно был виден
-      
-      // Для AM (AMPM = 0) - показываем "AM" в title (верх экрана)
-      this.sendCommandFn('execute if score AMPM gametime_display matches 0 run title @a title {"text":"","extra":[{"score":{"name":"Hour","objective":"gametime_display"},"color":"white"},{"text":":","color":"white"},{"score":{"name":"#min_tens","objective":"gametime_display"},"color":"white"},{"score":{"name":"#min_ones","objective":"gametime_display"},"color":"white"},{"text":" AM","color":"gray"}]}');
-      // Устанавливаем очень долгое время отображения (fade in: 0, stay: максимальное значение, fade out: 0)
-      this.sendCommandFn('execute if score AMPM gametime_display matches 0 run title @a times 0 2147483647 0');
-      
-      // Для PM (AMPM = 1) - показываем "PM" в title (верх экрана)
-      this.sendCommandFn('execute if score AMPM gametime_display matches 1 run title @a title {"text":"","extra":[{"score":{"name":"Hour","objective":"gametime_display"},"color":"white"},{"text":":","color":"white"},{"score":{"name":"#min_tens","objective":"gametime_display"},"color":"white"},{"score":{"name":"#min_ones","objective":"gametime_display"},"color":"white"},{"text":" PM","color":"gray"}]}');
-      // Устанавливаем очень долгое время отображения
-      this.sendCommandFn('execute if score AMPM gametime_display matches 1 run title @a times 0 2147483647 0');
-      
-      // Удаляем старые строки из scoreboard, если они существуют (scoreboard больше не используется)
+      // Удаляем старые строки времени, если они существуют
       this.sendCommandFn('scoreboard players reset GameTime gametime_display');
       this.sendCommandFn('scoreboard players reset Time gametime_display');
       this.sendCommandFn('scoreboard players reset Hour gametime_display');
@@ -187,7 +139,7 @@ class MinecraftTimeService {
       
     } catch (error) {
       // Игнорируем ошибки, чтобы не спамить логи
-      // console.error('Error updating time display:', error);
+      // console.error('Error updating stats display:', error);
     }
   }
 
