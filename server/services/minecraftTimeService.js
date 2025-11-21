@@ -78,20 +78,26 @@ class MinecraftTimeService {
     // Создаем новый scoreboard для статистики
     this.sendCommandFn('scoreboard objectives add gametime_display dummy "Статистика"');
     
-    // Создаем отдельные scoreboard для статистики убийств и смертей
-    // Используем встроенные типы статистики Minecraft
-    // Эти scoreboard автоматически обновляются для каждого игрока
+    // Удаляем старые scoreboard статистики, если они существуют
     try {
-      this.sendCommandFn('scoreboard objectives add KILL stat.killEntity "KILL"');
+      this.sendCommandFn('scoreboard objectives remove KILL');
     } catch (e) {
-      // Scoreboard уже существует, это нормально
+      // Scoreboard не существует, это нормально
     }
     
     try {
-      this.sendCommandFn('scoreboard objectives add DEAD stat.deaths "DEAD"');
+      this.sendCommandFn('scoreboard objectives remove DEAD');
     } catch (e) {
-      // Scoreboard уже существует, это нормально
+      // Scoreboard не существует, это нормально
     }
+    
+    // Создаем отдельные scoreboard для статистики убийств и смертей
+    // Используем правильные критерии:
+    // - totalKillCount - для общего количества убийств (включая мобов)
+    // - deathCount - для количества смертей
+    // Эти scoreboard автоматически обновляются для каждого игрока
+    this.sendCommandFn('scoreboard objectives add KILL totalKillCount "KILL"');
+    this.sendCommandFn('scoreboard objectives add DEAD deathCount "DEAD"');
     
     // Устанавливаем scoreboard статистики в sidebar справа
     this.sendCommandFn('scoreboard objectives setdisplay sidebar gametime_display');
@@ -120,8 +126,8 @@ class MinecraftTimeService {
       this.sendCommandFn('scoreboard players set #total_kills gametime_display 0');
       this.sendCommandFn('scoreboard players set #total_deaths gametime_display 0');
       
-      // Scoreboard KILL и DEAD автоматически обновляются для каждого игрока
-      // Нам нужно суммировать значения из этих scoreboard
+      // Получаем статистику из scoreboard KILL и DEAD
+      // Эти scoreboard автоматически обновляются для каждого игрока
       // Суммируем убийства всех игроков из scoreboard KILL
       this.sendCommandFn('execute as @a run scoreboard players operation #total_kills gametime_display += @s KILL');
       
