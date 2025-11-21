@@ -69,28 +69,31 @@ class MinecraftTimeService {
     }
 
     try {
-      // Создаем scoreboard для статистики, если его еще нет
-      this.sendCommandFn('scoreboard objectives add gametime_display dummy "Статистика"');
+      // Удаляем старый scoreboard, если он существует с неправильным названием
+      this.sendCommandFn('scoreboard objectives remove gametime_display');
     } catch (e) {
-      // Scoreboard уже существует, это нормально
+      // Scoreboard не существует, это нормально
     }
+    
+    // Создаем новый scoreboard для статистики
+    this.sendCommandFn('scoreboard objectives add gametime_display dummy "Статистика"');
     
     // Создаем отдельные scoreboard для статистики убийств и смертей
     // Используем встроенные типы статистики Minecraft
+    // Эти scoreboard автоматически обновляются для каждого игрока
     try {
       this.sendCommandFn('scoreboard objectives add KILL stat.killEntity "KILL"');
     } catch (e) {
-      // Scoreboard уже существует
+      // Scoreboard уже существует, это нормально
     }
     
     try {
       this.sendCommandFn('scoreboard objectives add DEAD stat.deaths "DEAD"');
     } catch (e) {
-      // Scoreboard уже существует
+      // Scoreboard уже существует, это нормально
     }
     
     // Устанавливаем scoreboard статистики в sidebar справа
-    // Используем gametime_display для отображения общей статистики
     this.sendCommandFn('scoreboard objectives setdisplay sidebar gametime_display');
     
     // Инициализируем переменные для суммирования статистики
@@ -111,12 +114,14 @@ class MinecraftTimeService {
     try {
       // Обновляем статистику для всех игроков
       // Scoreboard с типом stat.killEntity и stat.deaths автоматически обновляется Minecraft
-      // Нам нужно только суммировать статистику всех игроков и отобразить в основном scoreboard
+      // Нам нужно суммировать статистику всех игроков и отобразить в основном scoreboard
       
       // Инициализируем общие счетчики
       this.sendCommandFn('scoreboard players set #total_kills gametime_display 0');
       this.sendCommandFn('scoreboard players set #total_deaths gametime_display 0');
       
+      // Scoreboard KILL и DEAD автоматически обновляются для каждого игрока
+      // Нам нужно суммировать значения из этих scoreboard
       // Суммируем убийства всех игроков из scoreboard KILL
       this.sendCommandFn('execute as @a run scoreboard players operation #total_kills gametime_display += @s KILL');
       
@@ -124,6 +129,7 @@ class MinecraftTimeService {
       this.sendCommandFn('execute as @a run scoreboard players operation #total_deaths gametime_display += @s DEAD');
       
       // Отображаем общую статистику в основном scoreboard
+      // Используем фиктивных игроков KILL и DEAD для отображения
       this.sendCommandFn('scoreboard players set KILL gametime_display 0');
       this.sendCommandFn('scoreboard players operation KILL gametime_display = #total_kills gametime_display');
       
