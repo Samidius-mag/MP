@@ -7,7 +7,7 @@ class MinecraftTimeService {
   constructor() {
     this.updateInterval = null;
     this.isRunning = false;
-    this.updateIntervalMs = 1000; // Обновление каждую секунду
+    this.updateIntervalMs = 2000; // Обновление каждые 2 секунды (чтобы сервер успевал обработать команды)
     this.sendCommandFn = null; // Функция для отправки команд
   }
 
@@ -68,11 +68,26 @@ class MinecraftTimeService {
       return;
     }
 
-    // Создаем scoreboard, если его еще нет
-    this.sendCommandFn('scoreboard objectives add gametime_display dummy "⏰ Игровое время"');
+    try {
+      // Создаем scoreboard, если его еще нет
+      this.sendCommandFn('scoreboard objectives add gametime_display dummy "⏰ Игровое время"');
+    } catch (e) {
+      // Scoreboard уже существует, это нормально
+    }
     
     // Устанавливаем отображение scoreboard справа для всех игроков
     this.sendCommandFn('scoreboard objectives setdisplay sidebar gametime_display');
+    
+    // Устанавливаем константы для вычислений
+    this.sendCommandFn('scoreboard players set #const_1000 gametime_display 1000');
+    this.sendCommandFn('scoreboard players set #const_24 gametime_display 24');
+    this.sendCommandFn('scoreboard players set #const_60 gametime_display 60');
+    
+    // Инициализируем переменные
+    this.sendCommandFn('scoreboard players set #time gametime_display 0');
+    this.sendCommandFn('scoreboard players set #hours gametime_display 0');
+    this.sendCommandFn('scoreboard players set #minutes gametime_display 0');
+    this.sendCommandFn('scoreboard players set #minutes_temp gametime_display 0');
     
     console.log('✅ Time scoreboard initialized');
   }
@@ -81,24 +96,28 @@ class MinecraftTimeService {
    * Обновляет отображение времени в scoreboard
    */
   updateTimeDisplay() {
-    // Получаем текущее время дня (0-24000)
-    // В Minecraft 1.21.10 можно использовать команду time query daytime
-    // Но для обновления scoreboard нужно использовать более сложную логику
-    
-    // Альтернативный подход: используем команду для получения времени
-    // и обновляем scoreboard через команды
-    
-    // Простой способ: используем datapack, если он установлен
-    // Или обновляем через команды напрямую
-    
-    // Для vanilla сервера без datapack используем команды:
-    // 1. Получаем время через time query
-    // 2. Вычисляем часы и минуты
-    // 3. Обновляем scoreboard
-    
-    // Поскольку datapack должен обрабатывать это автоматически,
-    // здесь мы только убеждаемся, что scoreboard отображается
-    // Если datapack не работает, можно использовать этот метод как резервный
+    if (!this.sendCommandFn) {
+      return;
+    }
+
+    try {
+      // Используем команду execute store result score для получения времени
+      // и сохранения его в scoreboard напрямую
+      // Это работает даже если datapack не обновляет значения
+      
+      // Команда: execute store result score #time gametime_display run time query daytime
+      // Сохраняет текущее время дня (0-24000) в score #time
+      this.sendCommandFn('execute store result score #time gametime_display run time query daytime');
+      
+      // Обновляем отображение времени в scoreboard
+      // Копируем значение из #time в "Время дня"
+      this.sendCommandFn('scoreboard players set "Время дня" gametime_display 0');
+      this.sendCommandFn('scoreboard players operation "Время дня" gametime_display = #time gametime_display');
+      
+    } catch (error) {
+      // Игнорируем ошибки, чтобы не спамить логи
+      // console.error('Error updating time display:', error);
+    }
   }
 
   /**
