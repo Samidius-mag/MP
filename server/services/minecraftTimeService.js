@@ -164,18 +164,17 @@ class MinecraftTimeService {
       this.sendCommandFn('scoreboard players operation #min_ones gametime_display = #minutes gametime_display');
       this.sendCommandFn('scoreboard players operation #min_ones gametime_display %= #const_10 gametime_display');
       
-      // Отображаем время в subtitle (внизу экрана)
-      // Используем subtitle с очень долгим временем отображения, чтобы текст постоянно был виден
-      // ВАЖНО: В Minecraft нельзя позиционировать текст в левом нижнем углу через команды
-      // Subtitle всегда по центру внизу, но это ближайший вариант к нижнему левому углу
+      // Отображаем время в верхней части экрана через команду title
+      // Используем title (не subtitle) для отображения в верхней части экрана по центру
+      // Устанавливаем очень долгое время отображения, чтобы текст постоянно был виден
       
-      // Для AM (AMPM = 0) - показываем "AM" в subtitle
-      this.sendCommandFn('execute if score AMPM gametime_display matches 0 run title @a subtitle {"text":"","extra":[{"score":{"name":"Hour","objective":"gametime_display"},"color":"white"},{"text":":","color":"white"},{"score":{"name":"#min_tens","objective":"gametime_display"},"color":"white"},{"score":{"name":"#min_ones","objective":"gametime_display"},"color":"white"},{"text":" AM","color":"gray"}]}');
+      // Для AM (AMPM = 0) - показываем "AM" в title (верх экрана)
+      this.sendCommandFn('execute if score AMPM gametime_display matches 0 run title @a title {"text":"","extra":[{"score":{"name":"Hour","objective":"gametime_display"},"color":"white"},{"text":":","color":"white"},{"score":{"name":"#min_tens","objective":"gametime_display"},"color":"white"},{"score":{"name":"#min_ones","objective":"gametime_display"},"color":"white"},{"text":" AM","color":"gray"}]}');
       // Устанавливаем очень долгое время отображения (fade in: 0, stay: максимальное значение, fade out: 0)
       this.sendCommandFn('execute if score AMPM gametime_display matches 0 run title @a times 0 2147483647 0');
       
-      // Для PM (AMPM = 1) - показываем "PM" в subtitle
-      this.sendCommandFn('execute if score AMPM gametime_display matches 1 run title @a subtitle {"text":"","extra":[{"score":{"name":"Hour","objective":"gametime_display"},"color":"white"},{"text":":","color":"white"},{"score":{"name":"#min_tens","objective":"gametime_display"},"color":"white"},{"score":{"name":"#min_ones","objective":"gametime_display"},"color":"white"},{"text":" PM","color":"gray"}]}');
+      // Для PM (AMPM = 1) - показываем "PM" в title (верх экрана)
+      this.sendCommandFn('execute if score AMPM gametime_display matches 1 run title @a title {"text":"","extra":[{"score":{"name":"Hour","objective":"gametime_display"},"color":"white"},{"text":":","color":"white"},{"score":{"name":"#min_tens","objective":"gametime_display"},"color":"white"},{"score":{"name":"#min_ones","objective":"gametime_display"},"color":"white"},{"text":" PM","color":"gray"}]}');
       // Устанавливаем очень долгое время отображения
       this.sendCommandFn('execute if score AMPM gametime_display matches 1 run title @a times 0 2147483647 0');
       
