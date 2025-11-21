@@ -103,16 +103,16 @@ class MinecraftTimeService {
     try {
       // Используем команду execute store result score для получения времени
       // и сохранения его в scoreboard напрямую
-      // Это работает даже если datapack не обновляет значения
+      // ВАЖНО: Используем английские названия, так как кириллица не работает в командах
       
       // Команда: execute store result score #time gametime_display run time query daytime
       // Сохраняет текущее время дня (0-24000) в score #time
       this.sendCommandFn('execute store result score #time gametime_display run time query daytime');
       
       // Обновляем отображение времени в scoreboard
-      // Копируем значение из #time в "Время дня"
-      this.sendCommandFn('scoreboard players set "Время дня" gametime_display 0');
-      this.sendCommandFn('scoreboard players operation "Время дня" gametime_display = #time gametime_display');
+      // Используем английское название, так как кириллица вызывает ошибки при парсинге команд
+      this.sendCommandFn('scoreboard players set GameTime gametime_display 0');
+      this.sendCommandFn('scoreboard players operation GameTime gametime_display = #time gametime_display');
       
     } catch (error) {
       // Игнорируем ошибки, чтобы не спамить логи
