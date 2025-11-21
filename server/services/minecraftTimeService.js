@@ -154,8 +154,8 @@ class MinecraftTimeService {
       this.sendCommandFn('scoreboard players operation Min gametime_display = #minutes gametime_display');
       
       // Определяем AM/PM (0 = AM, 1 = PM)
-      this.sendCommandFn('scoreboard players set AMPM gametime_display 0');
-      this.sendCommandFn('execute if score #hours24 gametime_display matches 12.. run scoreboard players set AMPM gametime_display 1');
+      this.sendCommandFn('scoreboard players set AMPM gametime_display 1');
+      this.sendCommandFn('execute if score #hours24 gametime_display matches 12.. run scoreboard players set AMPM gametime_display 0');
       
       // Отображаем время в actionbar в формате "HH:MM AM/PM"
       // Используем команду title actionbar с JSON для отображения текста
