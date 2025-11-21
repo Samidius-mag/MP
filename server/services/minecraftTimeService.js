@@ -131,10 +131,12 @@ class MinecraftTimeService {
     // Создаем константу для проверки кратности 10
     this.sendCommandFn('scoreboard players set #const_10 gametime_display 10');
     
-    // Создаем временные переменные для проверки наград
-    this.sendCommandFn('scoreboard players set #kills_temp gametime_display 0');
-    this.sendCommandFn('scoreboard players set #kills_mod10 gametime_display 0');
-    this.sendCommandFn('scoreboard players set #last_rewarded_temp gametime_display 0');
+    // Создаем временный scoreboard для вычисления модуля 10 для каждого игрока
+    try {
+      this.sendCommandFn('scoreboard objectives add temp_mod10 dummy');
+    } catch (e) {
+      // Scoreboard уже существует
+    }
     
     console.log('✅ Stats scoreboard initialized');
   }
@@ -213,29 +215,29 @@ class MinecraftTimeService {
       // Награды выдаются при каждом достижении порога, кратного 10 (10, 20, 30, 40, 50, 60, 70, 80, 90, 100...)
       // При 50 и 100 выдаются специальные награды
       
-      // Используем модуль для проверки кратности 10
-      this.sendCommandFn('execute as @a store result score #kills_mod10 gametime_display run scoreboard players get @s KILL');
-      this.sendCommandFn('scoreboard players operation #kills_mod10 gametime_display %= #const_10 gametime_display');
+      // Для каждого игрока вычисляем модуль 10 от количества убийств
+      this.sendCommandFn('execute as @a store result score @s temp_mod10 run scoreboard players get @s KILL');
+      this.sendCommandFn('execute as @a run scoreboard players operation @s temp_mod10 %= #const_10 gametime_display');
       
       // Проверяем каждые 100 убийств (алмазный блок) - приоритет выше
-      // Выдаем только если достигли 100 и последняя награда была меньше 100
-      this.sendCommandFn('execute as @a if score @s KILL matches 100.. if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills matches ..99 run give @s minecraft:diamond_block 1');
-      this.sendCommandFn('execute as @a if score @s KILL matches 100.. if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills matches ..99 run scoreboard players set @s last_rewarded_kills 100');
+      // Выдаем только если достигли 100, кратно 10, и последняя награда была меньше 100
+      this.sendCommandFn('execute as @a[scores={KILL=100..,temp_mod10=0,last_rewarded_kills=..99}] run give @s minecraft:diamond_block 1');
+      this.sendCommandFn('execute as @a[scores={KILL=100..,temp_mod10=0,last_rewarded_kills=..99}] run scoreboard players set @s last_rewarded_kills 100');
       
       // Проверяем каждые 50 убийств (10 железных слитков) - только если не достигли 100
-      this.sendCommandFn('execute as @a if score @s KILL matches 50..99 if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills matches ..49 run give @s minecraft:iron_ingot 10');
-      this.sendCommandFn('execute as @a if score @s KILL matches 50..99 if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills matches ..49 run scoreboard players set @s last_rewarded_kills 50');
+      this.sendCommandFn('execute as @a[scores={KILL=50..99,temp_mod10=0,last_rewarded_kills=..49}] run give @s minecraft:iron_ingot 10');
+      this.sendCommandFn('execute as @a[scores={KILL=50..99,temp_mod10=0,last_rewarded_kills=..49}] run scoreboard players set @s last_rewarded_kills 50');
       
       // Проверяем каждые 10 убийств (1 железный слиток) - только если не 50 и не 100
       // Для 10, 20, 30, 40
-      this.sendCommandFn('execute as @a if score @s KILL matches 10..49 if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills < @s KILL run give @s minecraft:iron_ingot 1');
-      this.sendCommandFn('execute as @a if score @s KILL matches 10..49 if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills < @s KILL run scoreboard players operation @s last_rewarded_kills = @s KILL');
+      this.sendCommandFn('execute as @a[scores={KILL=10..49,temp_mod10=0}] if score @s last_rewarded_kills < @s KILL run give @s minecraft:iron_ingot 1');
+      this.sendCommandFn('execute as @a[scores={KILL=10..49,temp_mod10=0}] if score @s last_rewarded_kills < @s KILL run scoreboard players operation @s last_rewarded_kills = @s KILL');
       // Для 60, 70, 80, 90
-      this.sendCommandFn('execute as @a if score @s KILL matches 60..99 if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills matches 50..59 run give @s minecraft:iron_ingot 1');
-      this.sendCommandFn('execute as @a if score @s KILL matches 60..99 if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills matches 50..59 run scoreboard players operation @s last_rewarded_kills = @s KILL');
+      this.sendCommandFn('execute as @a[scores={KILL=60..99,temp_mod10=0,last_rewarded_kills=50..59}] run give @s minecraft:iron_ingot 1');
+      this.sendCommandFn('execute as @a[scores={KILL=60..99,temp_mod10=0,last_rewarded_kills=50..59}] run scoreboard players operation @s last_rewarded_kills = @s KILL');
       // Для 110, 120, 130...
-      this.sendCommandFn('execute as @a if score @s KILL matches 110.. if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills matches 100..109 run give @s minecraft:iron_ingot 1');
-      this.sendCommandFn('execute as @a if score @s KILL matches 110.. if score #kills_mod10 gametime_display matches 0 if score @s last_rewarded_kills matches 100..109 run scoreboard players operation @s last_rewarded_kills = @s KILL');
+      this.sendCommandFn('execute as @a[scores={KILL=110..,temp_mod10=0,last_rewarded_kills=100..109}] run give @s minecraft:iron_ingot 1');
+      this.sendCommandFn('execute as @a[scores={KILL=110..,temp_mod10=0,last_rewarded_kills=100..109}] run scoreboard players operation @s last_rewarded_kills = @s KILL');
       
     } catch (error) {
       // Игнорируем ошибки
