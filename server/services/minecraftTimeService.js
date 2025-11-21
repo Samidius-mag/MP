@@ -75,8 +75,9 @@ class MinecraftTimeService {
       // Scoreboard уже существует, это нормально
     }
     
-    // Устанавливаем отображение scoreboard справа для всех игроков
-    this.sendCommandFn('scoreboard objectives setdisplay sidebar gametime_display');
+    // НЕ устанавливаем scoreboard в sidebar, так как время будет в actionbar
+    // Явно убираем scoreboard из sidebar, если он был установлен ранее
+    this.sendCommandFn('scoreboard objectives setdisplay sidebar');
     
     // Устанавливаем константы для вычислений
     this.sendCommandFn('scoreboard players set #const_1000 gametime_display 1000');
@@ -84,6 +85,7 @@ class MinecraftTimeService {
     this.sendCommandFn('scoreboard players set #const_12 gametime_display 12');
     this.sendCommandFn('scoreboard players set #const_60 gametime_display 60');
     this.sendCommandFn('scoreboard players set #const_100 gametime_display 100');
+    this.sendCommandFn('scoreboard players set #const_10 gametime_display 10');
     
     // Инициализируем переменные
     this.sendCommandFn('scoreboard players set #time gametime_display 0');
@@ -92,6 +94,8 @@ class MinecraftTimeService {
     this.sendCommandFn('scoreboard players set #minutes gametime_display 0');
     this.sendCommandFn('scoreboard players set #minutes_temp gametime_display 0');
     this.sendCommandFn('scoreboard players set #time_display gametime_display 0');
+    this.sendCommandFn('scoreboard players set #min_tens gametime_display 0');
+    this.sendCommandFn('scoreboard players set #min_ones gametime_display 0');
     
     console.log('✅ Time scoreboard initialized');
   }
@@ -155,18 +159,22 @@ class MinecraftTimeService {
       
       // Отображаем время в actionbar в формате "HH:MM AM/PM"
       // Используем команду title actionbar с JSON для отображения текста
-      // Формат: "10:30 AM" или "6:45 PM"
+      // Формат: "10:30 AM" или "6:05 PM"
       // Добавляем ведущий ноль для минут, если они меньше 10
       
-      // Для AM (AMPM = 0) - показываем "AM"
-      // Если минуты < 10, добавляем ведущий ноль
-      this.sendCommandFn('execute if score AMPM gametime_display matches 0 if score Min gametime_display matches 0..9 run title @a actionbar [{"score":{"name":"Hour","objective":"gametime_display"},"color":"white"},{"text":":0","color":"white"},{"score":{"name":"Min","objective":"gametime_display"},"color":"white"},{"text":" AM","color":"gray"}]');
-      this.sendCommandFn('execute if score AMPM gametime_display matches 0 if score Min gametime_display matches 10.. run title @a actionbar [{"score":{"name":"Hour","objective":"gametime_display"},"color":"white"},{"text":":","color":"white"},{"score":{"name":"Min","objective":"gametime_display"},"color":"white"},{"text":" AM","color":"gray"}]');
+      // Вычисляем десятки минут для правильного отображения
+      this.sendCommandFn('scoreboard players operation #min_tens gametime_display = #minutes gametime_display');
+      this.sendCommandFn('scoreboard players operation #min_tens gametime_display /= #const_10 gametime_display');
+      this.sendCommandFn('scoreboard players operation #min_ones gametime_display = #minutes gametime_display');
+      this.sendCommandFn('scoreboard players operation #min_ones gametime_display %= #const_10 gametime_display');
       
-      // Для PM (AMPM = 1) - показываем "PM"
-      // Если минуты < 10, добавляем ведущий ноль
-      this.sendCommandFn('execute if score AMPM gametime_display matches 1 if score Min gametime_display matches 0..9 run title @a actionbar [{"score":{"name":"Hour","objective":"gametime_display"},"color":"white"},{"text":":0","color":"white"},{"score":{"name":"Min","objective":"gametime_display"},"color":"white"},{"text":" PM","color":"gray"}]');
-      this.sendCommandFn('execute if score AMPM gametime_display matches 1 if score Min gametime_display matches 10.. run title @a actionbar [{"score":{"name":"Hour","objective":"gametime_display"},"color":"white"},{"text":":","color":"white"},{"score":{"name":"Min","objective":"gametime_display"},"color":"white"},{"text":" PM","color":"gray"}]');
+      // Для AM (AMPM = 0) - показываем "AM" в actionbar
+      // Используем упрощенный JSON формат для лучшей совместимости
+      this.sendCommandFn('execute if score AMPM gametime_display matches 0 run title @a actionbar {"text":"","extra":[{"score":{"name":"Hour","objective":"gametime_display"},"color":"white"},{"text":":","color":"white"},{"score":{"name":"#min_tens","objective":"gametime_display"},"color":"white"},{"score":{"name":"#min_ones","objective":"gametime_display"},"color":"white"},{"text":" AM","color":"gray"}]}');
+      
+      // Для PM (AMPM = 1) - показываем "PM" в actionbar
+      // Используем упрощенный JSON формат для лучшей совместимости
+      this.sendCommandFn('execute if score AMPM gametime_display matches 1 run title @a actionbar {"text":"","extra":[{"score":{"name":"Hour","objective":"gametime_display"},"color":"white"},{"text":":","color":"white"},{"score":{"name":"#min_tens","objective":"gametime_display"},"color":"white"},{"score":{"name":"#min_ones","objective":"gametime_display"},"color":"white"},{"text":" PM","color":"gray"}]}');
       
       // Удаляем старые строки, если они существуют
       this.sendCommandFn('scoreboard players reset GameTime gametime_display');
