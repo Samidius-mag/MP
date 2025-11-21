@@ -140,24 +140,37 @@ class MinecraftTimeService {
       this.sendCommandFn('scoreboard players set AMPM gametime_display 0');
       this.sendCommandFn('execute if score #hours24 gametime_display matches 12.. run scoreboard players set AMPM gametime_display 1');
       
-      // Формируем время в формате HHMM (например, 1230 для 12:30)
-      // Умножаем часы на 100 и прибавляем минуты
-      this.sendCommandFn('scoreboard players operation #time_display gametime_display = #hours12 gametime_display');
-      this.sendCommandFn('scoreboard players operation #time_display gametime_display *= #const_100 gametime_display');
-      this.sendCommandFn('scoreboard players operation #time_display gametime_display += #minutes gametime_display');
+      // Отображаем часы в scoreboard
+      this.sendCommandFn('scoreboard players set Hour gametime_display 0');
+      this.sendCommandFn('scoreboard players operation Hour gametime_display = #hours12 gametime_display');
       
-      // Отображаем время в формате HHMM (например, 1230)
-      this.sendCommandFn('scoreboard players set Time gametime_display 0');
-      this.sendCommandFn('scoreboard players operation Time gametime_display = #time_display gametime_display');
+      // Отображаем минуты в scoreboard (с ведущим нулем через вычисления)
+      // Формируем минуты с ведущим нулем: если минуты < 10, добавляем 0
+      this.sendCommandFn('scoreboard players set Min gametime_display 0');
+      this.sendCommandFn('scoreboard players operation Min gametime_display = #minutes gametime_display');
       
-      // Отображаем AM/PM (0 = AM, 1 = PM)
+      // Определяем AM/PM (0 = AM, 1 = PM)
       this.sendCommandFn('scoreboard players set AMPM gametime_display 0');
       this.sendCommandFn('execute if score #hours24 gametime_display matches 12.. run scoreboard players set AMPM gametime_display 1');
       
+      // Отображаем время в actionbar в формате "HH:MM AM/PM"
+      // Используем команду title actionbar с JSON для отображения текста
+      // Формат: "10:30 AM" или "6:45 PM"
+      // Добавляем ведущий ноль для минут, если они меньше 10
+      
+      // Для AM (AMPM = 0) - показываем "AM"
+      // Если минуты < 10, добавляем ведущий ноль
+      this.sendCommandFn('execute if score AMPM gametime_display matches 0 if score Min gametime_display matches 0..9 run title @a actionbar [{"score":{"name":"Hour","objective":"gametime_display"},"color":"white"},{"text":":0","color":"white"},{"score":{"name":"Min","objective":"gametime_display"},"color":"white"},{"text":" AM","color":"gray"}]');
+      this.sendCommandFn('execute if score AMPM gametime_display matches 0 if score Min gametime_display matches 10.. run title @a actionbar [{"score":{"name":"Hour","objective":"gametime_display"},"color":"white"},{"text":":","color":"white"},{"score":{"name":"Min","objective":"gametime_display"},"color":"white"},{"text":" AM","color":"gray"}]');
+      
+      // Для PM (AMPM = 1) - показываем "PM"
+      // Если минуты < 10, добавляем ведущий ноль
+      this.sendCommandFn('execute if score AMPM gametime_display matches 1 if score Min gametime_display matches 0..9 run title @a actionbar [{"score":{"name":"Hour","objective":"gametime_display"},"color":"white"},{"text":":0","color":"white"},{"score":{"name":"Min","objective":"gametime_display"},"color":"white"},{"text":" PM","color":"gray"}]');
+      this.sendCommandFn('execute if score AMPM gametime_display matches 1 if score Min gametime_display matches 10.. run title @a actionbar [{"score":{"name":"Hour","objective":"gametime_display"},"color":"white"},{"text":":","color":"white"},{"score":{"name":"Min","objective":"gametime_display"},"color":"white"},{"text":" PM","color":"gray"}]');
+      
       // Удаляем старые строки, если они существуют
       this.sendCommandFn('scoreboard players reset GameTime gametime_display');
-      this.sendCommandFn('scoreboard players reset Hour gametime_display');
-      this.sendCommandFn('scoreboard players reset Min gametime_display');
+      this.sendCommandFn('scoreboard players reset Time gametime_display');
       
     } catch (error) {
       // Игнорируем ошибки, чтобы не спамить логи
