@@ -2,6 +2,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const minecraftService = require('./services/minecraftService');
+const minecraftTimeService = require('./services/minecraftTimeService');
 
 const MINECRAFT_PORT = parseInt(process.env.MINECRAFT_PORT || '27015');
 const SERVER_VERSION = process.env.MINECRAFT_VERSION || '1.21.10';
@@ -260,6 +261,17 @@ async function startJavaServer(jarPath) {
         console.log('✅ Minecraft server started successfully!');
         minecraftService.isRunning = true;
         minecraftService.server = serverProcess;
+        
+        // Запускаем сервис отображения времени после небольшой задержки
+        // (чтобы дать серверу время полностью загрузиться)
+        setTimeout(() => {
+          try {
+            minecraftTimeService.start();
+          } catch (err) {
+            console.warn('⚠️  Failed to start time display service:', err.message);
+          }
+        }, 5000);
+        
         resolve();
       }
       
@@ -300,6 +312,13 @@ async function startJavaServer(jarPath) {
       serverProcess = null;
       minecraftService.isRunning = false;
       minecraftService.server = null;
+      
+      // Останавливаем сервис отображения времени
+      try {
+        minecraftTimeService.stop();
+      } catch (err) {
+        console.warn('⚠️  Error stopping time display service:', err.message);
+      }
       
       // Если сервер упал неожиданно, можно попробовать перезапустить
       if (code !== 0 && code !== null) {
@@ -373,6 +392,13 @@ function stopMinecraftServer() {
       minecraftService.isRunning = false;
       minecraftService.server = null;
       serverProcess = null;
+      
+      // Останавливаем сервис отображения времени
+      try {
+        minecraftTimeService.stop();
+      } catch (err) {
+        console.warn('⚠️  Error stopping time display service:', err.message);
+      }
     });
     
     // Если процесс уже завершился
