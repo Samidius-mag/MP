@@ -75,7 +75,7 @@ class MinecraftTimeService {
       // Scoreboard уже существует, это нормально
     }
     
-    // НЕ устанавливаем scoreboard в sidebar, так как время будет в actionbar
+    // НЕ устанавливаем scoreboard в fsidebar, так как время будет в actionbar
     // Явно убираем scoreboard из sidebar, если он был установлен ранее
     this.sendCommandFn('scoreboard objectives setdisplay sidebar');
     
