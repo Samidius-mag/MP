@@ -266,7 +266,7 @@ async function startJavaServer(jarPath) {
         // (чтобы дать серверу время полностью загрузиться)
         setTimeout(() => {
           try {
-            minecraftTimeService.start();
+            minecraftTimeService.start(sendCommand);
           } catch (err) {
             console.warn('⚠️  Failed to start time display service:', err.message);
           }
@@ -393,7 +393,7 @@ function stopMinecraftServer() {
       minecraftService.server = null;
       serverProcess = null;
       
-      // Останавливаем сеeрвис отображения времени
+      // Останавливаем сервис отображения времени
       try {
         minecraftTimeService.stop();
       } catch (err) {

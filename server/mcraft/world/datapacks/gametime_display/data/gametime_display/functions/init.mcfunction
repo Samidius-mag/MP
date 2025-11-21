@@ -1,4 +1,4 @@
-# Инициализация datapacffk для отображения времени
+# Инициализация datapack для отображения времени
 
 # Создаем scoreboard для отображения времени (если еще не создан)
 scoreboard objectives add gametime_display dummy "⏰ Игровое время"
@@ -17,6 +17,6 @@ scoreboard players set #hours gametime_display 0
 scoreboard players set #minutes gametime_display 0
 scoreboard players set #minutes_temp gametime_display 0
 
-# Запускаем цикл обновленeия
+# Запускаем цикл обновления
 schedule function gametime_display:update_time 1t
 

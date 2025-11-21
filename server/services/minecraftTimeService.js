@@ -1,25 +1,32 @@
 /**
  * Сервис для отображения времени игрового мира в Minecraft
- * Обновляет scoreboard сe текущим временем игрового мира
+ * Обновляет scoreboard с текущим временем игрового мира
  */
-
-const { sendCommand } = require('../minecraft-server');
 
 class MinecraftTimeService {
   constructor() {
     this.updateInterval = null;
     this.isRunning = false;
     this.updateIntervalMs = 1000; // Обновление каждую секунду
+    this.sendCommandFn = null; // Функция для отправки команд
   }
 
   /**
    * Запускает сервис обновления времени
+   * @param {Function} sendCommandFn - Функция для отправки команд в сервер
    */
-  start() {
+  start(sendCommandFn) {
     if (this.isRunning) {
       console.log('⏰ Minecraft time service is already running');
       return;
     }
+
+    if (!sendCommandFn) {
+      console.error('❌ sendCommand function is required to start time service');
+      return;
+    }
+
+    this.sendCommandFn = sendCommandFn;
 
     console.log('⏰ Starting Minecraft time display service...');
     
@@ -56,11 +63,16 @@ class MinecraftTimeService {
    * Инициализирует scoreboard для отображения времени
    */
   initializeScoreboard() {
+    if (!this.sendCommandFn) {
+      console.error('❌ sendCommand function is not available');
+      return;
+    }
+
     // Создаем scoreboard, если его еще нет
-    sendCommand('scoreboard objectives add gametime_display dummy "⏰ Игровое время"');
+    this.sendCommandFn('scoreboard objectives add gametime_display dummy "⏰ Игровое время"');
     
     // Устанавливаем отображение scoreboard справа для всех игроков
-    sendCommand('scoreboard objectives setdisplay sidebar gametime_display');
+    this.sendCommandFn('scoreboard objectives setdisplay sidebar gametime_display');
     
     console.log('✅ Time scoreboard initialized');
   }
