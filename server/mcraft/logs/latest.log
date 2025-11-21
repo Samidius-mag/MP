@@ -1,19 +1,5 @@
-[17:14:07] [ServerMain/INFO]: Environment: Environment[sessionHost=https://sessionserver.mojang.com, servicesHost=https://api.minecraftservices.com, profilesHost=https://api.mojang.com, name=PROD]
-[17:14:08] [ServerMain/INFO]: Loaded 1461 recipes
-[17:14:08] [ServerMain/INFO]: Loaded 1574 advancements
-[17:14:08] [Server thread/INFO]: Starting minecraft server version 1.21.10
-[17:14:08] [Server thread/INFO]: Loading properties
-[17:14:08] [Server thread/INFO]: Default game type: SURVIVAL
-[17:14:08] [Server thread/INFO]: Generating keypair
-[17:14:08] [Server thread/INFO]: Starting Minecraft server on *:27015
-[17:14:08] [Server thread/INFO]: Using epoll channel type
-[17:14:08] [Server thread/WARN]: **** SERVER IS RUNNING IN OFFLINE/INSECURE MODE!
-[17:14:08] [Server thread/WARN]: The server will make no attempt to authenticate usernames. Beware.
-[17:14:08] [Server thread/WARN]: While this makes the game possible to play without internet access, it also opens up the ability for hackers to connect with any username they choose.
-[17:14:08] [Server thread/WARN]: To change this, set "online-mode" to "true" in the server.properties file.
-[17:14:08] [Server thread/INFO]: Preparing level "world"
-[17:14:09] [Server thread/INFO]: Loading 0 persistent chunks...
-[17:14:09] [Server thread/INFO]: Preparing spawn area: 100%
-[17:14:09] [Server thread/INFO]: Time elapsed: 15 ms
-[17:14:09] [Server thread/INFO]: Done (0.252s)! For help, type "help"
-[17:15:09] [Server thread/INFO]: Server empty for 60 seconds, pausing
+[07:18:47] [Server thread/INFO]: samidius[/192.168.31.1:49798] logged in with entity id 134132 at (-642.5087131406117, 64.0, -476.5804797937787)
+[07:18:47] [Server thread/INFO]: samidius joined the game
+[07:19:31] [Server thread/INFO]: samidius lost connection: Disconnected
+[07:19:31] [Server thread/INFO]: samidius left the game
+[07:20:31] [Server thread/INFO]: Server empty for 60 seconds, pausing
