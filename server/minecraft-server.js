@@ -426,6 +426,10 @@ function stopMinecraftServer() {
  * Отправляет команду в консоль сервера
  */
 function sendCommand(command) {
+  // Логируем команды, связанные с наградами, для отладки
+  if (command && (command.includes('give @s') || command.includes('tellraw @s'))) {
+    console.log(`[MC Command] ${command}`);
+  }
   if (!serverProcess || !serverProcess.stdin || serverProcess.stdin.destroyed) {
     console.error('❌ Server is not running or stdin is not available');
     return false;

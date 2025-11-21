@@ -138,6 +138,13 @@ class MinecraftTimeService {
       // Scoreboard уже существует
     }
     
+    // Создаем временный scoreboard для сравнения
+    try {
+      this.sendCommandFn('scoreboard objectives add temp_compare dummy');
+    } catch (e) {
+      // Scoreboard уже существует
+    }
+    
     console.log('✅ Stats scoreboard initialized');
   }
 
@@ -211,9 +218,15 @@ class MinecraftTimeService {
         // Scoreboard уже существует
       }
       
+      // Логируем проверку наград для отладки
+      console.log('🔍 [Rewards] Checking rewards for players...');
+      
       // Для каждого игрока проверяем награды
       // Награды выдаются при каждом достижении порога, кратного 10 (10, 20, 30, 40, 50, 60, 70, 80, 90, 100...)
       // При 50 и 100 выдаются специальные награды
+      
+      // Инициализируем last_rewarded_kills для всех игроков, если не установлен
+      this.sendCommandFn('execute as @a unless score @s last_rewarded_kills matches .. run scoreboard players set @s last_rewarded_kills 0');
       
       // Для каждого игрока вычисляем модуль 10 от количества убийств
       this.sendCommandFn('execute as @a store result score @s temp_mod10 run scoreboard players get @s KILL');
@@ -222,21 +235,29 @@ class MinecraftTimeService {
       // Проверяем каждые 100 убийств (алмазный блок) - приоритет выше
       // Выдаем только если достигли 100, кратно 10, и последняя награда была меньше 100
       this.sendCommandFn('execute as @a[scores={KILL=100..,temp_mod10=0,last_rewarded_kills=..99}] run give @s minecraft:diamond_block 1');
+      this.sendCommandFn('execute as @a[scores={KILL=100..,temp_mod10=0,last_rewarded_kills=..99}] run tellraw @s {"text":"🎉 Награда: Вы получили 1 алмазный блок за 100 убийств!","color":"gold"}');
       this.sendCommandFn('execute as @a[scores={KILL=100..,temp_mod10=0,last_rewarded_kills=..99}] run scoreboard players set @s last_rewarded_kills 100');
       
       // Проверяем каждые 50 убийств (10 железных слитков) - только если не достигли 100
       this.sendCommandFn('execute as @a[scores={KILL=50..99,temp_mod10=0,last_rewarded_kills=..49}] run give @s minecraft:iron_ingot 10');
+      this.sendCommandFn('execute as @a[scores={KILL=50..99,temp_mod10=0,last_rewarded_kills=..49}] run tellraw @s {"text":"🎉 Награда: Вы получили 10 железных слитков за 50 убийств!","color":"gold"}');
       this.sendCommandFn('execute as @a[scores={KILL=50..99,temp_mod10=0,last_rewarded_kills=..49}] run scoreboard players set @s last_rewarded_kills 50');
       
       // Проверяем каждые 10 убийств (1 железный слиток) - только если не 50 и не 100
-      // Для 10, 20, 30, 40
-      this.sendCommandFn('execute as @a[scores={KILL=10..49,temp_mod10=0}] if score @s last_rewarded_kills < @s KILL run give @s minecraft:iron_ingot 1');
-      this.sendCommandFn('execute as @a[scores={KILL=10..49,temp_mod10=0}] if score @s last_rewarded_kills < @s KILL run scoreboard players operation @s last_rewarded_kills = @s KILL');
+      // Для 10, 20, 30, 40 - проверяем, что last_rewarded_kills меньше текущего KILL
+      // Вычисляем разницу между KILL и last_rewarded_kills во временную переменную
+      this.sendCommandFn('execute as @a[scores={KILL=10..49,temp_mod10=0}] store result score @s temp_compare run scoreboard players operation @s temp_compare = @s KILL');
+      this.sendCommandFn('execute as @a[scores={KILL=10..49,temp_mod10=0}] run scoreboard players operation @s temp_compare -= @s last_rewarded_kills');
+      this.sendCommandFn('execute as @a[scores={KILL=10..49,temp_mod10=0,temp_compare=1..}] run give @s minecraft:iron_ingot 1');
+      this.sendCommandFn('execute as @a[scores={KILL=10..49,temp_mod10=0,temp_compare=1..}] run tellraw @s {"text":"🎉 Награда: Вы получили 1 железный слиток за достижение кратного 10 убийств!","color":"gold"}');
+      this.sendCommandFn('execute as @a[scores={KILL=10..49,temp_mod10=0,temp_compare=1..}] run scoreboard players operation @s last_rewarded_kills = @s KILL');
       // Для 60, 70, 80, 90
       this.sendCommandFn('execute as @a[scores={KILL=60..99,temp_mod10=0,last_rewarded_kills=50..59}] run give @s minecraft:iron_ingot 1');
+      this.sendCommandFn('execute as @a[scores={KILL=60..99,temp_mod10=0,last_rewarded_kills=50..59}] run tellraw @s {"text":"🎉 Награда: Вы получили 1 железный слиток за достижение кратного 10 убийств!","color":"gold"}');
       this.sendCommandFn('execute as @a[scores={KILL=60..99,temp_mod10=0,last_rewarded_kills=50..59}] run scoreboard players operation @s last_rewarded_kills = @s KILL');
       // Для 110, 120, 130...
       this.sendCommandFn('execute as @a[scores={KILL=110..,temp_mod10=0,last_rewarded_kills=100..109}] run give @s minecraft:iron_ingot 1');
+      this.sendCommandFn('execute as @a[scores={KILL=110..,temp_mod10=0,last_rewarded_kills=100..109}] run tellraw @s {"text":"🎉 Награда: Вы получили 1 железный слиток за достижение кратного 10 убийств!","color":"gold"}');
       this.sendCommandFn('execute as @a[scores={KILL=110..,temp_mod10=0,last_rewarded_kills=100..109}] run scoreboard players operation @s last_rewarded_kills = @s KILL');
       
     } catch (error) {
