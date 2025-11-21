@@ -1,6 +1,6 @@
 /**
  * Сервис для отображения времени игрового мира в Minecraft
- * Обновляет scoreboard с текущим временем игрового мира
+ * Обновляет scoreboard сe текущим временем игрового мира
  */
 
 const { sendCommand } = require('../minecraft-server');

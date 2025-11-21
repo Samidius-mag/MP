@@ -393,7 +393,7 @@ function stopMinecraftServer() {
       minecraftService.server = null;
       serverProcess = null;
       
-      // Останавливаем сервис отображения времени
+      // Останавливаем сеeрвис отображения времени
       try {
         minecraftTimeService.stop();
       } catch (err) {

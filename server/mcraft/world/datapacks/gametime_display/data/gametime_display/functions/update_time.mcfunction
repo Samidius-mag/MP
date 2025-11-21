@@ -4,7 +4,7 @@
 # Получаем текущее время дня (0-24000) и сохраняем в scoreboard
 execute store result score #time gametime_display run time query daytime
 
-# Вычисляем игровые часы (0-23)
+# Вычисляем игровыeе часы (0-23)
 # Игровое время: 0-24000
 # Формула: часы = (время / 1000) % 24
 scoreboard players operation #hours gametime_display = #time gametime_display
