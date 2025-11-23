@@ -1,3 +1,9 @@
+com/serverauthshop/menu/ShopMenu$2.class
+com/serverauthshop/menu/ShopMenu$1.class
+com/serverauthshop/menu/AuthMenu.class
 com/serverauthshop/data/PlayerDataManager.class
+com/serverauthshop/menu/AuthMenu$AuthState.class
 com/serverauthshop/ServerAuthShop.class
+com/serverauthshop/menu/ShopMenu.class
 com/serverauthshop/economy/CoinManager.class
+com/serverauthshop/menu/ShopMenu$ShopState.class
