@@ -15,9 +15,11 @@ import java.util.UUID;
 public class NameColorManager {
     
     private final TravelersGuild plugin;
+    private final HologramManager hologramManager;
     
     public NameColorManager(TravelersGuild plugin) {
         this.plugin = plugin;
+        this.hologramManager = new HologramManager(plugin);
     }
     
     /**
@@ -148,6 +150,18 @@ public class NameColorManager {
                 }
             });
         }
+        
+        // Обновляем голограмму над головой игрока (если HolographicDisplays доступен)
+        if (hologramManager.isHolographicDisplaysEnabled()) {
+            hologramManager.updatePlayerHologram(player, rank, squadName, squadRank, isSquadLeader);
+        }
+    }
+    
+    /**
+     * Получает менеджер голограмм
+     */
+    public HologramManager getHologramManager() {
+        return hologramManager;
     }
     
     /**

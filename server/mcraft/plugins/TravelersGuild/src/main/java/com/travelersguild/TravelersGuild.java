@@ -65,6 +65,10 @@ public class TravelersGuild extends JavaPlugin implements Listener {
         if (dataManager != null) {
             dataManager.saveAll();
         }
+        // Удаляем все голограммы
+        if (nameColorManager != null) {
+            nameColorManager.getHologramManager().removeAllHolograms();
+        }
         getLogger().info("TravelersGuild плагин выключен!");
     }
     
@@ -94,6 +98,8 @@ public class TravelersGuild extends JavaPlugin implements Listener {
         Player player = event.getPlayer();
         // Сохраняем данные игрока при выходе
         dataManager.savePlayerData(player.getUniqueId());
+        // Удаляем голограмму игрока
+        nameColorManager.getHologramManager().removePlayerHologram(player);
     }
     
     @EventHandler

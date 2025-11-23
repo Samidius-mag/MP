@@ -34,6 +34,25 @@
 
 ### Требования
 
+- **Minecraft Server**: 1.21.1 (Paper/Spigot)
+- **Java**: 21 или выше
+- **HolographicDisplays** (опционально): для многострочного отображения над головой игроков
+
+### Установка HolographicDisplays (опционально)
+
+Для отображения названия гильдии, отряда и ника каскадом над головой игрока рекомендуется установить плагин HolographicDisplays:
+
+1. Скачайте HolographicDisplays с [SpigotMC](https://www.spigotmc.org/resources/holographicdisplays.1844/)
+2. Поместите файл `.jar` в папку `server/mcraft/plugins/`
+3. Перезапустите сервер
+4. Плагин TravelersGuild автоматически обнаружит HolographicDisplays и включит многострочное отображение
+
+**Примечание:** Если HolographicDisplays не установлен, информация будет отображаться в одну строку через scoreboard teams.
+
+## Установка
+
+### Требования
+
 - Minecraft сервер: **Paper** или **Spigot** версии 1.21.1+
 - Java 21 или выше
 - Maven (для сборки)
