@@ -23,6 +23,7 @@ public class GuildMasterNPC implements Listener {
     private final GuildMenu guildMenu;
     private Villager npc;
     private Location npcLocation;
+    private String guildName;
     
     public GuildMasterNPC(TravelersGuild plugin, GuildDataManager dataManager, GuildMenu guildMenu) {
         this.plugin = plugin;
@@ -46,17 +47,23 @@ public class GuildMasterNPC implements Listener {
                 );
             }
         }
+        
+        // Загружаем название гильдии
+        guildName = config.getString("npc.guildName", "Гильдия Путешественников");
     }
     
     private void saveNPCLocation() {
+        FileConfiguration config = plugin.getConfig();
         if (npcLocation != null) {
-            FileConfiguration config = plugin.getConfig();
             config.set("npc.location.x", npcLocation.getX());
             config.set("npc.location.y", npcLocation.getY());
             config.set("npc.location.z", npcLocation.getZ());
             config.set("npc.location.world", npcLocation.getWorld().getName());
-            plugin.saveConfig();
         }
+        if (guildName != null) {
+            config.set("npc.guildName", guildName);
+        }
+        plugin.saveConfig();
     }
     
     public void loadOrSpawnNPC() {
@@ -67,27 +74,40 @@ public class GuildMasterNPC implements Listener {
         }
         
         // Проверяем, не существует ли уже NPC
+        String npcNamePrefix = "§6§lЗаведующий ";
         for (Entity entity : npcLocation.getWorld().getNearbyEntities(npcLocation, 5, 5, 5)) {
             if (entity instanceof Villager && entity.getCustomName() != null &&
-                entity.getCustomName().equals("§6§lЗаведующий Гильдией")) {
+                entity.getCustomName().startsWith(npcNamePrefix)) {
                 npc = (Villager) entity;
                 return;
             }
         }
         
         // Создаем нового NPC
-        spawnNPCAtLocation(npcLocation);
+        spawnNPCAtLocation(npcLocation, guildName);
     }
     
-    public void spawnNPCAtLocation(Location location) {
+    public void spawnNPCAtLocation(Location location, String guildName) {
         // Удаляем старого NPC, если есть
         if (npc != null && !npc.isDead()) {
             npc.remove();
         }
         
+        // Удаляем все NPC заведующих в радиусе 10 блоков
+        String npcNamePrefix = "§6§lЗаведующий ";
+        for (Entity entity : location.getWorld().getNearbyEntities(location, 10, 10, 10)) {
+            if (entity instanceof Villager && entity.getCustomName() != null &&
+                entity.getCustomName().startsWith(npcNamePrefix)) {
+                entity.remove();
+            }
+        }
+        
+        // Сохраняем название гильдии
+        this.guildName = guildName != null ? guildName : "Гильдия Путешественников";
+        
         // Создаем нового жителя
         npc = location.getWorld().spawn(location, Villager.class);
-        npc.setCustomName("§6§lЗаведующий Гильдией");
+        npc.setCustomName("§6§lЗаведующий " + this.guildName);
         npc.setCustomNameVisible(true);
         npc.setAI(false); // Отключаем AI, чтобы не двигался
         npc.setInvulnerable(true); // Делаем бессмертным
@@ -98,12 +118,30 @@ public class GuildMasterNPC implements Listener {
         saveNPCLocation();
     }
     
+    public void removeNPC() {
+        if (npc != null && !npc.isDead()) {
+            npc.remove();
+            npc = null;
+        }
+        
+        // Также удаляем все NPC заведующих в сохраненной локации, если она есть
+        if (npcLocation != null) {
+            String npcNamePrefix = "§6§lЗаведующий ";
+            for (Entity entity : npcLocation.getWorld().getNearbyEntities(npcLocation, 10, 10, 10)) {
+                if (entity instanceof Villager && entity.getCustomName() != null &&
+                    entity.getCustomName().startsWith(npcNamePrefix)) {
+                    entity.remove();
+                }
+            }
+        }
+    }
+    
     @EventHandler
     public void onEntityDamage(EntityDamageEvent event) {
         if (event.getEntity() instanceof Villager) {
             Villager villager = (Villager) event.getEntity();
             if (villager.getCustomName() != null &&
-                villager.getCustomName().equals("§6§lЗаведующий Гильдией")) {
+                villager.getCustomName().startsWith("§6§lЗаведующий ")) {
                 // Отменяем урон
                 event.setCancelled(true);
                 
@@ -152,7 +190,7 @@ public class GuildMasterNPC implements Listener {
         if (event.getRightClicked() instanceof Villager) {
             Villager villager = (Villager) event.getRightClicked();
             if (villager.getCustomName() != null &&
-                villager.getCustomName().equals("§6§lЗаведующий Гильдией")) {
+                villager.getCustomName().startsWith("§6§lЗаведующий ")) {
                 event.setCancelled(true);
                 
                 Player player = event.getPlayer();
@@ -168,6 +206,10 @@ public class GuildMasterNPC implements Listener {
     
     public Location getNPCLocation() {
         return npcLocation;
+    }
+    
+    public String getGuildName() {
+        return guildName != null ? guildName : "Гильдия Путешественников";
     }
 }
 

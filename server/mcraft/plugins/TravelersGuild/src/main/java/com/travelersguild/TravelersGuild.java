@@ -10,6 +10,7 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import java.util.Arrays;
 
 import com.travelersguild.data.GuildDataManager;
 import com.travelersguild.data.Rank;
@@ -154,18 +155,32 @@ public class TravelersGuild extends JavaPlugin implements Listener {
             }
             
             if (args.length == 0) {
-                sender.sendMessage("§cИспользование: /guildadmin <spawn|reload>");
+                sender.sendMessage("§cИспользование: /guildadmin <spawn [название]|remove|reload>");
                 return true;
             }
             
             if (args[0].equalsIgnoreCase("spawn")) {
                 if (sender instanceof Player) {
                     Player player = (Player) sender;
-                    guildMasterNPC.spawnNPCAtLocation(player.getLocation());
+                    String guildName = "Гильдия Путешественников";
+                    
+                    // Если указано название гильдии
+                    if (args.length > 1) {
+                        guildName = String.join(" ", Arrays.copyOfRange(args, 1, args.length));
+                    }
+                    
+                    guildMasterNPC.spawnNPCAtLocation(player.getLocation(), guildName);
                     sender.sendMessage("§aNPC заведующего создан в вашей локации!");
+                    sender.sendMessage("§7Название гильдии: §e" + guildName);
                 } else {
                     sender.sendMessage("§cЭта команда доступна только игрокам!");
                 }
+                return true;
+            }
+            
+            if (args[0].equalsIgnoreCase("remove")) {
+                guildMasterNPC.removeNPC();
+                sender.sendMessage("§aNPC заведующего удален!");
                 return true;
             }
             
@@ -175,7 +190,7 @@ public class TravelersGuild extends JavaPlugin implements Listener {
                 return true;
             }
             
-            sender.sendMessage("§cИспользование: /guildadmin <spawn|reload>");
+            sender.sendMessage("§cИспользование: /guildadmin <spawn [название]|remove|reload>");
             return true;
         }
         

@@ -9,6 +9,9 @@ import org.bukkit.scoreboard.Team;
 import org.bukkit.ChatColor;
 import org.bukkit.Bukkit;
 
+import java.util.Set;
+import java.util.UUID;
+
 public class NameColorManager {
     
     private final TravelersGuild plugin;
@@ -62,29 +65,58 @@ public class NameColorManager {
             team.setColor(rank.getColor());
         }
         
-        // Формируем префикс: корона (если лидер) + название отряда + цвет ранга
-        StringBuilder prefix = new StringBuilder();
+        // Формируем display name для отображения над головой игрока
+        // Формат: 
+        // Строка 1: Название гильдии
+        // Строка 2: Название отряда (если есть)
+        // Строка 3: Ник игрока (с цветом ранга)
         
-        // Корона для лидера отряда
-        if (isSquadLeader) {
-            prefix.append("§6♔ "); // Корона
-        }
+        StringBuilder displayName = new StringBuilder();
         
-        // Название отряда с цветом ранга отряда
+        // Получаем название гильдии
+        String guildName = plugin.getGuildMasterNPC().getGuildName();
+        
+        // Строка 1: Название гильдии
+        displayName.append("§6§l");
+        displayName.append(guildName);
+        displayName.append("\n"); // Перенос строки
+        
+        // Строка 2: Название отряда (если есть)
         if (squadName != null && squadRank != null) {
-            prefix.append(squadRank.getColorCode());
-            prefix.append("[");
-            prefix.append(squadName);
-            prefix.append("] ");
+            // Корона для лидера отряда
+            if (isSquadLeader) {
+                displayName.append("§6♔ "); // Корона
+            }
+            displayName.append(squadRank.getColorCode());
+            displayName.append(squadName);
+            displayName.append("\n"); // Перенос строки
         }
         
-        // Цвет ранга игрока
+        // Строка 3: Ник игрока с цветом ранга
         if (rank == Rank.SS) {
-            prefix.append("§e§l");
+            displayName.append("§e§l");
         } else {
-            prefix.append(rank.getNameColorCode());
+            displayName.append(rank.getNameColorCode());
         }
+        displayName.append(player.getName());
         
+        // Устанавливаем display name игрока
+        player.setDisplayName(displayName.toString());
+        player.setPlayerListName(displayName.toString());
+        
+        // Также устанавливаем префикс для Teams (для таба)
+        StringBuilder prefix = new StringBuilder();
+        prefix.append("§6§l");
+        prefix.append(guildName);
+        prefix.append(" ");
+        if (squadName != null && squadRank != null) {
+            if (isSquadLeader) {
+                prefix.append("§6♔ ");
+            }
+            prefix.append(squadRank.getColorCode());
+            prefix.append(squadName);
+            prefix.append(" ");
+        }
         team.setPrefix(prefix.toString());
         team.setSuffix("§r");
         

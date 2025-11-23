@@ -49,8 +49,7 @@ public class AnnouncementManager {
             onlinePlayer.sendMessage(message);
         }
         
-        // Также отправляем в консоль
-        plugin.getLogger().info("Rank announcement: " + playerName + " (" + rank.getCode() + ")");
+        // Объявление отправлено
     }
     
     /**

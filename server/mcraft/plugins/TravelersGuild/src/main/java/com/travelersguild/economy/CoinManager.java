@@ -20,10 +20,8 @@ public class CoinManager {
         if (serverAuthShop != null && serverAuthShop.isEnabled()) {
             this.serverAuthShopPlugin = serverAuthShop;
             this.useServerAuthShop = true;
-            plugin.getLogger().info("Интеграция с ServerAuthShop найдена!");
         } else {
             this.useServerAuthShop = false;
-            plugin.getLogger().info("ServerAuthShop не найден, используется встроенная система монет.");
         }
     }
     
@@ -39,7 +37,7 @@ public class CoinManager {
                     return (Double) coinManager.getClass().getMethod("getCoins", UUID.class).invoke(coinManager, uuid);
                 }
             } catch (Exception e) {
-                plugin.getLogger().warning("Ошибка при получении монет из ServerAuthShop: " + e.getMessage());
+                // Ошибка при получении монет из ServerAuthShop
             }
         }
         
@@ -58,7 +56,7 @@ public class CoinManager {
                     return (Boolean) coinManager.getClass().getMethod("removeCoins", UUID.class, double.class).invoke(coinManager, uuid, amount);
                 }
             } catch (Exception e) {
-                plugin.getLogger().warning("Ошибка при списании монет из ServerAuthShop: " + e.getMessage());
+                // Ошибка при списании монет из ServerAuthShop
             }
         }
         
@@ -82,7 +80,7 @@ public class CoinManager {
                     return;
                 }
             } catch (Exception e) {
-                plugin.getLogger().warning("Ошибка при добавлении монет через ServerAuthShop: " + e.getMessage());
+                // Ошибка при добавлении монет через ServerAuthShop
             }
         }
         

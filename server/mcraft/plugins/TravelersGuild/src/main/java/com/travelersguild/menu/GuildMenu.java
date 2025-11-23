@@ -249,6 +249,12 @@ public class GuildMenu implements Listener {
     
     public void showSquadListMenu(Player player) {
         Set<String> squads = dataManager.getAllSquads();
+        
+        if (squads.isEmpty()) {
+            player.sendMessage("§cНет доступных отрядов для вступления!");
+            return;
+        }
+        
         int size = Math.max(9, ((squads.size() + 8) / 9) * 9);
         if (size > 54) size = 54;
         
@@ -259,6 +265,11 @@ public class GuildMenu implements Listener {
             SquadRank squadRank = dataManager.getSquadRank(squadName);
             Set<UUID> members = dataManager.getSquadMembers(squadName);
             double joinFee = dataManager.getSquadJoinFee(squadName);
+            
+            // Проверяем, не заполнен ли отряд
+            if (members.size() >= squadRank.getMaxMembers()) {
+                continue; // Пропускаем заполненные отряды
+            }
             
             Material material = Material.PAPER;
             if (squadRank == SquadRank.RANK_3) material = Material.GOLD_INGOT;
@@ -278,7 +289,7 @@ public class GuildMenu implements Listener {
                 lore.add("§7Сбор при вступлении: §aБесплатно");
             }
             lore.add("");
-            lore.add("§aНажмите, чтобы подать запрос");
+            lore.add("§aЛКМ - подать запрос на вступление");
             
             meta.setLore(lore);
             squadItem.setItemMeta(meta);
@@ -287,6 +298,11 @@ public class GuildMenu implements Listener {
                 inv.setItem(slot, squadItem);
                 slot++;
             }
+        }
+        
+        if (slot == 0) {
+            player.sendMessage("§cНет доступных отрядов для вступления (все заполнены)!");
+            return;
         }
         
         player.openInventory(inv);
@@ -569,8 +585,26 @@ public class GuildMenu implements Listener {
             } else if (title.startsWith("§6§lСписок Отрядов")) {
                 // Обработка клика по отряду в списке
                 event.setCancelled(true);
-                String squadName = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
+                if (clicked == null || clicked.getType() == Material.AIR) {
+                    return;
+                }
+                
+                String displayName = clicked.getItemMeta().getDisplayName();
+                String squadName = ChatColor.stripColor(displayName);
                 player.closeInventory();
+                
+                // Проверяем, не состоит ли уже игрок в отряде
+                if (dataManager.getPlayerSquad(uuid) != null) {
+                    player.sendMessage("§cВы уже состоите в отряде!");
+                    return;
+                }
+                
+                // Проверяем, не подал ли уже запрос
+                Set<UUID> requests = dataManager.getJoinRequests(squadName);
+                if (requests.contains(uuid)) {
+                    player.sendMessage("§cВы уже подали запрос на вступление в этот отряд!");
+                    return;
+                }
                 
                 // Подаем запрос на вступление
                 double joinFee = dataManager.getSquadJoinFee(squadName);
@@ -601,6 +635,10 @@ public class GuildMenu implements Listener {
                 if (squadName == null || !dataManager.isSquadLeader(squadName, uuid)) {
                     player.sendMessage("§cОшибка: вы не являетесь лидером отряда!");
                     player.closeInventory();
+                    return;
+                }
+                
+                if (clicked == null || clicked.getType() == Material.AIR) {
                     return;
                 }
                 
@@ -641,6 +679,9 @@ public class GuildMenu implements Listener {
                             if (requester != null) {
                                 requester.sendMessage("§cУ вас недостаточно монет для вступления в отряд!");
                             }
+                            dataManager.removeJoinRequest(squadName, requesterUuid);
+                            player.closeInventory();
+                            showJoinRequestsMenu(player, squadName);
                             return;
                         }
                         
@@ -689,19 +730,21 @@ public class GuildMenu implements Listener {
                     return;
                 }
                 
-                if (clicked.getType() == Material.ANVIL && clicked.getItemMeta().getDisplayName().contains("Редактировать")) {
+                String displayName = clicked.getItemMeta().getDisplayName();
+                
+                if (clicked.getType() == Material.ANVIL && displayName.contains("Редактировать")) {
                     player.closeInventory();
                     player.sendMessage("§aВведите новое название отряда:");
                     playerStates.put(uuid, MenuState.WAITING_SQUAD_EDIT_NAME);
-                } else if (clicked.getType() == Material.EMERALD && clicked.getItemMeta().getDisplayName().contains("Пополнить")) {
+                } else if (clicked.getType() == Material.EMERALD && displayName.contains("Пополнить")) {
                     player.closeInventory();
                     player.sendMessage("§aВведите сумму для пополнения казны:");
                     playerStates.put(uuid, MenuState.WAITING_TREASURY_DEPOSIT);
-                } else if (clicked.getType() == Material.GOLD_INGOT && clicked.getItemMeta().getDisplayName().contains("Снять")) {
+                } else if (clicked.getType() == Material.GOLD_INGOT && displayName.contains("Снять")) {
                     player.closeInventory();
                     player.sendMessage("§aВведите сумму для снятия из казны:");
                     playerStates.put(uuid, MenuState.WAITING_TREASURY_WITHDRAW);
-                } else if (clicked.getType() == Material.DIAMOND && clicked.getItemMeta().getDisplayName().contains("Повысить")) {
+                } else if (clicked.getType() == Material.DIAMOND && displayName.contains("Повысить")) {
                     SquadRank currentRank = dataManager.getSquadRank(squadName);
                     SquadRank nextRank = currentRank.getNextRank();
                     if (nextRank == null) {
@@ -718,24 +761,29 @@ public class GuildMenu implements Listener {
                     }
                     
                     if (dataManager.removeFromSquadTreasury(squadName, uuid, nextRank.getUpgradeCost())) {
-                        dataManager.upgradeSquadRank(squadName, uuid);
-                        plugin.getNameColorManager().updateSquadDisplay(squadName);
-                        player.sendMessage("§6═══════════════════════════");
-                        player.sendMessage("§6§lРАНГ ОТРЯДА ПОВЫШЕН!");
-                        player.sendMessage("§eНовый ранг: " + nextRank.getDisplayName());
-                        player.sendMessage("§7Новый лимит участников: §e" + nextRank.getMaxMembers());
-                        player.sendMessage("§6═══════════════════════════");
-                        player.closeInventory();
-                        showSquadManagementMenu(player);
+                        if (dataManager.upgradeSquadRank(squadName, uuid)) {
+                            plugin.getNameColorManager().updateSquadDisplay(squadName);
+                            player.sendMessage("§6═══════════════════════════");
+                            player.sendMessage("§6§lРАНГ ОТРЯДА ПОВЫШЕН!");
+                            player.sendMessage("§eНовый ранг: " + nextRank.getDisplayName());
+                            player.sendMessage("§7Новый лимит участников: §e" + nextRank.getMaxMembers());
+                            player.sendMessage("§6═══════════════════════════");
+                            player.closeInventory();
+                            showSquadManagementMenu(player);
+                        } else {
+                            // Откатываем списание, если повышение не удалось
+                            dataManager.addToSquadTreasury(squadName, uuid, nextRank.getUpgradeCost());
+                            player.sendMessage("§cОшибка при повышении ранга отряда!");
+                        }
                     }
-                } else if (clicked.getType() == Material.GOLD_NUGGET && clicked.getItemMeta().getDisplayName().contains("Сбор")) {
+                } else if (clicked.getType() == Material.GOLD_NUGGET && displayName.contains("Сбор")) {
                     player.closeInventory();
                     player.sendMessage("§aВведите новый сбор при вступлении (0 для бесплатного вступления):");
                     playerStates.put(uuid, MenuState.WAITING_JOIN_FEE);
-                } else if (clicked.getType() == Material.PAPER && clicked.getItemMeta().getDisplayName().contains("Запросы")) {
+                } else if (clicked.getType() == Material.PAPER && displayName.contains("Запросы")) {
                     player.closeInventory();
                     showJoinRequestsMenu(player, squadName);
-                } else if (clicked.getType() == Material.TNT && clicked.getItemMeta().getDisplayName().contains("Роспустить")) {
+                } else if (clicked.getType() == Material.TNT && displayName.contains("Роспустить")) {
                     // Роспуск отряда
                     Set<UUID> members = dataManager.getSquadMembers(squadName);
                     for (UUID memberUuid : members) {
