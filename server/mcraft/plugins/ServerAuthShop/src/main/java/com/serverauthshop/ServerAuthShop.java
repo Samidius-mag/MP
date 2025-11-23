@@ -137,8 +137,9 @@ public class ServerAuthShop extends JavaPlugin implements Listener {
                 player.sendMessage("§cВы должны войти в систему!");
                 return true;
             }
-            int coins = coinManager.getCoins(player.getUniqueId());
-            player.sendMessage("§6Ваш баланс: §e" + coins + " монет");
+            double coins = coinManager.getCoins(player.getUniqueId());
+            String coinsText = coins == (int) coins ? String.valueOf((int) coins) : String.format("%.2f", coins);
+            player.sendMessage("§6Ваш баланс: §e" + coinsText + " монет");
             return true;
         }
         

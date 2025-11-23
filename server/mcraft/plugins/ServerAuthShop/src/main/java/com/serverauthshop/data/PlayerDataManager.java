@@ -142,12 +142,15 @@ public class PlayerDataManager {
         saveData();
     }
     
-    public int getCoins(UUID uuid) {
+    public double getCoins(UUID uuid) {
         String uuidString = uuid.toString();
-        return dataConfig.getInt("players." + uuidString + ".coins", 0);
+        if (dataConfig.contains("players." + uuidString + ".coins")) {
+            return dataConfig.getDouble("players." + uuidString + ".coins", 0.0);
+        }
+        return 0.0;
     }
     
-    public void setCoins(UUID uuid, int coins) {
+    public void setCoins(UUID uuid, double coins) {
         String uuidString = uuid.toString();
         dataConfig.set("players." + uuidString + ".coins", coins);
         saveData();

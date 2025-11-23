@@ -15,21 +15,21 @@ public class CoinManager {
         this.dataManager = dataManager;
     }
     
-    public int getCoins(UUID uuid) {
+    public double getCoins(UUID uuid) {
         return dataManager.getCoins(uuid);
     }
     
-    public void setCoins(UUID uuid, int coins) {
+    public void setCoins(UUID uuid, double coins) {
         dataManager.setCoins(uuid, coins);
     }
     
-    public void addCoins(UUID uuid, int amount) {
-        int current = getCoins(uuid);
+    public void addCoins(UUID uuid, double amount) {
+        double current = getCoins(uuid);
         setCoins(uuid, current + amount);
     }
     
-    public boolean removeCoins(UUID uuid, int amount) {
-        int current = getCoins(uuid);
+    public boolean removeCoins(UUID uuid, double amount) {
+        double current = getCoins(uuid);
         if (current >= amount) {
             setCoins(uuid, current - amount);
             return true;
@@ -37,7 +37,7 @@ public class CoinManager {
         return false;
     }
     
-    public boolean hasCoins(UUID uuid, int amount) {
+    public boolean hasCoins(UUID uuid, double amount) {
         return getCoins(uuid) >= amount;
     }
 }
