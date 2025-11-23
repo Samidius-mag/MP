@@ -48,15 +48,13 @@ public class NameColorManager {
         }
         
         // Создаем уникальное имя команды для комбинации ранга и отряда
-        String teamName = "guild_" + rank.getCode();
+        String teamNameBase = "guild_" + rank.getCode();
         if (squadName != null) {
-            teamName += "_squad_" + squadName.hashCode();
+            teamNameBase += "_squad_" + squadName.hashCode();
         }
         
         // Ограничиваем длину имени команды (максимум 16 символов в некоторых версиях)
-        if (teamName.length() > 16) {
-            teamName = teamName.substring(0, 16);
-        }
+        final String teamName = teamNameBase.length() > 16 ? teamNameBase.substring(0, 16) : teamNameBase;
         
         // Создаем или получаем команду
         Team team = scoreboard.getTeam(teamName);
