@@ -3,14 +3,14 @@ players:
     username: samid
     password: 4fa7119f75cfad855a8c77ff2bd722dafbea7e2b8e620f9910127bc25787a485
     deaths: 10
-    kills: 13
-    coins: 1903.9019531249996
+    kills: 23
+    coins: 1003.9019531249996
   bd5faaa3-144d-3761-af99-c3746e920720:
     username: liza
     password: 015e81eddfab44be16ac53a8653feab50859b4c5508a915679e33c271d2b54df
     deaths: 1
-    kills: 7
-    coins: 699.046328125
+    kills: 16
+    coins: 789.046328125
   b4ff7d52-b14e-3302-b10b-dd16ecbe229a:
     username: misha
     password: 4103f0a4e707b1c7bebbc42809ab0ace8dd3f56d844d7903bfe9f95a2ccc6972

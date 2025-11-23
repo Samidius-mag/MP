@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "uuid": "747bfdde-33f9-3050-8a1d-8e28e8a50212",
+    "name": "samid",
+    "level": 4,
+    "bypassesPlayerLimit": false
+  }
+]
