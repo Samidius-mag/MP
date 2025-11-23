@@ -4,9 +4,12 @@ players:
     registered: true
     rank: C
   bd5faaa3-144d-3761-af99-c3746e920720:
-    monsterKills: 3
+    monsterKills: 7
     registered: true
     rank: C
 squads:
   Asetabalana14$:
   - 747bfdde-33f9-3050-8a1d-8e28e8a50212
+  ADMIN:
+  - 747bfdde-33f9-3050-8a1d-8e28e8a50212
+  - bd5faaa3-144d-3761-af99-c3746e920720
