@@ -4,7 +4,6 @@ main: com.travelersguild.TravelersGuild
 api-version: 1.21
 author: TravelersGuild Team
 description: Плагин гильдии путешественников с системой рангов и NPC-заведующим
-softdepend: [HolographicDisplays]
 
 commands:
   guild:

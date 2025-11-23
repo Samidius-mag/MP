@@ -151,8 +151,8 @@ public class NameColorManager {
             });
         }
         
-        // Обновляем голограмму над головой игрока (если HolographicDisplays доступен)
-        if (hologramManager.isHolographicDisplaysEnabled()) {
+        // Обновляем голограмму над головой игрока
+        if (hologramManager.isEnabled()) {
             hologramManager.updatePlayerHologram(player, rank, squadName, squadRank, isSquadLeader);
         }
     }
