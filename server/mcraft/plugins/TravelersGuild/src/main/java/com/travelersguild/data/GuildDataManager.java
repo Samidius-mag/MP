@@ -152,6 +152,28 @@ public class GuildDataManager {
         saveData();
     }
     
+    // === Методы для работы с монетами (встроенная система) ===
+    
+    public double getCoins(UUID uuid) {
+        String uuidString = uuid.toString();
+        return dataConfig.getDouble("players." + uuidString + ".coins", 0.0);
+    }
+    
+    public void setCoins(UUID uuid, double coins) {
+        String uuidString = uuid.toString();
+        dataConfig.set("players." + uuidString + ".coins", coins);
+        saveData();
+    }
+    
+    public boolean removeCoins(UUID uuid, double amount) {
+        double current = getCoins(uuid);
+        if (current >= amount) {
+            setCoins(uuid, current - amount);
+            return true;
+        }
+        return false;
+    }
+    
     // === Методы для работы с отрядами ===
     
     public boolean createSquad(String squadName, UUID leaderUuid) {
@@ -192,9 +214,23 @@ public class GuildDataManager {
             return false;
         }
         
+        // Проверяем, что игрок является лидером (первым в списке)
+        if (!members.contains(leaderUuid)) {
+            return false;
+        }
+        
         squads.remove(squadName);
         saveData();
         return true;
+    }
+    
+    public UUID getSquadLeader(String squadName) {
+        Set<UUID> members = squads.get(squadName);
+        if (members == null || members.isEmpty()) {
+            return null;
+        }
+        // Возвращаем первого участника как лидера
+        return members.iterator().next();
     }
     
     public String getPlayerSquad(UUID playerUuid) {

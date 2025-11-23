@@ -17,10 +17,12 @@ import com.travelersguild.npc.GuildMasterNPC;
 import com.travelersguild.menu.GuildMenu;
 import com.travelersguild.util.NameColorManager;
 import com.travelersguild.util.AnnouncementManager;
+import com.travelersguild.economy.CoinManager;
 
 public class TravelersGuild extends JavaPlugin implements Listener {
     
     private GuildDataManager dataManager;
+    private CoinManager coinManager;
     private GuildMasterNPC guildMasterNPC;
     private GuildMenu guildMenu;
     private NameColorManager nameColorManager;
@@ -33,10 +35,15 @@ public class TravelersGuild extends JavaPlugin implements Listener {
         
         // Инициализация менеджеров
         this.dataManager = new GuildDataManager(this);
+        this.coinManager = new CoinManager(this);
         this.nameColorManager = new NameColorManager(this);
         this.announcementManager = new AnnouncementManager(this);
-        this.guildMenu = new GuildMenu(this, dataManager);
+        this.guildMenu = new GuildMenu(this, dataManager, coinManager);
         this.guildMasterNPC = new GuildMasterNPC(this, dataManager, guildMenu);
+        
+        // Регистрация команд
+        getCommand("guild").setExecutor(this);
+        getCommand("guildadmin").setExecutor(this);
         
         // Регистрация событий
         getServer().getPluginManager().registerEvents(this, this);
@@ -189,6 +196,10 @@ public class TravelersGuild extends JavaPlugin implements Listener {
     
     public AnnouncementManager getAnnouncementManager() {
         return announcementManager;
+    }
+    
+    public CoinManager getCoinManager() {
+        return coinManager;
     }
 }
 

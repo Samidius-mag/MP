@@ -3,6 +3,7 @@ package com.travelersguild.menu;
 import com.travelersguild.TravelersGuild;
 import com.travelersguild.data.GuildDataManager;
 import com.travelersguild.data.Rank;
+import com.travelersguild.economy.CoinManager;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -21,6 +22,7 @@ public class GuildMenu implements Listener {
     
     private final TravelersGuild plugin;
     private final GuildDataManager dataManager;
+    private final CoinManager coinManager;
     private final Map<UUID, MenuState> playerStates;
     private final Map<UUID, String> pendingSquadNames;
     
@@ -29,9 +31,10 @@ public class GuildMenu implements Listener {
         WAITING_SQUAD_JOIN_NAME
     }
     
-    public GuildMenu(TravelersGuild plugin, GuildDataManager dataManager) {
+    public GuildMenu(TravelersGuild plugin, GuildDataManager dataManager, CoinManager coinManager) {
         this.plugin = plugin;
         this.dataManager = dataManager;
+        this.coinManager = coinManager;
         this.playerStates = new HashMap<>();
         this.pendingSquadNames = new HashMap<>();
     }
@@ -169,7 +172,9 @@ public class GuildMenu implements Listener {
             createMeta.setDisplayName("§aСоздать Отряд");
             createMeta.setLore(Arrays.asList(
                 "§7Нажмите, чтобы",
-                "§7создать новый отряд"
+                "§7создать новый отряд",
+                "",
+                "§cСтоимость: 1000 монет"
             ));
             createButton.setItemMeta(createMeta);
             inv.setItem(11, createButton);
@@ -185,6 +190,26 @@ public class GuildMenu implements Listener {
             joinButton.setItemMeta(joinMeta);
             inv.setItem(15, joinButton);
         } else {
+            // Проверяем, является ли игрок лидером
+            UUID leaderUuid = dataManager.getSquadLeader(currentSquad);
+            boolean isLeader = leaderUuid != null && leaderUuid.equals(uuid);
+            
+            if (isLeader) {
+                // Роспуск отряда (для лидера)
+                ItemStack disbandButton = new ItemStack(Material.TNT);
+                ItemMeta disbandMeta = disbandButton.getItemMeta();
+                disbandMeta.setDisplayName("§c§lРоспустить Отряд");
+                disbandMeta.setLore(Arrays.asList(
+                    "§7Нажмите, чтобы",
+                    "§7распустить отряд: §e" + currentSquad,
+                    "",
+                    "§cВнимание: это действие",
+                    "§cнельзя отменить!"
+                ));
+                disbandButton.setItemMeta(disbandMeta);
+                inv.setItem(11, disbandButton);
+            }
+            
             // Покинуть отряд
             ItemStack leaveButton = new ItemStack(Material.REDSTONE_BLOCK);
             ItemMeta leaveMeta = leaveButton.getItemMeta();
@@ -194,7 +219,7 @@ public class GuildMenu implements Listener {
                 "§7покинуть отряд: §e" + currentSquad
             ));
             leaveButton.setItemMeta(leaveMeta);
-            inv.setItem(13, leaveButton);
+            inv.setItem(15, leaveButton);
         }
         
         player.openInventory(inv);
@@ -285,16 +310,56 @@ public class GuildMenu implements Listener {
             } else if (title.equals("§6§lУправление Отрядом")) {
                 // Меню отряда
                 if (clicked.getType() == Material.EMERALD_BLOCK && clicked.getItemMeta().getDisplayName().contains("Создать")) {
+                    // Проверяем монеты
+                    if (!coinManager.hasCoins(uuid, 1000.0)) {
+                        double coins = coinManager.getCoins(uuid);
+                        player.sendMessage("§cНедостаточно монет для создания отряда!");
+                        player.sendMessage("§7Требуется: §e1000 монет");
+                        player.sendMessage("§7У вас: §e" + String.format("%.0f", coins) + " монет");
+                        player.closeInventory();
+                        return;
+                    }
+                    
                     player.closeInventory();
                     player.sendMessage("§aВведите название отряда в чат:");
+                    player.sendMessage("§7Стоимость создания: §e1000 монет");
                     playerStates.put(uuid, MenuState.WAITING_SQUAD_NAME);
                 } else if (clicked.getType() == Material.DIAMOND_BLOCK && clicked.getItemMeta().getDisplayName().contains("Вступить")) {
                     player.closeInventory();
                     player.sendMessage("§aВведите название отряда, в который хотите вступить:");
                     playerStates.put(uuid, MenuState.WAITING_SQUAD_JOIN_NAME);
+                } else if (clicked.getType() == Material.TNT && clicked.getItemMeta().getDisplayName().contains("Роспустить")) {
+                    String squadName = dataManager.getPlayerSquad(uuid);
+                    if (squadName != null) {
+                        UUID leaderUuid = dataManager.getSquadLeader(squadName);
+                        if (leaderUuid != null && leaderUuid.equals(uuid)) {
+                            // Уведомляем всех участников
+                            Set<UUID> members = dataManager.getSquadMembers(squadName);
+                            for (UUID memberUuid : members) {
+                                Player member = Bukkit.getPlayer(memberUuid);
+                                if (member != null) {
+                                    member.sendMessage("§cОтряд §e" + squadName + " §cбыл распущен лидером!");
+                                }
+                            }
+                            
+                            dataManager.disbandSquad(squadName, uuid);
+                            player.sendMessage("§aОтряд §e" + squadName + " §aраспущен!");
+                            player.closeInventory();
+                        } else {
+                            player.sendMessage("§cТолько лидер может распустить отряд!");
+                        }
+                    }
                 } else if (clicked.getType() == Material.REDSTONE_BLOCK && clicked.getItemMeta().getDisplayName().contains("Покинуть")) {
                     String squadName = dataManager.getPlayerSquad(uuid);
                     if (squadName != null) {
+                        UUID leaderUuid = dataManager.getSquadLeader(squadName);
+                        if (leaderUuid != null && leaderUuid.equals(uuid)) {
+                            player.sendMessage("§cВы не можете покинуть отряд, так как вы лидер!");
+                            player.sendMessage("§7Используйте кнопку 'Роспустить Отряд' для роспуска отряда.");
+                            player.closeInventory();
+                            return;
+                        }
+                        
                         dataManager.leaveSquad(uuid);
                         player.sendMessage("§aВы покинули отряд: §e" + squadName);
                         player.closeInventory();
@@ -326,11 +391,27 @@ public class GuildMenu implements Listener {
                 return;
             }
             
+            // Проверяем монеты еще раз
+            if (!coinManager.hasCoins(uuid, 1000.0)) {
+                double coins = coinManager.getCoins(uuid);
+                player.sendMessage("§cНедостаточно монет для создания отряда!");
+                player.sendMessage("§7Требуется: §e1000 монет");
+                player.sendMessage("§7У вас: §e" + String.format("%.0f", coins) + " монет");
+                playerStates.remove(uuid);
+                return;
+            }
+            
             if (dataManager.createSquad(message, uuid)) {
-                player.sendMessage("§aОтряд §e" + message + " §aсоздан!");
-                plugin.getServer().getScheduler().runTask(plugin, () -> {
-                    plugin.getNameColorManager().updatePlayerNameColor(player, dataManager.getPlayerRank(uuid));
-                });
+                // Списываем монеты
+                if (coinManager.removeCoins(uuid, 1000.0)) {
+                    player.sendMessage("§a═══════════════════════════");
+                    player.sendMessage("§aОтряд §e" + message + " §aсоздан!");
+                    player.sendMessage("§7С вашего счета списано: §e1000 монет");
+                    player.sendMessage("§a═══════════════════════════");
+                } else {
+                    player.sendMessage("§cОшибка при списании монет!");
+                    dataManager.leaveSquad(uuid); // Откатываем создание отряда
+                }
             } else {
                 player.sendMessage("§cОтряд с таким названием уже существует!");
             }
