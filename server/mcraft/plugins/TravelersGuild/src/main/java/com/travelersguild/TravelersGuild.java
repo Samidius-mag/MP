@@ -103,32 +103,68 @@ public class TravelersGuild extends JavaPlugin implements Listener {
             Player killer = event.getEntity().getKiller();
             
             if (event.getEntity() instanceof Monster) {
-                // Увеличиваем счетчик убийств монстров
-                int newKills = dataManager.addMonsterKill(killer.getUniqueId());
+                // Получаем мир, в котором произошло убийство
+                org.bukkit.World world = event.getEntity().getWorld();
                 
-                // Проверяем, нужно ли повысить ранг
-                Rank oldRank = dataManager.getPlayerRank(killer.getUniqueId());
-                Rank newRank = Rank.getRankByKills(newKills);
+                // Получаем отряд убийцы
+                String squadName = dataManager.getPlayerSquad(killer.getUniqueId());
                 
-                if (newRank != oldRank && newRank != null) {
-                    // Ранг повысился!
-                    dataManager.setPlayerRank(killer.getUniqueId(), newRank);
-                    nameColorManager.updatePlayerNameColor(killer, newRank, true);
-                    
-                    killer.sendMessage("§6═══════════════════════════");
-                    killer.sendMessage("§6§lПОВЫШЕНИЕ РАНГА!");
-                    killer.sendMessage("§eВаш новый ранг: §r" + newRank.getDisplayName());
-                    killer.sendMessage("§7Убийств монстров: §e" + newKills);
-                    killer.sendMessage("§6═══════════════════════════");
-                    
-                    // Если достигли ранга S или SS, показываем объявление
-                    if (newRank == Rank.S || newRank == Rank.SS) {
-                        announcementManager.showRankAnnouncement(killer, newRank);
+                // Список игроков, которым нужно засчитать убийство
+                java.util.List<Player> playersToReward = new java.util.ArrayList<>();
+                playersToReward.add(killer); // Всегда добавляем убийцу
+                
+                // Если игрок в отряде, добавляем всех онлайн игроков отряда в том же мире
+                if (squadName != null) {
+                    java.util.Set<UUID> squadMembers = dataManager.getSquadMembers(squadName);
+                    for (UUID memberUuid : squadMembers) {
+                        if (!memberUuid.equals(killer.getUniqueId())) {
+                            Player member = getServer().getPlayer(memberUuid);
+                            if (member != null && member.isOnline() && member.getWorld().equals(world)) {
+                                playersToReward.add(member);
+                            }
+                        }
                     }
+                }
+                
+                // Засчитываем убийство всем игрокам
+                for (Player player : playersToReward) {
+                    // Увеличиваем счетчик убийств монстров
+                    int newKills = dataManager.addMonsterKill(player.getUniqueId());
                     
-                    // Для ранга SS - салют и подарки
-                    if (newRank == Rank.SS) {
-                        announcementManager.celebrateSSRank(killer);
+                    // Проверяем, нужно ли повысить ранг
+                    Rank oldRank = dataManager.getPlayerRank(player.getUniqueId());
+                    Rank newRank = Rank.getRankByKills(newKills);
+                    
+                    if (newRank != oldRank && newRank != null) {
+                        // Ранг повысился!
+                        dataManager.setPlayerRank(player.getUniqueId(), newRank);
+                        nameColorManager.updatePlayerNameColor(player, newRank, true);
+                        
+                        player.sendMessage("§6═══════════════════════════");
+                        player.sendMessage("§6§lПОВЫШЕНИЕ РАНГА!");
+                        player.sendMessage("§eВаш новый ранг: §r" + newRank.getDisplayName());
+                        player.sendMessage("§7Убийств монстров: §e" + newKills);
+                        player.sendMessage("§6═══════════════════════════");
+                        
+                        // Если достигли ранга S или SS, показываем объявление
+                        if (newRank == Rank.S || newRank == Rank.SS) {
+                            announcementManager.showRankAnnouncement(player, newRank);
+                        }
+                        
+                        // Для ранга SS - салют и подарки
+                        if (newRank == Rank.SS) {
+                            announcementManager.celebrateSSRank(player);
+                        }
+                    }
+                }
+                
+                // Уведомляем игроков отряда о совместном убийстве
+                if (squadName != null && playersToReward.size() > 1) {
+                    String message = "§7[Отряд] §eУбийство монстра засчитано всем участникам отряда в этом мире!";
+                    for (Player member : playersToReward) {
+                        if (!member.equals(killer)) {
+                            member.sendMessage(message);
+                        }
                     }
                 }
             }

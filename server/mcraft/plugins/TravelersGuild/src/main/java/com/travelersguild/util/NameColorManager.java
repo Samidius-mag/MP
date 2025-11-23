@@ -63,60 +63,65 @@ public class NameColorManager {
             team.setColor(rank.getColor());
         }
         
-        // Формируем display name для отображения над головой игрока
-        // Формат: 
-        // Строка 1: Название гильдии
-        // Строка 2: Название отряда (если есть)
-        // Строка 3: Ник игрока (с цветом ранга)
-        
-        StringBuilder displayName = new StringBuilder();
-        
         // Получаем название гильдии
         String guildName = plugin.getGuildMasterNPC().getGuildName();
         
-        // Строка 1: Название гильдии
-        displayName.append("§6§l");
-        displayName.append(guildName);
-        displayName.append("\n"); // Перенос строки
-        
-        // Строка 2: Название отряда (если есть)
-        if (squadName != null && squadRank != null) {
-            // Корона для лидера отряда
-            if (isSquadLeader) {
-                displayName.append("§6♔ "); // Корона
-            }
-            displayName.append(squadRank.getColorCode());
-            displayName.append(squadName);
-            displayName.append("\n"); // Перенос строки
-        }
-        
-        // Строка 3: Ник игрока с цветом ранга
-        if (rank == Rank.SS) {
-            displayName.append("§e§l");
-        } else {
-            displayName.append(rank.getNameColorCode());
-        }
-        displayName.append(player.getName());
-        
-        // Устанавливаем display name игрока
-        player.setDisplayName(displayName.toString());
-        player.setPlayerListName(displayName.toString());
-        
-        // Также устанавливаем префикс для Teams (для таба)
+        // Формируем префикс для отображения над головой игрока через scoreboard teams
+        // Формат в одну строку: [Гильдия] [Отряд] Ник
+        // В Minecraft нельзя использовать многострочный текст, поэтому используем структурированный формат
         StringBuilder prefix = new StringBuilder();
+        
+        // Название гильдии
         prefix.append("§6§l");
         prefix.append(guildName);
-        prefix.append(" ");
+        prefix.append(" §r");
+        
+        // Название отряда (если есть)
         if (squadName != null && squadRank != null) {
             if (isSquadLeader) {
                 prefix.append("§6♔ ");
             }
             prefix.append(squadRank.getColorCode());
             prefix.append(squadName);
-            prefix.append(" ");
+            prefix.append(" §r");
         }
+        
+        // Устанавливаем префикс (будет отображаться перед именем)
         team.setPrefix(prefix.toString());
-        team.setSuffix("§r");
+        
+        // Устанавливаем цвет ника игрока через цвет команды
+        if (rank == Rank.SS) {
+            team.setColor(org.bukkit.ChatColor.YELLOW);
+        } else {
+            team.setColor(rank.getColor());
+        }
+        
+        // Для отображения в списке игроков (таб) - только ник без префиксов
+        player.setPlayerListName(player.getName());
+        
+        // Для отображения над головой - используем только имя, префикс добавится через team
+        player.setDisplayName(player.getName());
+        
+        // Создаем отдельную команду для статистики без префиксов
+        // Это нужно для scoreboard статистики, чтобы отображался только ник
+        String statsTeamName = "stats_" + player.getName();
+        if (statsTeamName.length() > 16) {
+            statsTeamName = statsTeamName.substring(0, 16);
+        }
+        
+        Team statsTeam = scoreboard.getTeam(statsTeamName);
+        if (statsTeam == null) {
+            statsTeam = scoreboard.registerNewTeam(statsTeamName);
+        }
+        
+        // Убираем префиксы для статистики
+        statsTeam.setPrefix("");
+        statsTeam.setSuffix("");
+        
+        // Добавляем игрока в команду статистики
+        if (!statsTeam.hasEntry(player.getName())) {
+            statsTeam.addEntry(player.getName());
+        }
         
         // Удаляем игрока из других команд гильдии
         for (Team oldTeam : scoreboard.getTeams()) {

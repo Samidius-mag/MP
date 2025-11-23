@@ -642,25 +642,36 @@ public class GuildMenu implements Listener {
                     return;
                 }
                 
-                String requesterName = ChatColor.stripColor(clicked.getItemMeta().getDisplayName());
-                UUID requesterUuid = null;
-                
-                // Находим UUID по имени
-                for (UUID reqUuid : dataManager.getJoinRequests(squadName)) {
-                    Player reqPlayer = Bukkit.getPlayer(reqUuid);
-                    String name = reqPlayer != null ? reqPlayer.getName() : Bukkit.getOfflinePlayer(reqUuid).getName();
-                    if (name.equals(requesterName)) {
-                        requesterUuid = reqUuid;
-                        break;
-                    }
-                }
-                
-                if (requesterUuid == null) {
-                    player.sendMessage("§cИгрок не найден!");
+                // Обработка кнопки "Назад"
+                if (clicked.getType() == Material.ARROW && clicked.getItemMeta().getDisplayName().contains("Назад")) {
+                    player.closeInventory();
+                    showSquadManagementMenu(player);
                     return;
                 }
                 
-                if (event.isLeftClick()) {
+                String displayName = clicked.getItemMeta().getDisplayName();
+                
+                // Обработка кнопки "Принять"
+                if (clicked.getType() == Material.EMERALD_BLOCK && displayName.contains("Принять")) {
+                    // Извлекаем имя игрока из названия кнопки
+                    String requesterName = displayName.substring(displayName.indexOf(": §e") + 4);
+                    UUID requesterUuid = null;
+                    
+                    // Находим UUID по имени
+                    for (UUID reqUuid : dataManager.getJoinRequests(squadName)) {
+                        Player reqPlayer = Bukkit.getPlayer(reqUuid);
+                        String name = reqPlayer != null ? reqPlayer.getName() : Bukkit.getOfflinePlayer(reqUuid).getName();
+                        if (name.equals(requesterName)) {
+                            requesterUuid = reqUuid;
+                            break;
+                        }
+                    }
+                    
+                    if (requesterUuid == null) {
+                        player.sendMessage("§cИгрок не найден!");
+                        return;
+                    }
+                    
                     // Принять запрос
                     SquadRank squadRank = dataManager.getSquadRank(squadName);
                     Set<UUID> members = dataManager.getSquadMembers(squadName);
@@ -707,7 +718,28 @@ public class GuildMenu implements Listener {
                         player.closeInventory();
                         showJoinRequestsMenu(player, squadName);
                     }
-                } else if (event.isRightClick()) {
+                } 
+                // Обработка кнопки "Отклонить"
+                else if (clicked.getType() == Material.REDSTONE_BLOCK && displayName.contains("Отклонить")) {
+                    // Извлекаем имя игрока из названия кнопки
+                    String requesterName = displayName.substring(displayName.indexOf(": §e") + 4);
+                    UUID requesterUuid = null;
+                    
+                    // Находим UUID по имени
+                    for (UUID reqUuid : dataManager.getJoinRequests(squadName)) {
+                        Player reqPlayer = Bukkit.getPlayer(reqUuid);
+                        String name = reqPlayer != null ? reqPlayer.getName() : Bukkit.getOfflinePlayer(reqUuid).getName();
+                        if (name.equals(requesterName)) {
+                            requesterUuid = reqUuid;
+                            break;
+                        }
+                    }
+                    
+                    if (requesterUuid == null) {
+                        player.sendMessage("§cИгрок не найден!");
+                        return;
+                    }
+                    
                     // Отклонить запрос
                     dataManager.removeJoinRequest(squadName, requesterUuid);
                     player.sendMessage("§cЗапрос от §e" + requesterName + " §cотклонен");
@@ -811,32 +843,72 @@ public class GuildMenu implements Listener {
         }
         
         Set<UUID> requests = dataManager.getJoinRequests(squadName);
-        int size = Math.max(9, ((requests.size() + 8) / 9) * 9);
-        if (size > 54) size = 54;
+        
+        if (requests.isEmpty()) {
+            player.sendMessage("§7Нет запросов на вступление в отряд");
+            return;
+        }
+        
+        // Размер меню: для каждого запроса нужно 2 слота (принять/отклонить) + кнопка назад
+        int itemsPerRow = 9;
+        int rows = (int) Math.ceil((requests.size() * 2 + 1) / (double) itemsPerRow);
+        int size = Math.max(9, Math.min(54, rows * 9));
         
         Inventory inv = Bukkit.createInventory(null, size, "§6§lЗапросы на Вступление");
         
         int slot = 0;
+        double joinFee = dataManager.getSquadJoinFee(squadName);
+        
         for (UUID requesterUuid : requests) {
             Player requester = Bukkit.getPlayer(requesterUuid);
             String requesterName = requester != null ? requester.getName() : Bukkit.getOfflinePlayer(requesterUuid).getName();
+            Rank requesterRank = dataManager.getPlayerRank(requesterUuid);
             
-            ItemStack requestItem = new ItemStack(Material.PLAYER_HEAD);
-            ItemMeta meta = requestItem.getItemMeta();
-            meta.setDisplayName("§e" + requesterName);
+            // Кнопка "Принять"
+            ItemStack acceptItem = new ItemStack(Material.EMERALD_BLOCK);
+            ItemMeta acceptMeta = acceptItem.getItemMeta();
+            acceptMeta.setDisplayName("§a§lПринять: §e" + requesterName);
+            List<String> acceptLore = new ArrayList<>();
+            acceptLore.add("§7Нажмите, чтобы принять");
+            acceptLore.add("§7игрока в отряд");
+            acceptLore.add("");
+            if (requesterRank != null) {
+                acceptLore.add("§7Ранг: " + requesterRank.getDisplayName());
+            }
+            if (joinFee > 0) {
+                acceptLore.add("§7Сбор: §e" + String.format("%.0f", joinFee) + " монет");
+            }
+            acceptMeta.setLore(acceptLore);
+            acceptItem.setItemMeta(acceptMeta);
             
-            List<String> lore = new ArrayList<>();
-            lore.add("§7Нажмите, чтобы принять");
-            lore.add("§cПКМ, чтобы отклонить");
+            // Кнопка "Отклонить"
+            ItemStack rejectItem = new ItemStack(Material.REDSTONE_BLOCK);
+            ItemMeta rejectMeta = rejectItem.getItemMeta();
+            rejectMeta.setDisplayName("§c§lОтклонить: §e" + requesterName);
+            List<String> rejectLore = new ArrayList<>();
+            rejectLore.add("§7Нажмите, чтобы");
+            rejectLore.add("§7отклонить запрос");
+            rejectMeta.setLore(rejectLore);
+            rejectItem.setItemMeta(rejectMeta);
             
-            meta.setLore(lore);
-            requestItem.setItemMeta(meta);
-            
-            if (slot < size) {
-                inv.setItem(slot, requestItem);
+            // Размещаем кнопки рядом друг с другом
+            if (slot < size - 1) {
+                inv.setItem(slot, acceptItem);
+                slot++;
+            }
+            if (slot < size - 1) {
+                inv.setItem(slot, rejectItem);
                 slot++;
             }
         }
+        
+        // Кнопка "Назад" в последнем слоте
+        ItemStack backItem = new ItemStack(Material.ARROW);
+        ItemMeta backMeta = backItem.getItemMeta();
+        backMeta.setDisplayName("§7Назад");
+        backMeta.setLore(Arrays.asList("§7Вернуться в меню управления"));
+        backItem.setItemMeta(backMeta);
+        inv.setItem(size - 1, backItem);
         
         player.openInventory(inv);
     }

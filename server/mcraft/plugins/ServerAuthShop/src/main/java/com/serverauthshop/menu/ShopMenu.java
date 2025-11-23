@@ -350,6 +350,9 @@ public class ShopMenu implements Listener {
                     player.getInventory().addItem(new ItemStack(material, amount));
                     player.sendMessage("§aВы купили " + amount + "x " + getMaterialName(material) + " за " + formatPrice(price) + " монет!");
                     
+                    // Переводим 5% в казну отряда (если игрок в отряде)
+                    transferToSquadTreasury(player, price, 0.05);
+                    
                     // Обновляем меню
                     showBuyMenu(player);
                 } else {
@@ -376,6 +379,9 @@ public class ShopMenu implements Listener {
                     double totalPrice = pricePerUnit * count;
                     coinManager.addCoins(uuid, totalPrice);
                     player.sendMessage("§aВы продали " + count + "x " + getMaterialName(material) + " за " + formatPrice(totalPrice) + " монет!");
+                    
+                    // Переводим 5% в казну отряда (если игрок в отряде)
+                    transferToSquadTreasury(player, totalPrice, 0.05);
                     
                     // Обновляем меню
                     showSellMenu(player);
@@ -434,6 +440,51 @@ public class ShopMenu implements Listener {
             return String.valueOf((int) price);
         } else {
             return String.format("%.2f", price);
+        }
+    }
+    
+    /**
+     * Переводит процент от суммы в казну отряда игрока (если игрок состоит в отряде)
+     * @param player Игрок, совершивший транзакцию
+     * @param totalAmount Общая сумма транзакции
+     * @param percentage Процент от суммы (например, 0.05 для 5%)
+     */
+    private void transferToSquadTreasury(Player player, double totalAmount, double percentage) {
+        try {
+            // Проверяем, доступен ли плагин TravelersGuild
+            org.bukkit.plugin.Plugin travelersGuildPlugin = plugin.getServer().getPluginManager().getPlugin("TravelersGuild");
+            if (travelersGuildPlugin == null || !travelersGuildPlugin.isEnabled()) {
+                return; // Плагин не установлен или не включен
+            }
+            
+            // Получаем менеджер данных гильдии через рефлексию
+            java.lang.reflect.Method getDataManagerMethod = travelersGuildPlugin.getClass().getMethod("getDataManager");
+            Object guildDataManager = getDataManagerMethod.invoke(travelersGuildPlugin);
+            
+            // Проверяем, состоит ли игрок в отряде
+            java.lang.reflect.Method getPlayerSquadMethod = guildDataManager.getClass().getMethod("getPlayerSquad", java.util.UUID.class);
+            String squadName = (String) getPlayerSquadMethod.invoke(guildDataManager, player.getUniqueId());
+            
+            if (squadName == null || squadName.isEmpty()) {
+                return; // Игрок не состоит в отряде
+            }
+            
+            // Вычисляем сумму для перевода в казну
+            double treasuryAmount = totalAmount * percentage;
+            if (treasuryAmount < 0.01) {
+                return; // Слишком маленькая сумма
+            }
+            
+            // Добавляем в казну отряда
+            java.lang.reflect.Method addToSquadTreasuryMethod = guildDataManager.getClass().getMethod("addToSquadTreasury", String.class, java.util.UUID.class, double.class);
+            addToSquadTreasuryMethod.invoke(guildDataManager, squadName, player.getUniqueId(), treasuryAmount);
+            
+            // Уведомляем игрока
+            player.sendMessage("§7[Отряд] §e" + formatPrice(treasuryAmount) + " монет переведено в казну отряда §6" + squadName + " §7(5%)");
+            
+        } catch (Exception e) {
+            // Игнорируем ошибки интеграции (плагин может быть не установлен)
+            // plugin.getLogger().info("Could not transfer to squad treasury: " + e.getMessage());
         }
     }
 }
