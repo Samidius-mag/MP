@@ -179,7 +179,7 @@ public class ShopMenu implements Listener {
             return;
         }
         
-        String title = inv.getView().getTitle();
+        String title = event.getView().getTitle();
         ItemStack clicked = event.getCurrentItem();
         
         if (clicked == null || clicked.getType() == Material.AIR) {

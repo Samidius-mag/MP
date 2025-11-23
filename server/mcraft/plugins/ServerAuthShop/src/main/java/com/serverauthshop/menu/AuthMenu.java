@@ -97,7 +97,7 @@ public class AuthMenu implements Listener {
             return;
         }
         
-        String title = inv.getView().getTitle();
+        String title = event.getView().getTitle();
         
         if (title.equals("§6Регистрация / Вход") || title.equals("§6Вход в систему")) {
             event.setCancelled(true);
