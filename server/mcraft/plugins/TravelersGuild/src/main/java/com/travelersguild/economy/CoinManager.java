@@ -69,5 +69,26 @@ public class CoinManager {
     public boolean hasCoins(UUID uuid, double amount) {
         return getCoins(uuid) >= amount;
     }
+    
+    public void addCoins(UUID uuid, double amount) {
+        if (useServerAuthShop) {
+            try {
+                Class<?> serverAuthShopClass = Class.forName("com.serverauthshop.ServerAuthShop");
+                Object serverAuthShopInstance = serverAuthShopPlugin;
+                Object coinManager = serverAuthShopClass.getMethod("getCoinManager").invoke(serverAuthShopInstance);
+                
+                if (coinManager != null) {
+                    coinManager.getClass().getMethod("addCoins", UUID.class, double.class).invoke(coinManager, uuid, amount);
+                    return;
+                }
+            } catch (Exception e) {
+                plugin.getLogger().warning("Ошибка при добавлении монет через ServerAuthShop: " + e.getMessage());
+            }
+        }
+        
+        // Встроенная система монет
+        double current = plugin.getDataManager().getCoins(uuid);
+        plugin.getDataManager().setCoins(uuid, current + amount);
+    }
 }
 

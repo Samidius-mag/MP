@@ -71,10 +71,10 @@ public class TravelersGuild extends JavaPlugin implements Listener {
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
         
-        // Обновляем цвет ника при входе
+        // Обновляем цвет ника при входе (включая отряд)
         Rank rank = dataManager.getPlayerRank(player.getUniqueId());
         if (rank != null) {
-            nameColorManager.updatePlayerNameColor(player, rank);
+            nameColorManager.updatePlayerNameColor(player, rank, true);
             
             // Показываем бегущую строку для рангов S и SS
             if (rank == Rank.S || rank == Rank.SS) {
@@ -112,7 +112,7 @@ public class TravelersGuild extends JavaPlugin implements Listener {
                 if (newRank != oldRank && newRank != null) {
                     // Ранг повысился!
                     dataManager.setPlayerRank(killer.getUniqueId(), newRank);
-                    nameColorManager.updatePlayerNameColor(killer, newRank);
+                    nameColorManager.updatePlayerNameColor(killer, newRank, true);
                     
                     killer.sendMessage("§6═══════════════════════════");
                     killer.sendMessage("§6§lПОВЫШЕНИЕ РАНГА!");
