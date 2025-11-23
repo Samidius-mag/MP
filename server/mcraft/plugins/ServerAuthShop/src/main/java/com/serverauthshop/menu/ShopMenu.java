@@ -216,10 +216,13 @@ public class ShopMenu implements Listener {
             
             // Определяем количество (стак или 1 штука)
             int amount = 1;
-            String priceText = formatPrice(price);
+            String priceText;
             if (material == Material.DIRT || material.name().endsWith("_LOG")) {
                 amount = 64; // Покупаем стаками
-                priceText = formatPrice(price * 64) + " за стак (64 шт)";
+                double stackPrice = price * 64;
+                priceText = formatPrice(stackPrice) + " монет за стак (64 шт)";
+            } else {
+                priceText = formatPrice(price) + " монет за штуку";
             }
             
             ItemStack item = new ItemStack(material, amount);
@@ -255,9 +258,12 @@ public class ShopMenu implements Listener {
             double price = entry.getValue();
             
             // Определяем количество для отображения
-            String priceText = formatPrice(price) + " за штуку";
+            String priceText;
             if (material == Material.DIRT || material.name().endsWith("_LOG")) {
-                priceText = formatPrice(price * 64) + " за стак (64 шт)";
+                double stackPrice = price * 64;
+                priceText = formatPrice(stackPrice) + " монет за стак (64 шт)";
+            } else {
+                priceText = formatPrice(price) + " монет за штуку";
             }
             
             ItemStack item = new ItemStack(material, 1);
