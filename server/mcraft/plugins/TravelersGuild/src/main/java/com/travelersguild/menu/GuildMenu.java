@@ -113,7 +113,7 @@ public class GuildMenu implements Listener {
             }
             
             // Управление отрядом
-            ItemStack squadButton = new ItemStack(Material.BANNER);
+            ItemStack squadButton = new ItemStack(Material.WHITE_BANNER);
             ItemMeta squadMeta = squadButton.getItemMeta();
             if (squadName != null) {
                 squadMeta.setDisplayName("§bВаш Отряд: §e" + squadName);
@@ -277,7 +277,7 @@ public class GuildMenu implements Listener {
                             }
                         }
                     }
-                } else if (clicked.getType() == Material.BANNER) {
+                } else if (clicked.getType() == Material.WHITE_BANNER) {
                     // Управление отрядом
                     player.closeInventory();
                     showSquadMenu(player);
