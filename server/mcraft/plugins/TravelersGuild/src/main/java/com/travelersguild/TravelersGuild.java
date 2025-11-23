@@ -11,6 +11,8 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import java.util.Arrays;
+import java.util.UUID;
+import java.util.Set;
 
 import com.travelersguild.data.GuildDataManager;
 import com.travelersguild.data.Rank;
@@ -121,7 +123,7 @@ public class TravelersGuild extends JavaPlugin implements Listener {
                 
                 // Если игрок в отряде, добавляем всех онлайн игроков отряда в том же мире
                 if (squadName != null) {
-                    java.util.Set<UUID> squadMembers = dataManager.getSquadMembers(squadName);
+                    Set<UUID> squadMembers = dataManager.getSquadMembers(squadName);
                     for (UUID memberUuid : squadMembers) {
                         if (!memberUuid.equals(killer.getUniqueId())) {
                             Player member = getServer().getPlayer(memberUuid);
