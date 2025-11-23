@@ -1,0 +1,35 @@
+name: ServerAuthShop
+version: 1.0.0
+main: com.serverauthshop.ServerAuthShop
+api-version: 1.21
+author: YourName
+description: Плагин для регистрации, входа и магазина с монетами
+
+commands:
+  shop:
+    description: Открыть магазин
+    usage: /shop
+    permission: serverauthshop.shop
+  coins:
+    description: Показать баланс монет
+    usage: /coins
+    permission: serverauthshop.coins
+
+permissions:
+  serverauthshop.*:
+    description: Все права плагина
+    default: op
+    children:
+      serverauthshop.shop: true
+      serverauthshop.coins: true
+      serverauthshop.admin: true
+  serverauthshop.shop:
+    description: Использовать магазин
+    default: true
+  serverauthshop.coins:
+    description: Просмотр монет
+    default: true
+  serverauthshop.admin:
+    description: Административные права
+    default: op
+
