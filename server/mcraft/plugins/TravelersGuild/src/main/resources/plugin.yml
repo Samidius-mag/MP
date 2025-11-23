@@ -1,0 +1,31 @@
+name: TravelersGuild
+version: 1.0.0
+main: com.travelersguild.TravelersGuild
+api-version: 1.21
+author: TravelersGuild Team
+description: Плагин гильдии путешественников с системой рангов и NPC-заведующим
+
+commands:
+  guild:
+    description: Открыть меню гильдии
+    usage: /guild
+    permission: travelersguild.use
+  guildadmin:
+    description: Административные команды гильдии
+    usage: /guildadmin <spawn|reload>
+    permission: travelersguild.admin
+
+permissions:
+  travelersguild.*:
+    description: Все права плагина
+    default: op
+    children:
+      travelersguild.use: true
+      travelersguild.admin: true
+  travelersguild.use:
+    description: Использовать гильдию
+    default: true
+  travelersguild.admin:
+    description: Административные права
+    default: op
+
