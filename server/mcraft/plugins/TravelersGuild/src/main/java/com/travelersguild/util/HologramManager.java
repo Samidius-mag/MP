@@ -31,8 +31,6 @@ public class HologramManager {
         this.plugin = plugin;
         this.playerHolograms = new HashMap<>();
         this.updateTasks = new HashMap<>();
-        
-        plugin.getLogger().info("Система многострочного отображения над головой включена (Armor Stand)");
     }
     
     /**

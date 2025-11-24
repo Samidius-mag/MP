@@ -49,47 +49,18 @@ public class NameColorManager {
             squadRank = plugin.getDataManager().getSquadRank(squadName);
         }
         
-        // Создаем уникальное имя команды для комбинации ранга и отряда
-        String teamNameBase = "guild_" + rank.getCode();
-        if (squadName != null) {
-            teamNameBase += "_squad_" + squadName.hashCode();
+        // Создаем команду для игрока - используем одну команду для всего
+        // Имя команды на основе ника игрока (уникально для каждого игрока)
+        String teamName = "guild_" + player.getName();
+        if (teamName.length() > 16) {
+            teamName = teamName.substring(0, 16);
         }
-        
-        // Ограничиваем длину имени команды (максимум 16 символов в некоторых версиях)
-        final String teamName = teamNameBase.length() > 16 ? teamNameBase.substring(0, 16) : teamNameBase;
         
         // Создаем или получаем команду
         Team team = scoreboard.getTeam(teamName);
         if (team == null) {
             team = scoreboard.registerNewTeam(teamName);
-            team.setColor(rank.getColor());
         }
-        
-        // Получаем название гильдии
-        String guildName = plugin.getGuildMasterNPC().getGuildName();
-        
-        // Формируем префикс для отображения над головой игрока через scoreboard teams
-        // Формат в одну строку: [Гильдия] [Отряд] Ник
-        // В Minecraft нельзя использовать многострочный текст, поэтому используем структурированный формат
-        StringBuilder prefix = new StringBuilder();
-        
-        // Название гильдии
-        prefix.append("§6§l");
-        prefix.append(guildName);
-        prefix.append(" §r");
-        
-        // Название отряда (если есть)
-        if (squadName != null && squadRank != null) {
-            if (isSquadLeader) {
-                prefix.append("§6♔ ");
-            }
-            prefix.append(squadRank.getColorCode());
-            prefix.append(squadName);
-            prefix.append(" §r");
-        }
-        
-        // Устанавливаем префикс (будет отображаться перед именем)
-        team.setPrefix(prefix.toString());
         
         // Устанавливаем цвет ника игрока через цвет команды
         if (rank == Rank.SS) {
@@ -98,36 +69,31 @@ public class NameColorManager {
             team.setColor(rank.getColor());
         }
         
+        // Убираем префикс - используем только голограмму для отображения над головой
+        team.setPrefix("");
+        
+        // Формируем суффикс только с отрядом (без ранга) для статистики
+        StringBuilder suffix = new StringBuilder();
+        if (squadName != null && squadRank != null) {
+            suffix.append(" §r");
+            if (isSquadLeader) {
+                suffix.append("§6♔ ");
+            }
+            suffix.append(squadRank.getColorCode());
+            suffix.append(squadName);
+        }
+        team.setSuffix(suffix.toString());
+        
         // Для отображения в списке игроков (таб) - только ник без префиксов
         player.setPlayerListName(player.getName());
         
         // Для отображения над головой - используем только имя, префикс добавится через team
         player.setDisplayName(player.getName());
         
-        // Создаем отдельную команду для статистики без префиксов
-        // Это нужно для scoreboard статистики, чтобы отображался только ник
-        String statsTeamName = "stats_" + player.getName();
-        if (statsTeamName.length() > 16) {
-            statsTeamName = statsTeamName.substring(0, 16);
-        }
-        
-        Team statsTeam = scoreboard.getTeam(statsTeamName);
-        if (statsTeam == null) {
-            statsTeam = scoreboard.registerNewTeam(statsTeamName);
-        }
-        
-        // Убираем префиксы для статистики
-        statsTeam.setPrefix("");
-        statsTeam.setSuffix("");
-        
-        // Добавляем игрока в команду статистики
-        if (!statsTeam.hasEntry(player.getName())) {
-            statsTeam.addEntry(player.getName());
-        }
-        
         // Удаляем игрока из других команд гильдии
         for (Team oldTeam : scoreboard.getTeams()) {
-            if (oldTeam.getName().startsWith("guild_") && oldTeam.hasEntry(player.getName())) {
+            if ((oldTeam.getName().startsWith("guild_") || oldTeam.getName().startsWith("stats_")) 
+                && oldTeam.hasEntry(player.getName()) && !oldTeam.equals(team)) {
                 oldTeam.removeEntry(player.getName());
             }
         }

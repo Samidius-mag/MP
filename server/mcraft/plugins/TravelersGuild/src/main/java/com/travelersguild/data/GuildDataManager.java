@@ -54,7 +54,7 @@ public class GuildDataManager {
                     try {
                         members.add(UUID.fromString(uuidStr));
                     } catch (IllegalArgumentException e) {
-                        plugin.getLogger().warning("Неверный UUID в отряде " + squadName + ": " + uuidStr);
+                        // Игнорируем неверные UUID
                     }
                 }
                 squads.put(squadName, members);
@@ -70,7 +70,7 @@ public class GuildDataManager {
                     try {
                         requests.add(UUID.fromString(uuidStr));
                     } catch (IllegalArgumentException e) {
-                        plugin.getLogger().warning("Неверный UUID в запросах отряда " + squadName + ": " + uuidStr);
+                        // Игнорируем неверные UUID
                     }
                 }
                 squadJoinRequests.put(squadName, requests);
