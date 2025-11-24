@@ -875,7 +875,6 @@ public class GuildMenu implements Listener {
                     player.closeInventory();
                 }
             }
-        }
     }
     
     public void showJoinRequestsMenu(Player player, String squadName) {
