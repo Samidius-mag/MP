@@ -12,6 +12,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
@@ -444,40 +445,52 @@ public class GuildMenu implements Listener {
         }
         
         Player player = (Player) event.getWhoClicked();
-        Inventory inv = event.getInventory();
         String title = event.getView().getTitle();
         
-        // Проверяем, что клик не в инвентаре игрока (нижний инвентарь)
-        if (event.getClickedInventory() != null && event.getClickedInventory().getType() == InventoryType.PLAYER) {
-            return; // Не обрабатываем клики в инвентаре игрока
+        // Проверяем, что это наше меню
+        if (!title.equals("§6§lГильдия Путешественников") && 
+            !title.equals("§6§lУправление Отрядом") &&
+            !title.startsWith("§6§lСписок Отрядов") &&
+            !title.startsWith("§6§lУправление Отрядом:") &&
+            !title.equals("§6§lЗапросы на Вступление")) {
+            return; // Не наше меню, не обрабатываем
         }
         
-        if (title.equals("§6§lГильдия Путешественников") || 
-            title.equals("§6§lУправление Отрядом") ||
-            title.startsWith("§6§lСписок Отрядов") ||
-            title.startsWith("§6§lУправление Отрядом:") ||
-            title.equals("§6§lЗапросы на Вступление")) {
-            
-            // Предотвращаем перетаскивание - проверяем, что курсор пуст и это не перетаскивание
-            if (event.getCursor() != null && event.getCursor().getType() != Material.AIR) {
-                event.setCancelled(true);
-                return;
-            }
-            
-            // Предотвращаем перетаскивание через проверку типа клика
-            ClickType clickType = event.getClick();
-            if (clickType == ClickType.SHIFT_LEFT || clickType == ClickType.SHIFT_RIGHT ||
-                clickType == ClickType.NUMBER_KEY || clickType == ClickType.SWAP_OFFHAND) {
-                event.setCancelled(true);
-                return;
-            }
-            
-            event.setCancelled(true);
-            
-            ItemStack clicked = event.getCurrentItem();
-            if (clicked == null || clicked.getType() == Material.AIR) {
-                return;
-            }
+        // Проверяем, что клик в верхнем инвентаре (GUI), а не в инвентаре игрока
+        if (event.getClickedInventory() == null) {
+            return;
+        }
+        
+        // Если клик в инвентаре игрока (нижний инвентарь), не обрабатываем
+        if (event.getClickedInventory().getType() == InventoryType.PLAYER) {
+            return;
+        }
+        
+        // Если клик не в верхнем инвентаре (GUI), не обрабатываем
+        if (event.getClickedInventory() != event.getView().getTopInventory()) {
+            return;
+        }
+        
+        // Отменяем событие для нашего GUI
+        event.setCancelled(true);
+        
+        // Предотвращаем перетаскивание - проверяем, что курсор пуст и это не перетаскивание
+        if (event.getCursor() != null && event.getCursor().getType() != Material.AIR) {
+            return;
+        }
+        
+        // Предотвращаем перетаскивание через проверку типа клика
+        ClickType clickType = event.getClick();
+        if (clickType == ClickType.SHIFT_LEFT || clickType == ClickType.SHIFT_RIGHT ||
+            clickType == ClickType.NUMBER_KEY || clickType == ClickType.SWAP_OFFHAND ||
+            clickType == ClickType.DOUBLE_CLICK) {
+            return;
+        }
+        
+        ItemStack clicked = event.getCurrentItem();
+        if (clicked == null || clicked.getType() == Material.AIR) {
+            return;
+        }
             
             UUID uuid = player.getUniqueId();
             
@@ -736,10 +749,10 @@ public class GuildMenu implements Listener {
                             plugin.getNameColorManager().updatePlayerNameColor(requester, dataManager.getPlayerRank(requesterUuid), true);
                         }
                         
-                        // Закрываем инвентарь в следующем тике, чтобы не блокировать действия игрока
+                        // Закрываем инвентарь сразу и открываем новое меню в следующем тике
+                        player.closeInventory();
                         plugin.getServer().getScheduler().runTask(plugin, () -> {
-                            if (player.isOnline()) {
-                                player.closeInventory();
+                            if (player.isOnline() && !player.isDead()) {
                                 showJoinRequestsMenu(player, squadName);
                             }
                         });
@@ -775,10 +788,10 @@ public class GuildMenu implements Listener {
                         requester.sendMessage("§cВаш запрос на вступление в отряд §e" + squadName + " §cотклонен");
                     }
                     
-                    // Закрываем инвентарь в следующем тике, чтобы не блокировать действия игрока
+                    // Закрываем инвентарь сразу и открываем новое меню в следующем тике
+                    player.closeInventory();
                     plugin.getServer().getScheduler().runTask(plugin, () -> {
-                        if (player.isOnline()) {
-                            player.closeInventory();
+                        if (player.isOnline() && !player.isDead()) {
                             showJoinRequestsMenu(player, squadName);
                         }
                     });
@@ -942,6 +955,33 @@ public class GuildMenu implements Listener {
         inv.setItem(size - 1, backItem);
         
         player.openInventory(inv);
+    }
+    
+    @EventHandler
+    public void onInventoryClose(InventoryCloseEvent event) {
+        if (!(event.getPlayer() instanceof Player)) {
+            return;
+        }
+        
+        Player player = (Player) event.getPlayer();
+        String title = event.getView().getTitle();
+        
+        // Если закрыто наше меню, убеждаемся, что игрок может нормально взаимодействовать
+        if (title.equals("§6§lГильдия Путешественников") || 
+            title.equals("§6§lУправление Отрядом") ||
+            title.startsWith("§6§lСписок Отрядов") ||
+            title.startsWith("§6§lУправление Отрядом:") ||
+            title.equals("§6§lЗапросы на Вступление")) {
+            
+            // Убеждаемся, что игрок может взаимодействовать с миром
+            // Это должно помочь, если что-то блокировало действия игрока
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                if (player.isOnline() && !player.isDead()) {
+                    // Сбрасываем любые возможные блокировки
+                    player.updateInventory();
+                }
+            });
+        }
     }
     
     @EventHandler
