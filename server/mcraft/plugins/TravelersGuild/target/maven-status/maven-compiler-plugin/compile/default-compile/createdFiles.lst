@@ -1,15 +1,7 @@
 com/travelersguild/economy/CoinManager.class
-com/travelersguild/util/AnnouncementManager$1.class
 com/travelersguild/menu/GuildMenu.class
 com/travelersguild/data/GuildDataManager.class
-com/travelersguild/util/HologramManager.class
 com/travelersguild/TravelersGuild.class
+com/travelersguild/menu/GuildMenu$1.class
 com/travelersguild/npc/GuildMasterNPC.class
 com/travelersguild/menu/GuildMenu$MenuState.class
-com/travelersguild/util/AnnouncementManager.class
-com/travelersguild/data/Rank.class
-com/travelersguild/util/AnnouncementManager$2.class
-com/travelersguild/util/NameColorManager.class
-com/travelersguild/data/SquadRank.class
-com/travelersguild/menu/GuildMenu$1.class
-com/travelersguild/util/GuildBuildingBuilder.class
