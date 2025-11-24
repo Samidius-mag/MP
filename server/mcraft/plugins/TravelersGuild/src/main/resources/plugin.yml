@@ -12,7 +12,7 @@ commands:
     permission: travelersguild.use
   guildadmin:
     description: Административные команды гильдии
-    usage: /guildadmin <spawn [название]|remove|reload>
+    usage: /guildadmin <spawn [название]|remove|reload|build>
     permission: travelersguild.admin
 
 permissions:

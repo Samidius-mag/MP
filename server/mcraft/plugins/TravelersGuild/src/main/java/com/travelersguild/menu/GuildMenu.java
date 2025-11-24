@@ -13,6 +13,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
@@ -449,7 +450,23 @@ public class GuildMenu implements Listener {
         if (title.equals("§6§lГильдия Путешественников") || 
             title.equals("§6§lУправление Отрядом") ||
             title.startsWith("§6§lСписок Отрядов") ||
-            title.startsWith("§6§lУправление Отрядом:")) {
+            title.startsWith("§6§lУправление Отрядом:") ||
+            title.equals("§6§lЗапросы на Вступление")) {
+            
+            // Предотвращаем перетаскивание - проверяем, что курсор пуст и это не перетаскивание
+            if (event.getCursor() != null && event.getCursor().getType() != Material.AIR) {
+                event.setCancelled(true);
+                return;
+            }
+            
+            // Предотвращаем перетаскивание через проверку типа клика
+            ClickType clickType = event.getClick();
+            if (clickType == ClickType.SHIFT_LEFT || clickType == ClickType.SHIFT_RIGHT ||
+                clickType == ClickType.NUMBER_KEY || clickType == ClickType.SWAP_OFFHAND) {
+                event.setCancelled(true);
+                return;
+            }
+            
             event.setCancelled(true);
             
             ItemStack clicked = event.getCurrentItem();
@@ -630,7 +647,6 @@ public class GuildMenu implements Listener {
                 }
             } else if (title.equals("§6§lЗапросы на Вступление")) {
                 // Обработка запросов на вступление
-                event.setCancelled(true);
                 String squadName = dataManager.getPlayerSquad(uuid);
                 if (squadName == null || !dataManager.isSquadLeader(squadName, uuid)) {
                     player.sendMessage("§cОшибка: вы не являетесь лидером отряда!");

@@ -20,6 +20,7 @@ import com.travelersguild.npc.GuildMasterNPC;
 import com.travelersguild.menu.GuildMenu;
 import com.travelersguild.util.NameColorManager;
 import com.travelersguild.util.AnnouncementManager;
+import com.travelersguild.util.GuildBuildingBuilder;
 import com.travelersguild.economy.CoinManager;
 
 public class TravelersGuild extends JavaPlugin implements Listener {
@@ -234,7 +235,27 @@ public class TravelersGuild extends JavaPlugin implements Listener {
                 return true;
             }
             
-            sender.sendMessage("§cИспользование: /guildadmin <spawn [название]|remove|reload>");
+            if (args[0].equalsIgnoreCase("build")) {
+                if (sender instanceof Player) {
+                    Player player = (Player) sender;
+                    Location buildLocation = player.getLocation();
+                    
+                    // Строим здание
+                    GuildBuildingBuilder.buildGuildBuilding(buildLocation);
+                    sender.sendMessage("§a═══════════════════════════");
+                    sender.sendMessage("§aЗдание гильдии построено!");
+                    sender.sendMessage("§7Координаты: §eX: " + buildLocation.getBlockX() + 
+                                       " Y: " + buildLocation.getBlockY() + 
+                                       " Z: " + buildLocation.getBlockZ());
+                    sender.sendMessage("§7Используйте §e/guildadmin spawn §7для создания NPC");
+                    sender.sendMessage("§a═══════════════════════════");
+                } else {
+                    sender.sendMessage("§cЭта команда доступна только игрокам!");
+                }
+                return true;
+            }
+            
+            sender.sendMessage("§cИспользование: /guildadmin <spawn [название]|remove|reload|build>");
             return true;
         }
         
