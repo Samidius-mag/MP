@@ -491,10 +491,10 @@ public class GuildMenu implements Listener {
         if (clicked == null || clicked.getType() == Material.AIR) {
             return;
         }
-            
-            UUID uuid = player.getUniqueId();
-            
-            if (title.equals("§6§lГильдия Путешественников")) {
+        
+        UUID uuid = player.getUniqueId();
+        
+        if (title.equals("§6§lГильдия Путешественников")) {
                 // Главное меню
                 if (clicked.getType() == Material.EMERALD && clicked.getItemMeta().getDisplayName().contains("Зарегистрироваться")) {
                     // Регистрация
@@ -757,9 +757,8 @@ public class GuildMenu implements Listener {
                             }
                         });
                     }
-                } 
-                // Обработка кнопки "Отклонить"
-                else if (clicked.getType() == Material.REDSTONE_BLOCK && displayName.contains("Отклонить")) {
+                } else if (clicked.getType() == Material.REDSTONE_BLOCK && displayName.contains("Отклонить")) {
+                    // Обработка кнопки "Отклонить"
                     // Извлекаем имя игрока из названия кнопки
                     String requesterName = displayName.substring(displayName.indexOf(": §e") + 4);
                     UUID requesterUuid = null;
