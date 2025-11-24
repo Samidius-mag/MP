@@ -251,7 +251,7 @@ public class GuildBuildingBuilder {
         }
         
         // Каменные блоки на траве
-        int[] stonePositions = {{-12, -12}, {12, -12}, {-12, 12}, {12, 12}};
+        int[][] stonePositions = {{-12, -12}, {12, -12}, {-12, 12}, {12, 12}};
         for (int[] pos : stonePositions) {
             world.getBlockAt(cx + pos[0], cy, cz + pos[1]).setType(Material.STONE);
         }

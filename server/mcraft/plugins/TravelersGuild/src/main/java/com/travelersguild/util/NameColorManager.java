@@ -105,11 +105,12 @@ public class NameColorManager {
         
         // Для ранга SS устанавливаем специальный цвет
         if (rank == Rank.SS) {
+            final String finalTeamName = teamName; // Делаем final для использования в lambda
             plugin.getServer().getScheduler().runTask(plugin, () -> {
                 try {
                     plugin.getServer().dispatchCommand(
                         plugin.getServer().getConsoleSender(),
-                        "team modify " + teamName + " color yellow"
+                        "team modify " + finalTeamName + " color yellow"
                     );
                 } catch (Exception e) {
                     // Игнорируем ошибки
