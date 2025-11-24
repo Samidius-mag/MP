@@ -12,3 +12,4 @@ com/travelersguild/util/AnnouncementManager$2.class
 com/travelersguild/util/NameColorManager.class
 com/travelersguild/data/SquadRank.class
 com/travelersguild/menu/GuildMenu$1.class
+com/travelersguild/util/GuildBuildingBuilder.class
