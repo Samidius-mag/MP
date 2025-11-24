@@ -247,7 +247,7 @@ public class GuildBuildingBuilder {
         // Пол комнаты отдыха
         for (int x = loungeStartX + 1; x < loungeEndX; x++) {
             for (int z = loungeStartZ + 1; z < loungeEndZ; z++) {
-                world.getBlockAt(cx + x, cy, cz + z).setType(Material.BEIGE_CARPET);
+                world.getBlockAt(cx + x, cy, cz + z).setType(Material.BROWN_CARPET);
             }
         }
         
