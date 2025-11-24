@@ -447,6 +447,11 @@ public class GuildMenu implements Listener {
         Inventory inv = event.getInventory();
         String title = event.getView().getTitle();
         
+        // Проверяем, что клик не в инвентаре игрока (нижний инвентарь)
+        if (event.getClickedInventory() != null && event.getClickedInventory().getType() == InventoryType.PLAYER) {
+            return; // Не обрабатываем клики в инвентаре игрока
+        }
+        
         if (title.equals("§6§lГильдия Путешественников") || 
             title.equals("§6§lУправление Отрядом") ||
             title.startsWith("§6§lСписок Отрядов") ||
@@ -731,8 +736,13 @@ public class GuildMenu implements Listener {
                             plugin.getNameColorManager().updatePlayerNameColor(requester, dataManager.getPlayerRank(requesterUuid), true);
                         }
                         
-                        player.closeInventory();
-                        showJoinRequestsMenu(player, squadName);
+                        // Закрываем инвентарь в следующем тике, чтобы не блокировать действия игрока
+                        plugin.getServer().getScheduler().runTask(plugin, () -> {
+                            if (player.isOnline()) {
+                                player.closeInventory();
+                                showJoinRequestsMenu(player, squadName);
+                            }
+                        });
                     }
                 } 
                 // Обработка кнопки "Отклонить"
@@ -765,8 +775,13 @@ public class GuildMenu implements Listener {
                         requester.sendMessage("§cВаш запрос на вступление в отряд §e" + squadName + " §cотклонен");
                     }
                     
-                    player.closeInventory();
-                    showJoinRequestsMenu(player, squadName);
+                    // Закрываем инвентарь в следующем тике, чтобы не блокировать действия игрока
+                    plugin.getServer().getScheduler().runTask(plugin, () -> {
+                        if (player.isOnline()) {
+                            player.closeInventory();
+                            showJoinRequestsMenu(player, squadName);
+                        }
+                    });
                 }
             } else if (title.startsWith("§6§lУправление Отрядом:")) {
                 // Меню управления отрядом для лидера
